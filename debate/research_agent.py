@@ -161,7 +161,7 @@ def research_evidence(
         print("\nCutting evidence cards...\n")
         response_text = ""
         with client.messages.stream(
-            model="claude-haiku-4-20250514",  # Most cost-effective model
+            model="claude-3-5-haiku-20241022",  # Most cost-effective model
             max_tokens=4096,  # Limit tokens for cost control
             messages=[{"role": "user", "content": prompt}],
         ) as stream_response:
@@ -172,7 +172,7 @@ def research_evidence(
     else:
         # Non-streaming response
         response = client.messages.create(
-            model="claude-haiku-4-20250514",  # Most cost-effective model
+            model="claude-3-5-haiku-20241022",  # Most cost-effective model
             max_tokens=4096,  # Limit tokens for cost control
             messages=[{"role": "user", "content": prompt}],
         )
