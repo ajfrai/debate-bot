@@ -101,11 +101,7 @@ class RoundController:
         print(f"AI (Team B): {self.ai_side.value.upper()}")
         print("=" * 60 + "\n")
 
-        # Generate cases if not provided
-        if not self.round_state.team_a_case:
-            print("\nGenerating your opening case...\n")
-            self.round_state.team_a_case = self._generate_case(self.user_side)
-
+        # Generate AI's case if not provided (user will deliver theirs as a speech)
         if not self.round_state.team_b_case:
             print("\nGenerating AI opponent's case...\n")
             self.round_state.team_b_case = self._generate_case(self.ai_side)

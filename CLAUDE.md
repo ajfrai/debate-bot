@@ -11,16 +11,14 @@ A CLI tool for practicing Public Forum debate against an AI opponent with AI jud
 ```bash
 # Run a full debate round against the AI
 uv run debate run "Resolved: The US should ban TikTok" --side pro
-
-# Or pre-generate cases before starting
-uv run debate run "Resolved: The US should ban TikTok" --side pro --gen-cases
 ```
 
 This will:
-1. Generate opening cases for both sides
-2. Walk you through all speeches (constructive, rebuttal, summary, final focus)
-3. Conduct crossfire Q&A after constructives, rebuttals, and summaries
-4. Have an AI judge evaluate the round and declare a winner with feedback
+1. Generate the AI opponent's opening case
+2. Walk you through all speeches (you deliver your constructive, rebuttal, summary, final focus)
+3. The AI delivers its speeches in response
+4. Conduct crossfire Q&A after constructives, rebuttals, and summaries
+5. Have an AI judge evaluate the round and declare a winner with feedback
 
 ### Generate a Case (Basic)
 

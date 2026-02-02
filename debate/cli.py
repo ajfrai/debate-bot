@@ -203,24 +203,13 @@ def cmd_run(args) -> None:
     print(f"\nStarting debate round: {args.resolution}")
     print(f"You are debating {args.side.upper()}\n")
 
-    # Generate cases if requested
-    user_case = None
-    ai_case = None
-
-    if args.gen_cases:
-        print("Generating cases for both sides...\n")
-        user_case = generate_case(args.resolution, side, None, stream=True)
-        print("\n")
-        ai_case = generate_case(args.resolution, side.opposite, None, stream=True)
-        print("\n")
-
-    # Initialize and run the round
+    # Initialize and run the round (AI case generated automatically)
     try:
         controller = RoundController(
             resolution=args.resolution,
             user_side=side,
-            user_case=user_case,
-            ai_case=ai_case,
+            user_case=None,  # User delivers their constructive as a speech
+            ai_case=None,  # Generated automatically by controller
         )
 
         decision = controller.run_round()
@@ -344,11 +333,6 @@ def main() -> None:
         choices=["pro", "con"],
         required=True,
         help="Which side you will debate",
-    )
-    run_parser.add_argument(
-        "--gen-cases",
-        action="store_true",
-        help="Generate cases for both sides before starting (default: generates during round)",
     )
     run_parser.set_defaults(func=cmd_run)
 
