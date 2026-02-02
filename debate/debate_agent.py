@@ -3,7 +3,6 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -20,8 +19,6 @@ from debate.models import (
     RoundState,
     SectionType,
     Side,
-    Speech,
-    SpeechType,
 )
 from debate.research_agent import research_evidence as _research_evidence
 
@@ -53,7 +50,7 @@ class DebateAgent:
         self.side = side
         self.resolution = resolution
         self.client = anthropic.Anthropic()
-        self.prep_file: Optional[PrepFile] = None
+        self.prep_file: PrepFile | None = None
 
     def research(
         self,
@@ -86,7 +83,7 @@ class DebateAgent:
 
     def generate_case(
         self,
-        debate_file: Optional[DebateFile] = None,
+        debate_file: DebateFile | None = None,
         stream: bool = True,
     ) -> Case:
         """Generate an opening case.
@@ -102,6 +99,7 @@ class DebateAgent:
         if debate_file:
             # Convert debate file sections to evidence buckets for compatibility
             from debate.models import EvidenceBucket
+
             sections = debate_file.get_sections_for_side(self.side)
             evidence_buckets = []
             for section in sections:
@@ -109,7 +107,9 @@ class DebateAgent:
                     topic=section.argument,
                     resolution=self.resolution,
                     side=self.side,
-                    cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)]
+                    cards=[
+                        debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)
+                    ],
                 )
                 evidence_buckets.append(bucket)
 
@@ -125,7 +125,7 @@ class DebateAgent:
         goal: str,
         round_state: RoundState,
         time_limit_seconds: int,
-        debate_file: Optional[DebateFile] = None,
+        debate_file: DebateFile | None = None,
         stream: bool = True,
     ) -> str:
         """Generate a speech based on the goal and current round state.
@@ -432,10 +432,10 @@ Generate a strategic crossfire question (1-2 sentences) that:
         messages = []
         current_turn = 0
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"AUTONOMOUS PREP: {self.side.value.upper()} on {self.resolution}")
         print(f"Budget: {max_turns} turns")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         while current_turn < max_turns:
             current_turn += 1
@@ -493,11 +493,13 @@ Generate a strategic crossfire question (1-2 sentences) that:
                         else:
                             result = {"error": f"Unknown tool: {tool_name}"}
 
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result, indent=2),
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps(result, indent=2),
+                            }
+                        )
 
                         print(f"[{tool_name} complete]\n")
 
@@ -509,17 +511,17 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 print("\n[Agent concluded prep]\n")
                 break
 
-        print(f"\n{'='*60}")
-        print(f"PREP COMPLETE")
+        print(f"\n{'=' * 60}")
+        print("PREP COMPLETE")
         print(f"Turns used: {current_turn}/{max_turns}")
         print(f"Arguments: {len(self.prep_file.arguments)}")
         print(f"Total cards: {sum(len(arg.card_ids) for arg in self.prep_file.arguments)}")
         print(f"Analyses: {len(self.prep_file.analyses)}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         return self.prep_file
 
-    def _analyze_skill(self, analysis_type: str, subject: Optional[str] = None) -> dict:
+    def _analyze_skill(self, analysis_type: str, subject: str | None = None) -> dict:
         """Execute an analysis skill."""
         analysis_enum = AnalysisType(analysis_type)
 
@@ -552,9 +554,7 @@ Generate a strategic crossfire question (1-2 sentences) that:
         # For now, return placeholder
         return "PRO arguments: 1. Security, 2. Privacy, 3. Democracy\nCON arguments: 1. Economy, 2. Free speech, 3. Innovation"
 
-    def _research_skill(
-        self, topic: str, purpose: str, num_cards: int = 3, stream: bool = True
-    ) -> dict:
+    def _research_skill(self, topic: str, purpose: str, num_cards: int = 3, stream: bool = True) -> dict:
         """Execute research skill: backfiles first, then web search, organize immediately."""
         purpose_enum = SectionType(purpose)
 
@@ -573,17 +573,27 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
         if cards_needed > 0:
             print(f"  Researching {cards_needed} more cards from web...")
-            # Use existing research agent
-            research_result = _research_evidence(
+            # Use existing research agent (returns DebateFile)
+            updated_debate_file = _research_evidence(
                 resolution=self.resolution,
                 side=self.side,
                 topic=topic,
                 num_cards=cards_needed,
-                section_type=purpose,
                 stream=stream,
             )
-            new_cards = research_result.get("cards", [])
-            sources_used = research_result.get("sources", [])
+
+            # Extract newly added cards from the debate file
+            # The research agent adds cards to sections, so get them from the appropriate side
+            sections = updated_debate_file.get_sections_for_side(self.side)
+            for section in sections:
+                if topic.lower() in section.argument.lower():
+                    for card_id in section.card_ids:
+                        card = updated_debate_file.get_card(card_id)
+                        if card and card not in existing_cards:
+                            new_cards.append(card)
+
+            # Extract sources from cards
+            sources_used = list(set(card.source for card in new_cards if hasattr(card, "source")))
 
         # Step 3: Organize into PrepFile immediately
         all_card_ids = []

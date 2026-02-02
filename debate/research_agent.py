@@ -8,20 +8,19 @@ This module provides cost-effective evidence research by:
 
 import json
 import os
-from typing import Optional
 
 import anthropic
 import requests
 
 from debate.config import Config
-from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
 from debate.evidence_storage import get_or_create_debate_file, save_debate_file
+from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
 
 
 def load_prompt_template(name: str) -> str:
     """Load a prompt template from the prompts directory."""
     prompt_path = os.path.join(os.path.dirname(__file__), "prompts", f"{name}.md")
-    with open(prompt_path, "r") as f:
+    with open(prompt_path) as f:
         return f.read()
 
 
@@ -44,7 +43,7 @@ def load_lessons(*lesson_names: str) -> str:
     for name in lesson_names:
         lesson_path = os.path.join(lessons_dir, f"{name}.md")
         if os.path.exists(lesson_path):
-            with open(lesson_path, "r") as f:
+            with open(lesson_path) as f:
                 lessons.append(f.read())
 
     if not lessons:
@@ -53,7 +52,7 @@ def load_lessons(*lesson_names: str) -> str:
     return "\n\n---\n\n".join(lessons)
 
 
-def _brave_search(query: str, num_results: int = 5) -> Optional[str]:
+def _brave_search(query: str, num_results: int = 5) -> str | None:
     """Search Brave for relevant sources.
 
     Args:
@@ -137,7 +136,7 @@ def research_evidence(
     side: Side,
     topic: str,
     num_cards: int = 3,
-    search_query: Optional[str] = None,
+    search_query: str | None = None,
     stream: bool = True,
 ) -> DebateFile:
     """Research and cut evidence cards for a specific argument.
@@ -278,7 +277,7 @@ def research_evidence(
         return debate_file
 
     except (json.JSONDecodeError, KeyError) as e:
-        raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}")
+        raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}") from e
 
 
 def research_evidence_legacy(
@@ -286,7 +285,7 @@ def research_evidence_legacy(
     side: Side,
     topic: str,
     num_cards: int = 3,
-    search_query: Optional[str] = None,
+    search_query: str | None = None,
     stream: bool = True,
 ) -> EvidenceBucket:
     """Research and cut evidence cards (legacy format returning EvidenceBucket).

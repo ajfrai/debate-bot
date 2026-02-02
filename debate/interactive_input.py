@@ -8,7 +8,6 @@ from prompt_toolkit.styles import Style
 from pygments.lexers.markup import MarkdownLexer
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 
 
 def count_words(text: str) -> int:
@@ -42,19 +41,21 @@ def get_multiline_speech(
     # Display header
     time_minutes = time_seconds // 60
     console.print()
-    console.print(Panel(
-        f"[bold cyan]{speech_type}[/bold cyan] - {time_minutes} minute{'s' if time_minutes != 1 else ''}\n"
-        f"Target: ~{target_word_count} words (at 150 wpm)\n\n"
-        f"[dim]Type your speech below. Press ESC then Enter when finished.[/dim]",
-        style="bold blue",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            f"[bold cyan]{speech_type}[/bold cyan] - {time_minutes} minute{'s' if time_minutes != 1 else ''}\n"
+            f"Target: ~{target_word_count} words (at 150 wpm)\n\n"
+            f"[dim]Type your speech below. Press ESC then Enter when finished.[/dim]",
+            style="bold blue",
+            expand=False,
+        )
+    )
     console.print()
 
     # Create key bindings
     kb = KeyBindings()
 
-    @kb.add('escape', 'enter')
+    @kb.add("escape", "enter")
     def _(event):
         """Exit on ESC + Enter."""
         event.app.exit()
@@ -66,23 +67,25 @@ def get_multiline_speech(
 
         # Color based on progress
         if word_count < target_word_count * 0.8:
-            color = '#888888'  # Gray
+            color = "#888888"  # Gray
         elif word_count < target_word_count * 0.95:
-            color = '#ffa500'  # Orange
+            color = "#ffa500"  # Orange
         elif word_count <= target_word_count * 1.1:
-            color = '#00ff00'  # Green
+            color = "#00ff00"  # Green
         else:
-            color = '#ff0000'  # Red
+            color = "#ff0000"  # Red
 
         return HTML(
             f' <b>Words:</b> <style fg="{color}">{word_count}</style> / ~{target_word_count} '
-            f'<b>|</b> ESC + Enter to finish'
+            f"<b>|</b> ESC + Enter to finish"
         )
 
     # Create style
-    style = Style.from_dict({
-        'bottom-toolbar': '#333333 bg:#88ff88',
-    })
+    style = Style.from_dict(
+        {
+            "bottom-toolbar": "#333333 bg:#88ff88",
+        }
+    )
 
     # Create session
     session = PromptSession(
@@ -94,7 +97,7 @@ def get_multiline_speech(
     )
 
     try:
-        text = session.prompt('> ')
+        text = session.prompt("> ")
         word_count = count_words(text)
 
         # Show summary
@@ -144,7 +147,9 @@ def display_crossfire_header(cf_type: str, time_seconds: int):
 
     console.print()
     console.print("=" * 60)
-    console.print(f"[bold cyan]CROSSFIRE: {cf_type.title()}[/bold cyan] ({time_minutes} minute{'s' if time_minutes != 1 else ''})")
+    console.print(
+        f"[bold cyan]CROSSFIRE: {cf_type.title()}[/bold cyan] ({time_minutes} minute{'s' if time_minutes != 1 else ''})"
+    )
     console.print("=" * 60)
     console.print("[dim]Answer opponent questions and ask your own strategic questions.[/dim]")
     console.print()
@@ -163,7 +168,7 @@ def get_single_line_input(prompt_text: str) -> str:
     session = PromptSession()
 
     try:
-        return session.prompt(HTML(f'<b>{prompt_text}</b> '))
+        return session.prompt(HTML(f"<b>{prompt_text}</b> "))
     except (EOFError, KeyboardInterrupt):
         console.print("\n[red]Input cancelled[/red]")
         return ""

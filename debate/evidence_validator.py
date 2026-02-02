@@ -15,30 +15,32 @@ Unacceptable:
 """
 
 import re
-from typing import List, Optional, Dict, Set, Tuple
 from dataclasses import dataclass
-from debate.models import DebateFile, Card
+
+from debate.models import Card, DebateFile
 
 
 @dataclass
 class CitationMatch:
     """Represents a citation found in speech text"""
+
     text: str  # Full citation text (e.g., "[Author Year] explains, ...")
     author_last: str  # Last name extracted
     year: str  # Year extracted
-    quoted_text: Optional[str]  # Any quoted portion that follows
+    quoted_text: str | None  # Any quoted portion that follows
     position: int  # Character position in speech
-    matched_card: Optional[Card] = None  # Matched card from debate file
+    matched_card: Card | None = None  # Matched card from debate file
 
 
 @dataclass
 class ValidationResult:
     """Results from validating a speech"""
+
     is_valid: bool
-    citations: List[CitationMatch]
-    errors: List[str]  # Unacceptable: citations without backing
-    warnings: List[str]  # Borderline: paraphrased without quotes
-    info: List[str]  # General information
+    citations: list[CitationMatch]
+    errors: list[str]  # Unacceptable: citations without backing
+    warnings: list[str]  # Borderline: paraphrased without quotes
+    info: list[str]  # General information
 
 
 class EvidenceValidator:
@@ -47,22 +49,19 @@ class EvidenceValidator:
     # Patterns to detect evidence citations
     CITATION_PATTERNS = [
         # [Author Year] explains/found/argues/states that...
-        r'\[([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})\]\s+(?:explains?|found|argues?|states?|says?|claims?|reports?|shows?|demonstrates?|concludes?)',
-
+        r"\[([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})\]\s+(?:explains?|found|argues?|states?|says?|claims?|reports?|shows?|demonstrates?|concludes?)",
         # Author Year explains/found/argues (without brackets)
-        r'(?:^|[.\s])([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})\s+(?:explains?|found|argues?|states?|says?|claims?|reports?|shows?|demonstrates?|concludes?)',
-
+        r"(?:^|[.\s])([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})\s+(?:explains?|found|argues?|states?|says?|claims?|reports?|shows?|demonstrates?|concludes?)",
         # According to Author Year,
-        r'According to ([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})',
-
+        r"According to ([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+(\d{4})",
         # Author (Year) format
-        r'([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+\((\d{4})\)',
+        r"([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+)?)\s+\((\d{4})\)",
     ]
 
     # Pattern to extract quoted text following a citation
     QUOTE_PATTERN = r'[,\s]+["\u201c]([^"\u201d]+)["\u201d]'
 
-    def __init__(self, debate_file: Optional[DebateFile] = None):
+    def __init__(self, debate_file: DebateFile | None = None):
         """
         Initialize validator with optional debate file
 
@@ -90,25 +89,20 @@ class EvidenceValidator:
         # If no debate file provided, we can't validate evidence
         if not self.debate_file:
             if citations:
-                warnings.append(
-                    f"Found {len(citations)} citation(s) but no evidence file available for validation"
-                )
+                warnings.append(f"Found {len(citations)} citation(s) but no evidence file available for validation")
             return ValidationResult(
                 is_valid=True,  # Can't invalidate without evidence file
                 citations=citations,
                 errors=errors,
                 warnings=warnings,
-                info=info
+                info=info,
             )
 
         # Match citations against available cards
         available_cards = self._get_cards_for_side(side)
 
         for citation in citations:
-            matched_card = self._find_matching_card(
-                citation,
-                available_cards
-            )
+            matched_card = self._find_matching_card(citation, available_cards)
 
             if matched_card:
                 citation.matched_card = matched_card
@@ -117,8 +111,7 @@ class EvidenceValidator:
                 if citation.quoted_text:
                     if self._verify_quote_match(citation.quoted_text, matched_card):
                         info.append(
-                            f"✓ Citation '{citation.author_last} {citation.year}' "
-                            f"matches evidence and quote verified"
+                            f"✓ Citation '{citation.author_last} {citation.year}' matches evidence and quote verified"
                         )
                     else:
                         warnings.append(
@@ -148,15 +141,9 @@ class EvidenceValidator:
 
         is_valid = len(errors) == 0
 
-        return ValidationResult(
-            is_valid=is_valid,
-            citations=citations,
-            errors=errors,
-            warnings=warnings,
-            info=info
-        )
+        return ValidationResult(is_valid=is_valid, citations=citations, errors=errors, warnings=warnings, info=info)
 
-    def _extract_citations(self, text: str) -> List[CitationMatch]:
+    def _extract_citations(self, text: str) -> list[CitationMatch]:
         """Extract all citations from speech text"""
         citations = []
         seen_positions = set()
@@ -176,24 +163,26 @@ class EvidenceValidator:
 
                 # Extract any quoted text following the citation
                 quoted_text = None
-                remaining_text = text[match.end():]
+                remaining_text = text[match.end() :]
                 quote_match = re.match(self.QUOTE_PATTERN, remaining_text)
                 if quote_match:
                     quoted_text = quote_match.group(1).strip()
 
-                citations.append(CitationMatch(
-                    text=match.group(0),
-                    author_last=author_last,
-                    year=year,
-                    quoted_text=quoted_text,
-                    position=position
-                ))
+                citations.append(
+                    CitationMatch(
+                        text=match.group(0),
+                        author_last=author_last,
+                        year=year,
+                        quoted_text=quoted_text,
+                        position=position,
+                    )
+                )
 
         # Sort by position in text
         citations.sort(key=lambda c: c.position)
         return citations
 
-    def _get_cards_for_side(self, side: str) -> List[Card]:
+    def _get_cards_for_side(self, side: str) -> list[Card]:
         """Get all cards available for the given side"""
         if not self.debate_file:
             return []
@@ -209,11 +198,7 @@ class EvidenceValidator:
 
         return cards
 
-    def _find_matching_card(
-        self,
-        citation: CitationMatch,
-        available_cards: List[Card]
-    ) -> Optional[Card]:
+    def _find_matching_card(self, citation: CitationMatch, available_cards: list[Card]) -> Card | None:
         """
         Find a card that matches the citation
 
@@ -223,7 +208,7 @@ class EvidenceValidator:
         """
         for card in available_cards:
             # Extract last name from card author (e.g., "Jane Smith, Professor" -> "Smith")
-            card_author = card.author.split(',')[0].strip()  # Remove credentials
+            card_author = card.author.split(",")[0].strip()  # Remove credentials
             card_last_names = card_author.split()[-1].lower()  # Get last name
 
             # Check for "and" in citations (e.g., "Smith and Jones")
@@ -251,7 +236,7 @@ class EvidenceValidator:
             True if the quote matches bolded portions (with some flexibility)
         """
         # Extract bolded portions from card text
-        bolded_pattern = r'\*\*([^*]+)\*\*'
+        bolded_pattern = r"\*\*([^*]+)\*\*"
         bolded_portions = re.findall(bolded_pattern, card.text)
 
         if not bolded_portions:
@@ -281,8 +266,8 @@ class EvidenceValidator:
             True if quote matches source above threshold
         """
         # Normalize text for comparison
-        quote_words = set(re.findall(r'\b\w+\b', quote.lower()))
-        source_words = set(re.findall(r'\b\w+\b', source.lower()))
+        quote_words = set(re.findall(r"\b\w+\b", quote.lower()))
+        source_words = set(re.findall(r"\b\w+\b", source.lower()))
 
         if not quote_words:
             return False
@@ -294,11 +279,7 @@ class EvidenceValidator:
         return overlap_ratio >= threshold
 
 
-def validate_speech_evidence(
-    speech_text: str,
-    side: str,
-    debate_file: Optional[DebateFile] = None
-) -> ValidationResult:
+def validate_speech_evidence(speech_text: str, side: str, debate_file: DebateFile | None = None) -> ValidationResult:
     """
     Convenience function to validate a speech
 

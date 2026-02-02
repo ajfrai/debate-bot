@@ -1,6 +1,5 @@
 """Configuration loader for debate bot agents and settings."""
 
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -26,11 +25,10 @@ class Config:
 
         if not config_path.exists():
             raise FileNotFoundError(
-                f"Configuration file not found at {config_path}. "
-                "Please ensure config.yaml exists in the project root."
+                f"Configuration file not found at {config_path}. Please ensure config.yaml exists in the project root."
             )
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             self._config = yaml.safe_load(f) or {}
 
     def get_agent_model(self, agent_name: str) -> str:
@@ -42,14 +40,9 @@ class Config:
         Returns:
             Model identifier string (e.g., 'claude-opus-4-5-20251101')
         """
-        model = (
-            self._config.get("agents", {}).get(agent_name, {}).get("model")
-        )
+        model = self._config.get("agents", {}).get(agent_name, {}).get("model")
         if not model:
-            raise ValueError(
-                f"Model not configured for agent '{agent_name}'. "
-                "Please check config.yaml agents section."
-            )
+            raise ValueError(f"Model not configured for agent '{agent_name}'. Please check config.yaml agents section.")
         return model
 
     def get_max_tokens(self) -> int:
