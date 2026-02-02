@@ -2,8 +2,16 @@
 
 from typing import Optional
 
+from rich.console import Console
+
 from debate.debate_agent import DebateAgent
 from debate.evidence_storage import load_debate_file
+from debate.interactive_input import (
+    display_crossfire_header,
+    display_speech_header,
+    get_multiline_speech,
+    get_single_line_input,
+)
 from debate.judge_agent import JudgeAgent
 from debate.models import (
     Case,
@@ -94,12 +102,15 @@ class RoundController:
         Returns:
             The judge's decision with winner and feedback
         """
-        print("\n" + "=" * 60)
-        print(f"DEBATE ROUND: {self.resolution}")
-        print("=" * 60)
-        print(f"You (Team A): {self.user_side.value.upper()}")
-        print(f"AI (Team B): {self.ai_side.value.upper()}")
-        print("=" * 60 + "\n")
+        console = Console()
+        console.print()
+        console.print("=" * 60)
+        console.print(f"[bold cyan]DEBATE ROUND:[/bold cyan] {self.resolution}")
+        console.print("=" * 60)
+        console.print(f"[bold green]You (Team A):[/bold green] {self.user_side.value.upper()}")
+        console.print(f"[bold blue]AI (Team B):[/bold blue] {self.ai_side.value.upper()}")
+        console.print("=" * 60)
+        console.print()
 
         # Generate AI's case if not provided (user will deliver theirs as a speech)
         if not self.round_state.team_b_case:
@@ -151,21 +162,11 @@ class RoundController:
 
     def _user_speech(self, speech_type: SpeechType, speaker_num: int, time_seconds: int):
         """Prompt user to enter their speech."""
-        print("\n" + "=" * 60)
-        print(f"YOUR TURN: {speech_type.value.title()} ({time_seconds // 60} minutes)")
-        print("=" * 60)
-        print("Enter your speech below. When done, press Enter on an empty line.")
-        print("(Press Ctrl+D or Ctrl+Z to finish)\n")
-
-        lines = []
-        try:
-            while True:
-                line = input()
-                lines.append(line)
-        except EOFError:
-            pass
-
-        content = "\n".join(lines)
+        # Use interactive input with word counter
+        content = get_multiline_speech(
+            speech_type=speech_type.value.title(),
+            time_seconds=time_seconds,
+        )
 
         speech = Speech(
             speech_type=speech_type,
@@ -176,25 +177,31 @@ class RoundController:
         )
 
         self.round_state.speeches.append(speech)
-        print("\nSpeech recorded.\n")
 
     def _ai_speech(self, speech_type: SpeechType, speaker_num: int, time_seconds: int):
         """Generate AI opponent's speech."""
-        print("\n" + "=" * 60)
-        print(f"AI OPPONENT: {speech_type.value.title()} ({time_seconds // 60} minutes)")
-        print("=" * 60 + "\n")
-
-        # Determine the goal based on speech type
-        goal = self._get_speech_goal(speech_type)
-
-        # Generate the speech
-        content = self.ai_agent.generate_speech(
-            goal=goal,
-            round_state=self.round_state,
-            time_limit_seconds=time_seconds,
-            debate_file=self.debate_file,
-            stream=True,
+        display_speech_header(
+            speech_type=speech_type.value.title(),
+            speaker="AI OPPONENT",
+            time_seconds=time_seconds,
         )
+
+        # For constructive, use the pre-generated case
+        if speech_type == SpeechType.CONSTRUCTIVE and self.round_state.team_b_case:
+            content = self.round_state.team_b_case.format()
+            print(content)
+            print()
+        else:
+            # For other speeches, generate based on goal
+            goal = self._get_speech_goal(speech_type)
+            content = self.ai_agent.generate_speech(
+                goal=goal,
+                round_state=self.round_state,
+                time_limit_seconds=time_seconds,
+                debate_file=self.debate_file,
+                stream=True,
+            )
+            print()
 
         speech = Speech(
             speech_type=speech_type,
@@ -205,7 +212,6 @@ class RoundController:
         )
 
         self.round_state.speeches.append(speech)
-        print()
 
     def _get_speech_goal(self, speech_type: SpeechType) -> str:
         """Get the goal description for a speech type."""
@@ -219,31 +225,30 @@ class RoundController:
 
     def _run_crossfire(self, cf_type: str, time_seconds: int):
         """Run a crossfire exchange."""
-        print("\n" + "=" * 60)
-        print(f"CROSSFIRE: {cf_type.title()} ({time_seconds // 60} minutes)")
-        print("=" * 60)
-        print("Answer opponent questions and ask your own strategic questions.\n")
+        display_crossfire_header(cf_type=cf_type, time_seconds=time_seconds)
 
+        console = Console()
         crossfire = Crossfire(
             crossfire_type=cf_type,
             time_limit_seconds=time_seconds,
         )
 
-        # Run 3-5 exchanges
+        # Run 4 exchanges
         num_exchanges = 4
         for i in range(num_exchanges):
-            # Alternate who asks first (user starts on odd exchanges)
+            # Alternate who asks first (user starts on even exchanges)
             if i % 2 == 0:
                 # User asks, AI answers
-                print(f"\n--- Exchange {i + 1} ---")
-                question = input("Your question to AI: ")
-                print("\nAI's answer:")
+                console.print(f"\n[bold]--- Exchange {i + 1} ---[/bold]")
+                question = get_single_line_input("Your question to AI:")
+
+                console.print("\n[dim]AI's answer:[/dim]")
                 answer = self.ai_agent.answer_crossfire_question(
                     question=question,
                     round_state=self.round_state,
                     stream=True,
                 )
-                print()
+                console.print()
 
                 crossfire.exchanges.append(
                     CrossfireExchange(
@@ -254,14 +259,14 @@ class RoundController:
                 )
             else:
                 # AI asks, user answers
-                print(f"\n--- Exchange {i + 1} ---")
-                print("AI's question:")
+                console.print(f"\n[bold]--- Exchange {i + 1} ---[/bold]")
+                console.print("[dim]AI's question:[/dim]")
                 question = self.ai_agent.ask_crossfire_question(
                     round_state=self.round_state,
                     stream=True,
                 )
-                print()
-                answer = input("Your answer: ")
+                console.print()
+                answer = get_single_line_input("Your answer:")
 
                 crossfire.exchanges.append(
                     CrossfireExchange(
@@ -272,4 +277,4 @@ class RoundController:
                 )
 
         self.round_state.crossfires.append(crossfire)
-        print("\nCrossfire complete.\n")
+        console.print("\n[green]✓[/green] Crossfire complete.\n")
