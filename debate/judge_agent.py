@@ -1,6 +1,5 @@
 """AI judge for evaluating debate rounds and providing decisions."""
 
-import json
 from pathlib import Path
 
 import anthropic
@@ -78,7 +77,7 @@ class JudgeAgent:
             )
             response_text = message.content[0].text
 
-        # Parse the decision
+        # Parse the decision from formatted text
         return self._parse_decision(response_text, round_state)
 
     def _format_round_for_judging(self, round_state: RoundState) -> str:
@@ -123,80 +122,61 @@ class JudgeAgent:
         return "\n".join(lines)
 
     def _parse_decision(self, response_text: str, round_state: RoundState) -> JudgeDecision:
-        """Parse the judge's decision from the response."""
-        # Try to extract JSON
-        json_str = self._extract_json_from_text(response_text)
+        """Parse the judge's decision from formatted text."""
+        import re
 
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse judge decision JSON: {e}") from e
+        # Extract winner
+        decision_match = re.search(r'\*\*DECISION:\s*(Team [AB])\*\*', response_text, re.IGNORECASE)
+        if not decision_match:
+            raise ValueError("Could not find DECISION marker in response")
 
-        # Parse winner
-        winner_str = data.get("winner", "").lower()
-        if "team a" in winner_str or "a" == winner_str:
+        winner_str = decision_match.group(1)
+        if "Team A" in winner_str:
             winner = round_state.team_a_side
             winning_team = "Team A"
-        elif "team b" in winner_str or "b" == winner_str:
+        elif "Team B" in winner_str:
             winner = round_state.team_b_side
             winning_team = "Team B"
         else:
             raise ValueError(f"Could not determine winner from: {winner_str}")
 
+        # Extract voting issues (numbered list after VOTING ISSUES:)
+        voting_issues = []
+        voting_section = re.search(
+            r'\*\*VOTING ISSUES:\*\*\s*(.*?)\s*\*\*REASON FOR DECISION:\*\*',
+            response_text,
+            re.DOTALL | re.IGNORECASE
+        )
+        if voting_section:
+            issues_text = voting_section.group(1)
+            # Extract numbered items
+            issue_matches = re.findall(r'^\d+\.\s*(.+?)(?=^\d+\.|$)', issues_text, re.MULTILINE | re.DOTALL)
+            voting_issues = [issue.strip() for issue in issue_matches]
+
+        # Extract RFD
+        rfd = ""
+        rfd_match = re.search(
+            r'\*\*REASON FOR DECISION:\*\*\s*(.*?)\s*\*\*FEEDBACK FOR TEAM',
+            response_text,
+            re.DOTALL | re.IGNORECASE
+        )
+        if rfd_match:
+            rfd = rfd_match.group(1).strip()
+
+        # Extract feedback
+        feedback = []
+        feedback_a = re.search(r'\*\*FEEDBACK FOR TEAM A:\*\*\s*(.*?)(?=\*\*FEEDBACK FOR TEAM B:|\Z)', response_text, re.DOTALL | re.IGNORECASE)
+        if feedback_a:
+            feedback.append(f"Team A: {feedback_a.group(1).strip()}")
+
+        feedback_b = re.search(r'\*\*FEEDBACK FOR TEAM B:\*\*\s*(.*?)(?=\Z)', response_text, re.DOTALL | re.IGNORECASE)
+        if feedback_b:
+            feedback.append(f"Team B: {feedback_b.group(1).strip()}")
+
         return JudgeDecision(
             winner=winner,
             winning_team=winning_team,
-            voting_issues=data.get("voting_issues", []),
-            rfd=data.get("rfd", ""),
-            feedback=data.get("feedback", []),
+            voting_issues=voting_issues if voting_issues else ["(No voting issues extracted)"],
+            rfd=rfd if rfd else "(No RFD extracted)",
+            feedback=feedback if feedback else ["(No feedback extracted)"],
         )
-
-    def _extract_json_from_text(self, text: str) -> str:
-        """Extract JSON object from text, handling markdown code blocks."""
-        import re
-
-        # Try to extract JSON from markdown code block first
-        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-        if code_block_match:
-            potential_json = code_block_match.group(1).strip()
-            if potential_json.startswith("{"):
-                return potential_json
-
-        # Fall back to finding raw JSON by matching balanced braces
-        json_start = text.find("{")
-        if json_start == -1:
-            raise ValueError("No JSON found in response")
-
-        depth = 0
-        in_string = False
-        escape_next = False
-        json_end = json_start
-
-        for i, char in enumerate(text[json_start:], start=json_start):
-            if escape_next:
-                escape_next = False
-                continue
-
-            if char == "\\":
-                escape_next = True
-                continue
-
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-
-            if in_string:
-                continue
-
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    json_end = i + 1
-                    break
-
-        if depth != 0:
-            raise ValueError("Unbalanced JSON braces in response")
-
-        return text[json_start:json_end]

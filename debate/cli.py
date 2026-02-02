@@ -3,6 +3,8 @@
 import argparse
 import sys
 
+from rich.console import Console
+
 from debate.case_generator import generate_case
 from debate.evidence_storage import (
     find_evidence_bucket,
@@ -242,21 +244,28 @@ def cmd_run(args) -> None:
 
         decision = controller.run_round()
 
-        # Print final summary
-        print("\n" + "=" * 60)
-        print("FINAL RESULT")
-        print("=" * 60)
-        print(f"Winner: {decision.winning_team} ({decision.winner.value.upper()})")
-        print("\nVoting Issues:")
+        # Print final summary with rich formatting
+        console = Console()
+        console.print("\n" + "=" * 60)
+        console.print("[bold yellow]FINAL RESULT[/bold yellow]")
+        console.print("=" * 60)
+
+        # Highlight winner
+        winner_color = "green" if decision.winning_team == "Team A" else "blue"
+        console.print(f"[bold {winner_color}]Winner: {decision.winning_team} ({decision.winner.value.upper()})[/bold {winner_color}]")
+
+        console.print("\n[bold]Voting Issues:[/bold]")
         for i, issue in enumerate(decision.voting_issues, 1):
-            print(f"{i}. {issue}")
-        print("\nFeedback:")
+            console.print(f"  {i}. {issue}")
+
+        console.print("\n[bold]Feedback:[/bold]")
         for feedback in decision.feedback:
-            print(f"- {feedback}")
-        print()
+            console.print(f"  • {feedback}")
+        console.print()
 
     except Exception as e:
-        print(f"Error running debate: {e}", file=sys.stderr)
+        console = Console()
+        console.print(f"[red]Error running debate:[/red] {e}", file=sys.stderr)
         sys.exit(1)
 
 
