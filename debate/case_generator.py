@@ -1,11 +1,12 @@
 """Generate debate cases using the Anthropic API."""
 
 import json
+import sys
 from pathlib import Path
 
 import anthropic
 
-from debate.models import Case, Contention, Side
+from debate.models import Case, Contention, EvidenceBucket, Side
 
 
 def load_prompt_template(name: str) -> str:
@@ -15,19 +16,32 @@ def load_prompt_template(name: str) -> str:
     return template_path.read_text()
 
 
-def generate_case(resolution: str, side: Side) -> Case:
+def generate_case(
+    resolution: str,
+    side: Side,
+    evidence_buckets: list[EvidenceBucket] | None = None,
+    stream: bool = True,
+) -> Case:
     """Generate a debate case for the given resolution and side.
 
     Args:
         resolution: The debate resolution text
         side: Which side to generate (PRO or CON)
+        evidence_buckets: Optional list of evidence buckets to use for the case.
+                         If provided, the case will use real evidence cards.
+                         If None, the case will use fabricated evidence.
+        stream: Whether to stream tokens as they're generated (default True)
 
     Returns:
         A Case object with 2-3 contentions
     """
     client = anthropic.Anthropic()
 
-    template = load_prompt_template("case_generation")
+    # Choose template based on whether we have evidence
+    if evidence_buckets:
+        template = load_prompt_template("case_generation_with_evidence")
+    else:
+        template = load_prompt_template("case_generation")
 
     side_description = "affirms the resolution" if side == Side.PRO else "negates the resolution"
     side_instruction = (
@@ -36,20 +50,39 @@ def generate_case(resolution: str, side: Side) -> Case:
         else "Argue that the resolution is false and should be negated"
     )
 
+    # Format evidence buckets if provided
+    evidence_section = ""
+    if evidence_buckets:
+        evidence_section = _format_evidence_buckets(evidence_buckets)
+
     prompt = template.format(
         resolution=resolution,
         side=side.value.upper(),
         side_description=side_description,
         side_instruction=side_instruction,
+        evidence_buckets=evidence_section,
     )
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    response_text = message.content[0].text
+    if stream:
+        # Stream the response
+        response_text = ""
+        with client.messages.stream(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream_response:
+            for text in stream_response.text_stream:
+                print(text, end="", flush=True)
+                response_text += text
+        print()  # Add newline after streaming
+    else:
+        # Non-streaming response
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        response_text = message.content[0].text
 
     # Extract JSON from the response
     contentions = _parse_case_response(response_text)
@@ -59,6 +92,26 @@ def generate_case(resolution: str, side: Side) -> Case:
         side=side,
         contentions=contentions,
     )
+
+
+def _format_evidence_buckets(buckets: list[EvidenceBucket]) -> str:
+    """Format evidence buckets for inclusion in the prompt."""
+    lines = ["## Available Evidence\n"]
+
+    for bucket in buckets:
+        lines.append(f"### {bucket.topic}\n")
+
+        for i, card in enumerate(bucket.cards, 1):
+            last_name = card.author.split()[-1]
+            lines.append(f"{i}. **{card.tag}** ({last_name} {card.year})")
+            lines.append(f"   - Author: {card.author}, {card.credentials}")
+            lines.append(f"   - Source: {card.source}, {card.year}")
+            if card.url:
+                lines.append(f"   - URL: {card.url}")
+            lines.append(f"   - Text: {card.text}")
+            lines.append("")
+
+    return "\n".join(lines)
 
 
 def _extract_json_from_text(text: str) -> str:
