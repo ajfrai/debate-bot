@@ -44,11 +44,13 @@ def cmd_generate(args) -> None:
 
         sections = debate_file.get_sections_for_side(side)
         for section in sections:
+            cards = [debate_file.get_card(card_id) for card_id in section.card_ids]
+            cards = [c for c in cards if c is not None]
             bucket = EvidenceBucket(
                 topic=section.argument,
                 resolution=args.resolution,
                 side=side,
-                cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)],
+                cards=cards,
             )
             if bucket.cards:
                 evidence_buckets.append(bucket)
@@ -59,13 +61,13 @@ def cmd_generate(args) -> None:
 
         for bucket_info in all_buckets:
             if bucket_info["side"] == side.value:
-                bucket = find_evidence_bucket(
+                found_bucket = find_evidence_bucket(
                     args.resolution,
                     side,
                     bucket_info["topic"],
                 )
-                if bucket:
-                    evidence_buckets.append(bucket)
+                if found_bucket:
+                    evidence_buckets.append(found_bucket)
                     print(f"  - Loaded {bucket_info['num_cards']} cards for '{bucket_info['topic']}'")
 
     if not evidence_buckets:
@@ -270,7 +272,7 @@ def cmd_run(args) -> None:
 
     except Exception as e:
         console = Console()
-        console.print(f"[red]Error running debate:[/red] {e}", file=sys.stderr)
+        console.print(f"[red]Error running debate:[/red] {e}")
         sys.exit(1)
 
 

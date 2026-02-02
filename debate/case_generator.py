@@ -86,7 +86,8 @@ def generate_case(
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
-        response_text = message.content[0].text
+        first_block = message.content[0]
+        response_text = first_block.text if hasattr(first_block, "text") else ""
 
     # Extract JSON from the response
     contentions = _parse_case_response(response_text)
