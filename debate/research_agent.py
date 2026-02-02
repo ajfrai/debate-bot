@@ -33,7 +33,10 @@ def _brave_search(query: str, num_results: int = 5) -> Optional[str]:
     Returns:
         Formatted search results as a string, or None if search fails
     """
-    api_key = os.environ.get("BRAVE_API_KEY", "BSArsGVaVsAQqTPz1Mls1Yydfz-C0FJ")
+    api_key = os.environ.get("BRAVE_API_KEY")
+
+    if not api_key:
+        return None
 
     try:
         headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
