@@ -4,8 +4,13 @@ You are a debate research assistant cutting evidence cards for Public Forum deba
 Research and cut {num_cards} high-quality evidence cards for the following:
 
 **Resolution:** {resolution}
-**Side:** {side_value} ({side})
+**Side:** {side_value} ({side} the resolution)
 **Topic/Argument:** {topic}
+
+**IMPORTANT:** You are cutting evidence for the {side_value} side, which means you are {side} the resolution.
+- If resolution is "The US should ban TikTok" and side is PRO, you SUPPORT the ban
+- If resolution is "The US should ban TikTok" and side is CON, you OPPOSE the ban
+Make sure all cards support the {side_value} position on the resolution!
 
 ## Research Strategy
 Use the search results below to generate evidence cards:
@@ -13,7 +18,6 @@ Use the search results below to generate evidence cards:
 - Look for credible academic, journalistic, and expert sources in the results
 - Prioritize recent evidence (2020-2026)
 - Focus on sources with clear author credentials
-- Visit the URLs in the search results to extract actual quotes
 
 {search_results}
 
@@ -23,33 +27,47 @@ Use the search results above to find real sources and quotes. If search results 
 
 Each card must be organized for its **strategic value**. Cards fall into these categories:
 
-1. **support** - Supporting evidence for a specific argument
-   - Example: "Supporting evidence for economic growth"
+1. **support** - Supporting evidence that PROVES a specific claim
+2. **answer** - Evidence that RESPONDS TO a specific opposing argument
+3. **extension** - Additional warrants to STRENGTHEN an existing argument
+4. **impact** - Evidence showing WHY something matters (magnitude, timeframe, probability)
 
-2. **answer** - Answer/response to an opponent's argument
-   - Example: "Answer to privacy concerns"
+## CRITICAL: Specific Argument Headers
 
-3. **extension** - Additional warrants to extend an argument
-   - Example: "Extensions for national security impact"
+**DO NOT use vague topic headers.** The `argument` field must state the SPECIFIC CLAIM, not a general topic.
 
-4. **impact** - Impact calculus evidence (magnitude, timeframe, probability)
-   - Example: "Impact evidence for democracy decline"
+BAD (too vague):
+- "economic impacts"
+- "national security"
+- "privacy concerns"
+
+GOOD (specific claims):
+- "TikTok ban eliminates 100k creator jobs"
+- "Chinese government can access TikTok user data"
+- "TikTok's algorithm promotes harmful content to teens"
+- "Ban sets precedent for government censorship"
+
+For ANSWER cards, state what you're answering:
+- "Opponent claim: TikTok is a national security threat"
+- "Opponent claim: Ban protects American data"
+- "Opponent claim: Economic costs are minimal"
 
 ## Card Cutting Guidelines
 
 Each evidence card should have:
 
-1. **tag**: Brief argument label (5-10 words) that clearly states what the card PROVES
-   - Good: "TikTok ban increases US tech competitiveness"
+1. **tag**: Brief label (5-10 words) stating what the card PROVES
+   - Good: "TikTok ban costs US economy $4 billion annually"
    - Bad: "TikTok and the economy"
 
-2. **purpose**: Clear strategic purpose explaining WHY this card matters
-   - Example: "Proves economic harm from ban - use to outweigh security benefits"
+2. **purpose**: ONE sentence explaining strategic use
+   - Example: "Use to outweigh opponent's security benefits with concrete economic harm"
 
 3. **section_type**: One of: "support", "answer", "extension", "impact"
 
-4. **argument**: The specific argument this card relates to
-   - Example: "economic impacts" or "privacy concerns"
+4. **argument**: The SPECIFIC claim this card relates to (see above for examples)
+   - For support/extension/impact: The specific claim you're proving
+   - For answer: "Opponent claim: [specific claim being answered]"
 
 5. **author**: Full name of the author
 
@@ -80,16 +98,16 @@ Bad bolding (too much):
 
 ## Output Format
 
-Return a JSON object with cards organized by their strategic value:
+Return a JSON object:
 
 ```json
 {{
   "cards": [
     {{
-      "tag": "TikTok ban costs US economy billions",
-      "purpose": "Proves direct economic harm - use against national security args",
+      "tag": "TikTok ban eliminates 100,000 creator jobs",
+      "purpose": "Concrete job loss number to outweigh vague security benefits",
       "section_type": "support",
-      "argument": "economic impacts",
+      "argument": "TikTok ban destroys creator economy livelihoods",
       "author": "Jane Smith",
       "credentials": "Professor of Economics at MIT",
       "year": "2024",
@@ -98,16 +116,16 @@ Return a JSON object with cards organized by their strategic value:
       "text": "The proposed TikTok ban would **eliminate over 100,000 jobs in the creator economy** and disrupt supply chains. Analysis shows **direct GDP impact of $2-4 billion annually**, with cascading effects on digital advertising markets."
     }},
     {{
-      "tag": "Privacy concerns are exaggerated",
-      "purpose": "Answers opponent's privacy argument - denies the warrant",
+      "tag": "No verified evidence of Chinese data access",
+      "purpose": "Directly denies the warrant of opponent's security argument",
       "section_type": "answer",
-      "argument": "privacy concerns",
+      "argument": "Opponent claim: Chinese government accesses TikTok user data",
       "author": "John Doe",
       "credentials": "Cybersecurity Analyst at Brookings",
       "year": "2024",
       "source": "Brookings Tech Policy Report",
       "url": "https://example.com/report",
-      "text": "Claims about TikTok's data practices are largely speculative. **Independent audits show data handling comparable to US platforms**, and **no evidence of data transfer to Chinese government has been verified**."
+      "text": "Claims about TikTok's data practices are largely speculative. **Independent audits show data handling comparable to US platforms**, and **no evidence of data transfer to Chinese government has been verified** despite extensive investigation."
     }}
   ]
 }}
@@ -117,12 +135,10 @@ Return a JSON object with cards organized by their strategic value:
 
 - Cut {num_cards} cards total
 - Each card should support the {side_value} side
-- Focus on high-quality, credible sources
-- **Every card needs a clear tag that states what it PROVES**
-- **Every card needs a purpose explaining strategic use**
-- **Categorize each card by section_type and argument**
+- **EVERY argument field must be SPECIFIC, not a general topic**
+- **Tags must state what the card PROVES, not just a topic**
+- **Purpose must explain strategic use in one sentence**
 - Bold 20-40% of each quote (the key warrants)
 - Include full author credentials for verification
-- Cards can be cross-referenced later - focus on making each card useful
 
-Now research and cut {num_cards} evidence cards for this argument, organized by strategic value.
+Now research and cut {num_cards} evidence cards with SPECIFIC argument headers.
