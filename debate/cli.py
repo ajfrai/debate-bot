@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from debate.case_generator import generate_case, generate_case_with_mode
+from debate.case_generator import generate_case
 from debate.evidence_storage import (
     find_evidence_bucket,
     list_debate_files,
@@ -15,7 +15,6 @@ from debate.evidence_validator import validate_speech_evidence
 from debate.models import Side
 from debate.research_agent import research_evidence
 from debate.round_controller import RoundController
-from debate.synthesis_agent import analyze_evidence_for_arguments, identify_case_gaps
 
 
 def cmd_generate(args) -> None:
@@ -23,9 +22,6 @@ def cmd_generate(args) -> None:
     side = Side.PRO if args.side == "pro" else Side.CON
 
     print(f"\nGenerating {args.side.upper()} case for: {args.resolution}\n")
-
-    # Determine generation mode
-    mode = getattr(args, 'mode', 'balanced')
 
     # Try to load debate file
     debate_file = None
@@ -38,13 +34,26 @@ def cmd_generate(args) -> None:
     except Exception:
         pass
 
-    # Load legacy evidence buckets if requested
+    # Load evidence buckets (legacy support or if debate file exists)
     evidence_buckets = []
-    if args.with_evidence:
+    if debate_file:
+        # Convert debate file sections to evidence buckets
+        from debate.models import EvidenceBucket
+        sections = debate_file.get_sections_for_side(side)
+        for section in sections:
+            bucket = EvidenceBucket(
+                topic=section.argument,
+                resolution=args.resolution,
+                side=side,
+                cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)]
+            )
+            if bucket.cards:
+                evidence_buckets.append(bucket)
+    elif args.with_evidence:
+        # Try legacy evidence buckets
         print("Loading evidence buckets...")
         all_buckets = list_evidence_buckets(resolution=args.resolution)
 
-        # Filter by side
         for bucket_info in all_buckets:
             if bucket_info["side"] == side.value:
                 bucket = find_evidence_bucket(
@@ -56,20 +65,15 @@ def cmd_generate(args) -> None:
                     evidence_buckets.append(bucket)
                     print(f"  - Loaded {bucket_info['num_cards']} cards for '{bucket_info['topic']}'")
 
-        if not evidence_buckets and not debate_file:
-            print("  No evidence found. Run 'debate research' first to cut evidence cards.")
-            print("  Generating case without evidence...\n")
-        else:
-            print()
+    if not evidence_buckets:
+        print("No evidence found. Generating case with logical arguments.\n")
 
     print("This may take a moment...\n")
 
     try:
-        case = generate_case_with_mode(
+        case = generate_case(
             resolution=args.resolution,
             side=side,
-            mode=mode,
-            debate_file=debate_file,
             evidence_buckets=evidence_buckets if evidence_buckets else None,
             stream=True
         )
@@ -256,74 +260,6 @@ def cmd_run(args) -> None:
         sys.exit(1)
 
 
-def cmd_synthesize(args) -> None:
-    """Synthesize arguments from evidence or identify gaps."""
-    side = Side.PRO if args.side == "pro" else Side.CON
-
-    # Load debate file
-    try:
-        debate_file = load_debate_file(args.resolution)
-    except Exception:
-        print(f"\nNo debate file found for: {args.resolution}")
-        print("Run 'debate research' first to create evidence.\n")
-        sys.exit(1)
-
-    # Check what action to perform
-    action = getattr(args, 'action', 'analyze')
-
-    if action == 'analyze' or action == 'from-evidence':
-        # Analyze evidence and synthesize arguments
-        print(f"\nAnalyzing evidence for {args.side.upper()} side...\n")
-        print("=" * 60)
-
-        analysis = analyze_evidence_for_arguments(
-            debate_file=debate_file,
-            resolution=args.resolution,
-            side=side,
-            stream=True
-        )
-
-        print("\n" + "=" * 60)
-        print("EVIDENCE ANALYSIS RESULTS")
-        print("=" * 60)
-
-        # Show coverage summary
-        if analysis.coverage_summary:
-            print("\nCOVERAGE SUMMARY:")
-            print(analysis.coverage_summary)
-            print()
-
-        # Show themes
-        if analysis.themes:
-            print("\nTHEMES IDENTIFIED:")
-            for i, theme in enumerate(analysis.themes, 1):
-                print(f"{i}. {theme.name} ({theme.strength})")
-                print(f"   Could prove: {theme.suggested_claim}")
-                print(f"   Backed by {len(theme.card_ids)} card(s)")
-                print()
-
-        # Show synthesized contentions
-        if analysis.synthesized_contentions:
-            print("\nSYNTHESIZED CONTENTIONS:")
-            print("=" * 60)
-            for contention in analysis.synthesized_contentions:
-                print(f"\n{contention.title}\n")
-                print(contention.content)
-                print("\n" + "-" * 60)
-
-    elif action == 'gaps':
-        # Identify gaps in a case
-        # Need to load or generate a case first
-        print("\nGap analysis requires a case.")
-        print("Please use 'debate generate' first to create a case,")
-        print("then provide the case file path.\n")
-        sys.exit(1)
-
-    else:
-        print(f"\nUnknown action: {action}\n")
-        sys.exit(1)
-
-
 def cmd_validate(args) -> None:
     """Validate evidence citations in a speech."""
     side = Side.PRO if args.side == "pro" else Side.CON
@@ -448,13 +384,6 @@ def main() -> None:
         action="store_true",
         help="Use researched evidence cards (must run 'debate research' first)",
     )
-    gen_parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["scratch", "evidence_first", "balanced"],
-        default="balanced",
-        help="Generation mode: scratch (no evidence), evidence_first (build from evidence), balanced (auto)",
-    )
     gen_parser.set_defaults(func=cmd_generate)
 
     # Research command
@@ -551,33 +480,6 @@ def main() -> None:
         help="File containing speech text (reads from stdin if not provided)",
     )
     validate_parser.set_defaults(func=cmd_validate)
-
-    # Synthesize command
-    synthesize_parser = subparsers.add_parser(
-        "synthesize",
-        help="Synthesize arguments from evidence or analyze evidence themes",
-        aliases=["synth"],
-    )
-    synthesize_parser.add_argument(
-        "resolution",
-        type=str,
-        help="The debate resolution",
-    )
-    synthesize_parser.add_argument(
-        "--side",
-        type=str,
-        choices=["pro", "con"],
-        required=True,
-        help="Which side to analyze",
-    )
-    synthesize_parser.add_argument(
-        "--action",
-        type=str,
-        choices=["analyze", "from-evidence", "gaps"],
-        default="analyze",
-        help="Action: analyze (default), from-evidence (same as analyze), gaps (identify case gaps)",
-    )
-    synthesize_parser.set_defaults(func=cmd_synthesize)
 
     # Parse args
     args = parser.parse_args()
