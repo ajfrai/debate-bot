@@ -101,45 +101,73 @@ def cmd_research(args) -> None:
         sys.exit(1)
 
 
+def _find_matching_debate_file(query: str, debate_files: list[dict]):
+    """Find a debate file by number or partial match."""
+    # Try as number first
+    try:
+        idx = int(query) - 1
+        if 0 <= idx < len(debate_files):
+            return debate_files[idx]
+    except ValueError:
+        pass
+
+    # Try exact match
+    for df in debate_files:
+        if df["resolution"].lower() == query.lower():
+            return df
+
+    # Try partial match (case-insensitive)
+    query_lower = query.lower()
+    matches = [df for df in debate_files if query_lower in df["resolution"].lower()]
+    if len(matches) == 1:
+        return matches[0]
+    elif len(matches) > 1:
+        print(f"\nMultiple matches for '{query}':")
+        for i, df in enumerate(matches, 1):
+            print(f"  {i}. {df['resolution']}")
+        return None
+
+    return None
+
+
 def cmd_evidence(args) -> None:
     """List or view evidence (debate files)."""
-    # Try to load debate files first (new format)
     debate_files = list_debate_files()
 
-    if args.resolution:
-        # Show specific resolution's debate file
-        debate_file = load_debate_file(args.resolution)
+    if args.query:
+        # User provided a query - find matching debate file
+        match = _find_matching_debate_file(args.query, debate_files)
 
-        if debate_file:
-            # Show the full rendered debate file
-            print(debate_file.render_full_file())
+        if match:
+            debate_file = load_debate_file(match["resolution"])
+            if debate_file:
+                print(debate_file.render_full_file())
+                return
+
+        # Try legacy buckets with exact resolution match
+        buckets = list_evidence_buckets(resolution=args.query)
+        if buckets:
+            print(f"\nEvidence for: {args.query} (legacy format)\n")
+            for bucket_info in buckets:
+                print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']}")
+                print(f"      {bucket_info['num_cards']} cards")
             return
 
-        # Fall back to legacy buckets
-        buckets = list_evidence_buckets(resolution=args.resolution)
-        if not buckets:
-            print(f"\nNo evidence found for: {args.resolution}")
-            print("Run 'debate research' to cut evidence cards.\n")
+        if not match:
+            print(f"\nNo evidence found matching: {args.query}")
+            print("Use 'debate evidence' to list available resolutions.\n")
             return
-
-        print(f"\nEvidence for: {args.resolution} (legacy format)\n")
-        for bucket_info in buckets:
-            print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']}")
-            print(f"      {bucket_info['num_cards']} cards")
-            print(f"      {bucket_info['filepath']}")
-            print()
 
     else:
-        # List all debate files
+        # No query - list all with numbers for easy selection
         if debate_files:
-            print("\nDebate Files:\n")
-            for file_info in debate_files:
-                print(f"Resolution: {file_info['resolution']}")
-                print(f"  Cards: {file_info['num_cards']}")
-                print(f"  PRO sections: {file_info['num_pro_sections']}")
-                print(f"  CON sections: {file_info['num_con_sections']}")
-                print(f"  Path: {file_info['dir_path']}")
+            print("\nDebate Files (use number or keyword to view):\n")
+            for i, file_info in enumerate(debate_files, 1):
+                print(f"  [{i}] {file_info['resolution']}")
+                print(f"      {file_info['num_cards']} cards | PRO: {file_info['num_pro_sections']} sections | CON: {file_info['num_con_sections']} sections")
                 print()
+            print("Example: debate evidence 1")
+            print("Example: debate evidence tiktok")
 
         # Also show legacy buckets if any
         buckets = list_evidence_buckets()
@@ -157,9 +185,9 @@ def cmd_evidence(args) -> None:
                 by_resolution[res].append(bucket_info)
 
             for resolution, res_buckets in by_resolution.items():
-                print(f"Resolution: {resolution}")
+                print(f"  {resolution}")
                 for bucket_info in res_buckets:
-                    print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)")
+                    print(f"    [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)")
                 print()
 
         if not debate_files and not buckets:
@@ -241,13 +269,14 @@ def main() -> None:
     # Evidence command
     evidence_parser = subparsers.add_parser(
         "evidence",
-        help="List or view evidence buckets",
+        help="List or view evidence (use number or keyword)",
         aliases=["ev"],
     )
     evidence_parser.add_argument(
-        "--resolution",
+        "query",
         type=str,
-        help="Filter by resolution",
+        nargs="?",
+        help="Resolution number, keyword, or full name (optional - lists all if omitted)",
     )
     evidence_parser.set_defaults(func=cmd_evidence)
 

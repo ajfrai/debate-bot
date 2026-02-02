@@ -24,6 +24,34 @@ def load_prompt_template(name: str) -> str:
         return f.read()
 
 
+def load_lessons(*lesson_names: str) -> str:
+    """Load lesson files from the lessons directory.
+
+    The lessons directory contains accumulated knowledge that agents
+    should consult before performing tasks. This enables continuous
+    improvement as lessons are added over time.
+
+    Args:
+        *lesson_names: Names of lesson files to load (without .md extension)
+
+    Returns:
+        Combined lessons as a formatted string, or empty string if none found
+    """
+    lessons_dir = os.path.join(os.path.dirname(__file__), "..", "lessons")
+    lessons = []
+
+    for name in lesson_names:
+        lesson_path = os.path.join(lessons_dir, f"{name}.md")
+        if os.path.exists(lesson_path):
+            with open(lesson_path, "r") as f:
+                lessons.append(f.read())
+
+    if not lessons:
+        return ""
+
+    return "\n\n---\n\n".join(lessons)
+
+
 def _brave_search(query: str, num_results: int = 5) -> Optional[str]:
     """Search Brave for relevant sources.
 
@@ -153,6 +181,11 @@ def research_evidence(
         print("⚠ Brave Search unavailable, using Claude's knowledge base")
         search_results = "(No search results available - use your knowledge base)"
 
+    # Load lessons for the research agent
+    lessons = load_lessons("research", "organization")
+    if lessons:
+        print("✓ Loaded lessons for research agent")
+
     # Load the research prompt template
     template = load_prompt_template("card_research")
 
@@ -167,6 +200,10 @@ def research_evidence(
         search_query=search_query,
         search_results=search_results,
     )
+
+    # Prepend lessons to the prompt
+    if lessons:
+        prompt = f"## Lessons Learned (consult before cutting cards)\n\n{lessons}\n\n---\n\n{prompt}"
 
     # Call Claude API with Haiku for cost-effectiveness
     api_key = os.environ.get("ANTHROPIC_API_KEY")
