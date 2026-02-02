@@ -377,3 +377,108 @@ class JudgeDecision(BaseModel):
     voting_issues: list[str] = Field(description="Key issues that decided the round")
     rfd: str = Field(description="Full reason for decision")
     feedback: list[str] = Field(description="1-2 pieces of constructive feedback")
+
+
+class AnalysisType(str, Enum):
+    """Types of systematic analysis processes available during prep."""
+
+    ENUMERATE_ARGUMENTS = "enumerate_arguments"  # List all possible PRO and CON arguments
+    BRAINSTORM_REBUTTALS = "brainstorm_rebuttals"  # Generate multiple answers to a claim
+    ANALYZE_SOURCE = "analyze_source"  # Line-by-line breakdown of evidence
+    MAP_CLASH = "map_clash"  # Identify debate clash points
+    IDENTIFY_FRAMEWORK = "identify_framework"  # Determine weighing criteria
+    SYNTHESIZE_EVIDENCE = "synthesize_evidence"  # Connect cards into narrative
+
+
+class AnalysisResult(BaseModel):
+    """Result of a systematic analysis process."""
+
+    analysis_type: AnalysisType
+    subject: Optional[str] = Field(default=None, description="Subject of analysis (e.g., card ID, claim)")
+    output: str = Field(description="Structured output from the analysis")
+    timestamp: str = Field(description="When this analysis was performed")
+
+
+class ArgumentPrep(BaseModel):
+    """An argument with organized evidence for prep."""
+
+    claim: str = Field(description="What we're arguing")
+    purpose: SectionType = Field(description="Strategic purpose: support, answer, extension, impact")
+    card_ids: list[str] = Field(default_factory=list, description="Cards backing this argument")
+    source_summary: str = Field(
+        default="",
+        description="Where cards came from (e.g., '2 from backfiles, 1 cut from web')",
+    )
+    strategic_notes: str = Field(default="", description="When to use, what it sets up")
+
+
+class ResearchEntry(BaseModel):
+    """Record of a research session during prep."""
+
+    topic: str
+    purpose: SectionType
+    cards_from_backfiles: int = 0
+    cards_cut_from_web: int = 0
+    sources_used: list[str] = Field(default_factory=list)
+    citations_found: list[str] = Field(
+        default_factory=list, description="Citations that could be followed up"
+    )
+    timestamp: str
+
+
+class PrepFile(BaseModel):
+    """Strategic prep that grows incrementally during autonomous prep.
+
+    This is a living document that the agent builds through:
+    - Systematic analysis (enumerate arguments, map clash, etc.)
+    - Iterative research (backfiles + web search)
+    - Incremental organization (updates after each research cycle)
+    """
+
+    resolution: str
+    side: Side
+
+    # Strategic analyses (updated by analyze())
+    analyses: dict[str, AnalysisResult] = Field(
+        default_factory=dict,
+        description="Analysis results keyed by type (e.g., 'enumerate_arguments')",
+    )
+
+    # Arguments (grow as research happens)
+    arguments: list[ArgumentPrep] = Field(
+        default_factory=list, description="Arguments with organized evidence"
+    )
+
+    # Research history (tracks what's been researched)
+    research_log: list[ResearchEntry] = Field(
+        default_factory=list, description="Log of all research sessions"
+    )
+
+    def add_analysis(self, result: AnalysisResult) -> None:
+        """Add an analysis result."""
+        self.analyses[result.analysis_type.value] = result
+
+    def add_argument(self, argument: ArgumentPrep) -> None:
+        """Add a new argument to prep."""
+        self.arguments.append(argument)
+
+    def log_research(self, entry: ResearchEntry) -> None:
+        """Log a research session."""
+        self.research_log.append(entry)
+
+    def get_summary(self) -> dict:
+        """Get a summary of current prep state for the agent."""
+        return {
+            "resolution": self.resolution,
+            "side": self.side.value,
+            "analyses_completed": list(self.analyses.keys()),
+            "num_arguments": len(self.arguments),
+            "total_cards": sum(len(arg.card_ids) for arg in self.arguments),
+            "research_sessions": len(self.research_log),
+            "arguments_by_purpose": {
+                "support": len([a for a in self.arguments if a.purpose == SectionType.SUPPORT]),
+                "answer": len([a for a in self.arguments if a.purpose == SectionType.ANSWER]),
+                "extension": len([a for a in self.arguments if a.purpose == SectionType.EXTENSION]),
+                "impact": len([a for a in self.arguments if a.purpose == SectionType.IMPACT]),
+            },
+        }

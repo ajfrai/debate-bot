@@ -1,12 +1,28 @@
 """A generally capable debate agent that can research, generate cases, and deliver speeches."""
 
+import json
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import anthropic
 
 from debate.case_generator import generate_case as _generate_case
-from debate.models import Case, DebateFile, RoundState, Side, Speech, SpeechType
+from debate.evidence_storage import load_debate_file
+from debate.models import (
+    AnalysisResult,
+    AnalysisType,
+    ArgumentPrep,
+    Case,
+    DebateFile,
+    PrepFile,
+    ResearchEntry,
+    RoundState,
+    SectionType,
+    Side,
+    Speech,
+    SpeechType,
+)
 from debate.research_agent import research_evidence as _research_evidence
 
 
@@ -37,6 +53,7 @@ class DebateAgent:
         self.side = side
         self.resolution = resolution
         self.client = anthropic.Anthropic()
+        self.prep_file: Optional[PrepFile] = None
 
     def research(
         self,
@@ -324,3 +341,288 @@ Generate a strategic crossfire question (1-2 sentences) that:
             response_text = message.content[0].text
 
         return response_text
+
+    # ========== Autonomous Prep Methods ==========
+
+    def prep(self, max_turns: int = 10, stream: bool = True) -> PrepFile:
+        """Run autonomous prep workflow using skill orchestration.
+
+        The agent autonomously:
+        - Analyzes strategic aspects (enumerate arguments, map clash, etc.)
+        - Researches evidence (checks backfiles first, then web)
+        - Organizes findings incrementally into PrepFile
+
+        Args:
+            max_turns: Maximum tool calls (default 10 for cost control)
+            stream: Whether to stream agent thinking
+
+        Returns:
+            Completed PrepFile with strategic prep
+        """
+        # Initialize or load existing prep file
+        self.prep_file = PrepFile(resolution=self.resolution, side=self.side)
+
+        # Define tools for agent
+        tools = [
+            {
+                "name": "analyze",
+                "description": "Run systematic analysis processes to produce structured outputs that inform research and strategy.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "analysis_type": {
+                            "type": "string",
+                            "enum": [
+                                "enumerate_arguments",
+                                "brainstorm_rebuttals",
+                                "analyze_source",
+                                "map_clash",
+                                "identify_framework",
+                                "synthesize_evidence",
+                            ],
+                            "description": "Type of systematic analysis to perform",
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Subject of analysis (e.g., card ID, opponent claim). Optional for some types.",
+                        },
+                    },
+                    "required": ["analysis_type"],
+                },
+            },
+            {
+                "name": "research",
+                "description": "Research evidence (searches backfiles first, then web if needed). Automatically organizes findings into prep. Returns sources and citations that you can follow up on.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {
+                            "type": "string",
+                            "description": "What to research (can be based on analysis, previous findings, or citations)",
+                        },
+                        "purpose": {
+                            "type": "string",
+                            "enum": ["support", "answer", "extension", "impact"],
+                            "description": "Strategic purpose of this evidence",
+                        },
+                        "num_cards": {
+                            "type": "integer",
+                            "default": 3,
+                            "description": "Number of cards to find/cut (default 3)",
+                        },
+                    },
+                    "required": ["topic", "purpose"],
+                },
+            },
+            {
+                "name": "read_prep",
+                "description": "View current prep state to see what you've built and identify gaps. Use to avoid redundant research.",
+                "input_schema": {"type": "object", "properties": {}},
+            },
+        ]
+
+        # Load system prompt
+        template = load_prompt_template("prep_orchestration")
+        system_prompt = template.format(
+            resolution=self.resolution,
+            side=self.side.value.upper(),
+            max_turns=max_turns,
+        )
+
+        messages = []
+        current_turn = 0
+
+        print(f"\n{'='*60}")
+        print(f"AUTONOMOUS PREP: {self.side.value.upper()} on {self.resolution}")
+        print(f"Budget: {max_turns} turns")
+        print(f"{'='*60}\n")
+
+        while current_turn < max_turns:
+            current_turn += 1
+            print(f"\n--- Turn {current_turn}/{max_turns} ---\n")
+
+            # Add turn tracking to the first message
+            if not messages:
+                initial_msg = f"Begin prep. Current turn: {current_turn}/{max_turns}"
+                messages.append({"role": "user", "content": initial_msg})
+
+            # Call Claude with tools
+            response = self.client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages,
+                tools=tools,
+            )
+
+            # Add assistant response to messages
+            messages.append({"role": "assistant", "content": response.content})
+
+            # Display thinking
+            for block in response.content:
+                if block.type == "text":
+                    print(block.text)
+                    print()
+
+            # Handle tool use
+            if response.stop_reason == "tool_use":
+                tool_results = []
+
+                for block in response.content:
+                    if block.type == "tool_use":
+                        tool_name = block.name
+                        tool_input = block.input
+
+                        print(f"[Calling {tool_name}...]")
+
+                        # Execute tool
+                        if tool_name == "analyze":
+                            result = self._analyze_skill(
+                                analysis_type=tool_input["analysis_type"],
+                                subject=tool_input.get("subject"),
+                            )
+                        elif tool_name == "research":
+                            result = self._research_skill(
+                                topic=tool_input["topic"],
+                                purpose=tool_input["purpose"],
+                                num_cards=tool_input.get("num_cards", 3),
+                                stream=stream,
+                            )
+                        elif tool_name == "read_prep":
+                            result = self._read_prep_skill()
+                        else:
+                            result = {"error": f"Unknown tool: {tool_name}"}
+
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps(result, indent=2),
+                        })
+
+                        print(f"[{tool_name} complete]\n")
+
+                # Add tool results to messages
+                messages.append({"role": "user", "content": tool_results})
+
+            elif response.stop_reason == "end_turn":
+                # Agent decided to stop
+                print("\n[Agent concluded prep]\n")
+                break
+
+        print(f"\n{'='*60}")
+        print(f"PREP COMPLETE")
+        print(f"Turns used: {current_turn}/{max_turns}")
+        print(f"Arguments: {len(self.prep_file.arguments)}")
+        print(f"Total cards: {sum(len(arg.card_ids) for arg in self.prep_file.arguments)}")
+        print(f"Analyses: {len(self.prep_file.analyses)}")
+        print(f"{'='*60}\n")
+
+        return self.prep_file
+
+    def _analyze_skill(self, analysis_type: str, subject: Optional[str] = None) -> dict:
+        """Execute an analysis skill."""
+        analysis_enum = AnalysisType(analysis_type)
+
+        # TODO: Implement each analysis type with specific prompts
+        # For now, return placeholder
+        output = f"[Analysis of type {analysis_type} would be performed here]"
+
+        if analysis_type == "enumerate_arguments":
+            output = self._enumerate_arguments()
+        # Add other analysis types...
+
+        result = AnalysisResult(
+            analysis_type=analysis_enum,
+            subject=subject,
+            output=output,
+            timestamp=datetime.now().isoformat(),
+        )
+
+        self.prep_file.add_analysis(result)
+
+        return {
+            "analysis_type": analysis_type,
+            "output": output,
+            "status": "completed",
+        }
+
+    def _enumerate_arguments(self) -> str:
+        """Systematically enumerate all possible arguments."""
+        # TODO: Load prompt template and call LLM
+        # For now, return placeholder
+        return "PRO arguments: 1. Security, 2. Privacy, 3. Democracy\nCON arguments: 1. Economy, 2. Free speech, 3. Innovation"
+
+    def _research_skill(
+        self, topic: str, purpose: str, num_cards: int = 3, stream: bool = True
+    ) -> dict:
+        """Execute research skill: backfiles first, then web search, organize immediately."""
+        purpose_enum = SectionType(purpose)
+
+        # Step 1: Check backfiles for existing evidence
+        debate_file = load_debate_file(self.resolution)
+        existing_cards = []
+        sources_used = []
+
+        if debate_file:
+            existing_cards = debate_file.find_cards_by_tag(topic)
+            print(f"  Found {len(existing_cards)} cards in backfiles")
+
+        # Step 2: Calculate how many more cards we need
+        cards_needed = max(0, num_cards - len(existing_cards))
+        new_cards = []
+
+        if cards_needed > 0:
+            print(f"  Researching {cards_needed} more cards from web...")
+            # Use existing research agent
+            research_result = _research_evidence(
+                resolution=self.resolution,
+                side=self.side,
+                topic=topic,
+                num_cards=cards_needed,
+                section_type=purpose,
+                stream=stream,
+            )
+            new_cards = research_result.get("cards", [])
+            sources_used = research_result.get("sources", [])
+
+        # Step 3: Organize into PrepFile immediately
+        all_card_ids = []
+        for card in existing_cards + new_cards:
+            if hasattr(card, "id"):
+                all_card_ids.append(card.id)
+
+        argument = ArgumentPrep(
+            claim=topic,
+            purpose=purpose_enum,
+            card_ids=all_card_ids,
+            source_summary=f"{len(existing_cards)} from backfiles, {len(new_cards)} cut from web",
+            strategic_notes=f"Evidence for {purpose}",
+        )
+
+        self.prep_file.add_argument(argument)
+
+        # Log research
+        entry = ResearchEntry(
+            topic=topic,
+            purpose=purpose_enum,
+            cards_from_backfiles=len(existing_cards),
+            cards_cut_from_web=len(new_cards),
+            sources_used=sources_used,
+            citations_found=[],  # TODO: Extract citations from card text
+            timestamp=datetime.now().isoformat(),
+        )
+
+        self.prep_file.log_research(entry)
+
+        return {
+            "topic": topic,
+            "cards_from_backfiles": len(existing_cards),
+            "cards_cut_from_web": len(new_cards),
+            "total_cards": len(all_card_ids),
+            "sources_used": sources_used[:3],  # Limit for readability
+            "organized": True,
+        }
+
+    def _read_prep_skill(self) -> dict:
+        """Return current prep state summary."""
+        return self.prep_file.get_summary()

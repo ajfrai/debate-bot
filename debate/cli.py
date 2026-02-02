@@ -6,6 +6,7 @@ import sys
 from rich.console import Console
 
 from debate.case_generator import generate_case
+from debate.debate_agent import DebateAgent
 from debate.evidence_storage import (
     find_evidence_bucket,
     list_debate_files,
@@ -361,6 +362,52 @@ def cmd_validate(args) -> None:
     sys.exit(0 if validation_result.is_valid else 1)
 
 
+def cmd_prep(args) -> None:
+    """Run autonomous debate prep."""
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    print(f"\nStarting autonomous prep for {args.side.upper()}")
+    print(f"Resolution: {args.resolution}")
+    print(f"Turn budget: {args.max_turns}\n")
+
+    try:
+        # Create debate agent
+        agent = DebateAgent(side=side, resolution=args.resolution)
+
+        # Run autonomous prep
+        prep_file = agent.prep(max_turns=args.max_turns, stream=True)
+
+        print("\n" + "=" * 60)
+        print("PREP SUMMARY")
+        print("=" * 60)
+
+        summary = prep_file.get_summary()
+
+        print(f"\nResolution: {summary['resolution']}")
+        print(f"Side: {summary['side'].upper()}")
+        print(f"\nAnalyses completed: {len(summary['analyses_completed'])}")
+        for analysis_type in summary['analyses_completed']:
+            print(f"  - {analysis_type}")
+
+        print(f"\nArguments developed: {summary['num_arguments']}")
+        print(f"Total cards: {summary['total_cards']}")
+        print(f"\nCards by purpose:")
+        for purpose, count in summary['arguments_by_purpose'].items():
+            print(f"  - {purpose}: {count}")
+
+        print(f"\nResearch sessions: {summary['research_sessions']}")
+
+        print("\n" + "=" * 60)
+        print("✓ Prep complete!")
+        print("=" * 60 + "\n")
+
+    except Exception as e:
+        print(f"\nError during prep: {e}\n", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the debate CLI."""
     parser = argparse.ArgumentParser(
@@ -431,6 +478,31 @@ def main() -> None:
         help="Custom search query (auto-generated if not provided)",
     )
     research_parser.set_defaults(func=cmd_research)
+
+    # Prep command
+    prep_parser = subparsers.add_parser(
+        "prep",
+        help="Autonomous debate prep (analysis + research + organization)",
+    )
+    prep_parser.add_argument(
+        "resolution",
+        type=str,
+        help="The debate resolution",
+    )
+    prep_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side to prep",
+    )
+    prep_parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=10,
+        help="Maximum tool calls for autonomous prep (default: 10)",
+    )
+    prep_parser.set_defaults(func=cmd_prep)
 
     # Evidence command
     evidence_parser = subparsers.add_parser(
