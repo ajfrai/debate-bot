@@ -6,16 +6,13 @@ from rich.console import Console
 
 from debate.debate_agent import DebateAgent
 from debate.evidence_storage import load_debate_file
-<<<<<<< HEAD
 from debate.evidence_validator import validate_speech_evidence
-=======
 from debate.interactive_input import (
     display_crossfire_header,
     display_speech_header,
     get_multiline_speech,
     get_single_line_input,
 )
->>>>>>> origin/main
 from debate.judge_agent import JudgeAgent
 from debate.models import (
     Case,
