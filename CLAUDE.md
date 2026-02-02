@@ -30,14 +30,17 @@ uv run debate research "Resolved: The US should ban TikTok" --side pro --topic "
 uv run debate generate "Resolved: The US should ban TikTok" --side pro --with-evidence
 ```
 
-### View Evidence Buckets
+### View Evidence
 
 ```bash
-# List all evidence
+# List all debate files (numbered for easy selection)
 uv run debate evidence
 
-# List evidence for a specific resolution
-uv run debate evidence --resolution "Resolved: The US should ban TikTok"
+# View by number
+uv run debate evidence 1
+
+# View by keyword (partial match)
+uv run debate evidence tiktok
 ```
 
 ## Architecture
@@ -48,7 +51,8 @@ uv run debate evidence --resolution "Resolved: The US should ban TikTok"
 - `debate/research_agent.py` - Research agent for cutting evidence cards (uses Haiku for cost efficiency)
 - `debate/evidence_storage.py` - Save/load debate files as directories per resolution
 - `debate/prompts/` - Prompt templates (Markdown files)
-- `evidence/` - Local directory storing debate files (one directory per resolution)
+- `lessons/` - Accumulated lessons for agent improvement (research, strategy, organization)
+- `evidence/` - Local directory storing debate files (one directory per resolution, git-ignored)
 
 ## Evidence Card System
 

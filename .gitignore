@@ -39,3 +39,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local evidence files (per-user research)
+evidence/
