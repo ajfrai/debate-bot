@@ -6,6 +6,7 @@ from typing import Optional
 import anthropic
 
 from debate.case_generator import generate_case as _generate_case
+from debate.config import Config
 from debate.models import Case, DebateFile, RoundState, Side, Speech, SpeechType
 from debate.research_agent import research_evidence as _research_evidence
 
@@ -123,6 +124,7 @@ class DebateAgent:
         Returns:
             The full text of the speech
         """
+        config = Config()
         template = load_prompt_template("speech_generation")
 
         # Format round context
@@ -166,9 +168,8 @@ class DebateAgent:
         if debate_file:
             evidence_section = self._format_available_evidence(debate_file)
 
-        # Calculate approximate word limit (assuming ~150 words per minute speaking rate)
-        words_per_minute = 150
-        word_limit = int((time_limit_seconds / 60) * words_per_minute)
+        # Use config-based word limits
+        min_words, max_words = config.get_speech_word_limits()
 
         prompt = template.format(
             resolution=self.resolution,
@@ -177,14 +178,18 @@ class DebateAgent:
             round_context=round_context,
             available_evidence=evidence_section,
             time_limit_seconds=time_limit_seconds,
-            word_limit=word_limit,
+            min_words=min_words,
+            max_words=max_words,
         )
+
+        model = config.get_agent_model("debate_agent") if "debate_agent" in config._config.get("agents", {}) else "claude-sonnet-4-20250514"
+        max_tokens = config.get_max_tokens()
 
         if stream:
             response_text = ""
             with self.client.messages.stream(
-                model="claude-sonnet-4-20250514",
-                max_tokens=4096,
+                model=model,
+                max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream_response:
                 for text in stream_response.text_stream:
@@ -193,11 +198,18 @@ class DebateAgent:
             print()
         else:
             message = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=4096,
+                model=model,
+                max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
             response_text = message.content[0].text
+
+        # Validate word count
+        word_count = len(response_text.split())
+        if word_count < min_words:
+            print(f"⚠️  Warning: Speech has {word_count} words (minimum: {min_words})")
+        elif word_count > max_words:
+            print(f"⚠️  Warning: Speech has {word_count} words (maximum: {max_words})")
 
         return response_text
 

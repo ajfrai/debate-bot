@@ -11,6 +11,19 @@ agents:
   research:
     model: claude-haiku-4-5  # Cost-effective for iterative research
 
+# Case generation configuration
+case:
+  contentions:
+    min_words: 100      # Minimum words per contention
+    max_words: 500      # Maximum words per contention
+  total_time_seconds: 240  # Total case time in seconds (4 min for constructive)
+
+# Speech generation configuration
+speech:
+  generation:
+    min_words: 50       # Minimum words per generated speech
+    max_words: 300      # Maximum words per generated speech
+
 # API configuration
 api:
   max_tokens: 4096  # Maximum tokens per response

@@ -38,6 +38,7 @@ def generate_case(
         A Case object with 2-3 contentions
     """
     client = anthropic.Anthropic()
+    config = Config()
 
     # Choose template based on whether we have evidence
     if evidence_buckets:
@@ -57,15 +58,19 @@ def generate_case(
     if evidence_buckets:
         evidence_section = _format_evidence_buckets(evidence_buckets)
 
+    # Get word limits from config
+    min_words, max_words = config.get_case_word_limits()
+
     prompt = template.format(
         resolution=resolution,
         side=side.value.upper(),
         side_description=side_description,
         side_instruction=side_instruction,
         evidence_buckets=evidence_section,
+        min_words=min_words,
+        max_words=max_words,
     )
 
-    config = Config()
     model = config.get_agent_model("case_generator")
     max_tokens = config.get_max_tokens()
 
@@ -172,6 +177,11 @@ def _extract_json_from_text(text: str) -> str:
     return text[json_start:json_end]
 
 
+def _count_words(text: str) -> int:
+    """Count the number of words in a text string."""
+    return len(text.split())
+
+
 def _parse_case_response(response_text: str) -> list[Contention]:
     """Parse the LLM response into Contention objects."""
     json_str = _extract_json_from_text(response_text)
@@ -187,11 +197,23 @@ def _parse_case_response(response_text: str) -> list[Contention]:
         raise ValueError(f"JSON parse error at position {error_pos}: {e.msg}\nContext: ...{context}...") from e
 
     contentions = []
-    for c in data.get("contentions", []):
+    config = Config()
+    min_words, max_words = config.get_case_word_limits()
+
+    for i, c in enumerate(data.get("contentions", []), 1):
+        content = c["content"]
+        word_count = _count_words(content)
+
+        # Warn if word count is outside the configured limits
+        if word_count < min_words:
+            print(f"⚠️  Warning: Contention {i} has {word_count} words (minimum: {min_words})")
+        elif word_count > max_words:
+            print(f"⚠️  Warning: Contention {i} has {word_count} words (maximum: {max_words})")
+
         contentions.append(
             Contention(
                 title=c["title"],
-                content=c["content"],
+                content=content,
             )
         )
 

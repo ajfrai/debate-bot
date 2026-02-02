@@ -12,7 +12,7 @@ You are an expert Public Forum debate coach generating a competitive debate case
 
 Generate a debate case with 2-3 contentions. Each contention should:
 
-1. Be 100-500 words of argumentative prose
+1. Be {min_words}-{max_words} words of argumentative prose
 2. Mix claims, warrants, and evidence naturally
 3. **USE THE PROVIDED EVIDENCE CARDS** - do not fabricate sources
 4. Quote cards directly using the format: "[Last Name Year] explains, [bolded text from card]"
@@ -48,7 +48,7 @@ Respond with a JSON object matching this structure:
   "contentions": [
     {{
       "title": "Contention 1: [Label]",
-      "content": "[100-500 word argument with integrated evidence from the provided cards]"
+      "content": "[{min_words}-{max_words} word argument with integrated evidence from the provided cards]"
     }}
   ]
 }}

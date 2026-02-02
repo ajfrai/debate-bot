@@ -59,3 +59,33 @@ class Config:
             Maximum tokens per response (default: 4096)
         """
         return self._config.get("api", {}).get("max_tokens", 4096)
+
+    def get_case_word_limits(self) -> tuple[int, int]:
+        """Get min and max word limits for case contentions.
+
+        Returns:
+            Tuple of (min_words, max_words) (default: (100, 500))
+        """
+        case_config = self._config.get("case", {}).get("contentions", {})
+        min_words = case_config.get("min_words", 100)
+        max_words = case_config.get("max_words", 500)
+        return (min_words, max_words)
+
+    def get_case_total_time(self) -> int:
+        """Get total time limit for case in seconds.
+
+        Returns:
+            Total time in seconds (default: 240 for 4 minutes)
+        """
+        return self._config.get("case", {}).get("total_time_seconds", 240)
+
+    def get_speech_word_limits(self) -> tuple[int, int]:
+        """Get min and max word limits for generated speeches.
+
+        Returns:
+            Tuple of (min_words, max_words) (default: (50, 300))
+        """
+        speech_config = self._config.get("speech", {}).get("generation", {})
+        min_words = speech_config.get("min_words", 50)
+        max_words = speech_config.get("max_words", 300)
+        return (min_words, max_words)

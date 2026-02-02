@@ -12,7 +12,7 @@ You are an expert Public Forum debate coach generating a competitive debate case
 
 Generate a debate case with 2-3 contentions. Each contention should:
 
-1. Be 100-500 words of argumentative prose
+1. Be {min_words}-{max_words} words of argumentative prose
 2. Mix claims, warrants, and evidence naturally
 3. Include evidence cards woven into the text (not listed separately)
 4. Format evidence as: [Author Last Name, Year] followed by the warrant

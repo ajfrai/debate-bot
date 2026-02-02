@@ -17,7 +17,8 @@ You are an expert Public Forum debater delivering a speech in a live debate roun
 {available_evidence}
 
 ## Time Limit
-- {time_limit_seconds} seconds (~{word_limit} words at 150 wpm)
+- {time_limit_seconds} seconds
+- Target word count: {min_words}-{max_words} words
 
 ## Instructions
 
@@ -42,7 +43,7 @@ Deliver a competitive debate speech that accomplishes the goal stated above. You
 
 6. **Be conversational but professional** - Sound like a real debater, not overly formal or stilted
 
-7. **Stay within time** - Aim for approximately {word_limit} words
+7. **Stay within word limits** - Aim for {min_words}-{max_words} words
 
 ## Output Format
 
