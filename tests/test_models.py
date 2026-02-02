@@ -21,13 +21,39 @@ class TestSide:
 
 
 class TestCard:
-    def test_format(self):
+    def test_format_for_reading(self):
         card = Card(
             tag="Economic impact",
-            cite="Smith, 2024",
-            text="GDP growth decreased by 4.2%",
+            author="John Smith",
+            credentials="Professor of Economics at MIT",
+            year="2024",
+            source="Journal of Economic Perspectives",
+            url="https://example.com/article",
+            text="Economic sanctions have severe impacts. **GDP growth decreased by 4.2%** in affected nations. The effects are **particularly pronounced in developing countries**.",
         )
-        assert card.format() == "[Smith, 2024] GDP growth decreased by 4.2%"
+        formatted = card.format_for_reading()
+        assert "Smith 2024" in formatted
+        assert "GDP growth decreased by 4.2%" in formatted
+        assert "particularly pronounced in developing countries" in formatted
+        # Should not include non-bolded text
+        assert "Economic sanctions have severe impacts" not in formatted
+
+    def test_format_full(self):
+        card = Card(
+            tag="Economic impact",
+            author="John Smith",
+            credentials="Professor of Economics at MIT",
+            year="2024",
+            source="Journal of Economic Perspectives",
+            url="https://example.com/article",
+            text="Economic sanctions have severe impacts. **GDP growth decreased by 4.2%** in affected nations.",
+        )
+        formatted = card.format_full()
+        assert "[Smith 2024]" in formatted
+        assert "John Smith" in formatted
+        assert "Professor of Economics at MIT" in formatted
+        assert "Journal of Economic Perspectives" in formatted
+        assert "https://example.com/article" in formatted
 
 
 class TestContention:
