@@ -4,6 +4,28 @@
 
 A CLI tool for practicing Public Forum debate against an AI opponent with AI judging.
 
+## Recent Updates & Changelogs
+
+**To review recent feature additions and architectural changes**, check the `/changelogs` directory:
+
+- **[Bidirectional Evidence-Argument Synthesis](changelogs/BIDIRECTIONAL_SYNTHESIS.md)** - Complete usage guide for the new evidence validation and synthesis system
+- **[Synthesis Design](changelogs/SYNTHESIS_DESIGN.md)** - Architecture and technical design decisions
+
+### Latest Features (2025)
+
+**Evidence Validation System:**
+- All speeches automatically validated for unbacked citations
+- Interactive validation with warnings and errors
+- Standalone `debate validate` command
+
+**Bidirectional Synthesis:**
+- Evidence-first mode: Build arguments from research
+- Argument-first mode: Traditional case generation
+- Balanced mode: Auto-detect best approach
+- New `debate synthesize` command to analyze evidence themes
+
+See the changelogs for detailed usage examples and workflows.
+
 ## Running the Project
 
 ### Run a Complete Debate Round
