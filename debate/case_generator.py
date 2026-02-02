@@ -3,11 +3,12 @@
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import anthropic
 
 from debate.config import Config
-from debate.models import Case, Contention, EvidenceBucket, Side
+from debate.models import Case, Contention, EvidenceBucket, Side, DebateFile
 
 
 def load_prompt_template(name: str) -> str:
@@ -198,3 +199,123 @@ def _parse_case_response(response_text: str) -> list[Contention]:
         raise ValueError(f"Expected 2-3 contentions, got {len(contentions)}")
 
     return contentions
+
+
+def generate_case_from_evidence(
+    resolution: str,
+    side: Side,
+    debate_file: DebateFile,
+    stream: bool = True,
+) -> Case:
+    """
+    Generate a debate case by synthesizing arguments from evidence.
+
+    This is the EVIDENCE-FIRST approach: start with evidence, build arguments around it.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to generate (PRO or CON)
+        debate_file: DebateFile containing evidence to build from
+        stream: Whether to stream output
+
+    Returns:
+        A Case object with contentions synthesized from evidence
+    """
+    from debate.synthesis_agent import SynthesisAgent
+
+    if stream:
+        print(f"\nGenerating {side.value.upper()} case from available evidence...\n")
+
+    # Use synthesis agent to analyze evidence and generate arguments
+    agent = SynthesisAgent(resolution=resolution, side=side)
+    analysis = agent.analyze_evidence(debate_file, stream=stream)
+
+    if not analysis.synthesized_contentions:
+        raise ValueError(
+            f"Could not synthesize contentions from evidence. "
+            f"The evidence file may not have enough {side.value.upper()} evidence."
+        )
+
+    return Case(
+        resolution=resolution,
+        side=side,
+        contentions=analysis.synthesized_contentions,
+    )
+
+
+def generate_case_with_mode(
+    resolution: str,
+    side: Side,
+    mode: str = "balanced",
+    debate_file: Optional[DebateFile] = None,
+    evidence_buckets: Optional[list[EvidenceBucket]] = None,
+    stream: bool = True,
+) -> Case:
+    """
+    Generate a debate case with flexible evidence-argument flow.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to generate (PRO or CON)
+        mode: Generation mode:
+            - "scratch": Generate without evidence (fabricate)
+            - "evidence_first": Build arguments from evidence
+            - "balanced": Use evidence if available, otherwise fabricate
+        debate_file: Optional DebateFile with evidence
+        evidence_buckets: Optional evidence buckets (legacy)
+        stream: Whether to stream output
+
+    Returns:
+        A Case object
+    """
+    if mode == "scratch":
+        # Generate without evidence
+        return generate_case(
+            resolution=resolution,
+            side=side,
+            evidence_buckets=None,
+            stream=stream
+        )
+
+    elif mode == "evidence_first":
+        # Must have debate file for evidence-first
+        if not debate_file:
+            raise ValueError(
+                "evidence_first mode requires a debate file with evidence. "
+                "Run 'debate research' first."
+            )
+        return generate_case_from_evidence(
+            resolution=resolution,
+            side=side,
+            debate_file=debate_file,
+            stream=stream
+        )
+
+    elif mode == "balanced":
+        # Use evidence if available
+        if debate_file:
+            # Try evidence-first
+            try:
+                return generate_case_from_evidence(
+                    resolution=resolution,
+                    side=side,
+                    debate_file=debate_file,
+                    stream=stream
+                )
+            except ValueError:
+                # Fall back to argument-first with evidence
+                if stream:
+                    print("\nInsufficient evidence for pure evidence-first approach.")
+                    print("Falling back to balanced mode with available evidence.\n")
+                pass
+
+        # Use existing generate_case with evidence_buckets if available
+        return generate_case(
+            resolution=resolution,
+            side=side,
+            evidence_buckets=evidence_buckets,
+            stream=stream
+        )
+
+    else:
+        raise ValueError(f"Unknown generation mode: {mode}")
