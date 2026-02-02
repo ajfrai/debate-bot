@@ -13,6 +13,7 @@ from debate.evidence_storage import (
 )
 from debate.models import Side
 from debate.research_agent import research_evidence
+from debate.round_controller import RoundController
 
 
 def cmd_generate(args) -> None:
@@ -195,6 +196,53 @@ def cmd_evidence(args) -> None:
             print("Run 'debate research' to cut evidence cards.\n")
 
 
+def cmd_run(args) -> None:
+    """Run a complete debate round."""
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    print(f"\nStarting debate round: {args.resolution}")
+    print(f"You are debating {args.side.upper()}\n")
+
+    # Generate cases if requested
+    user_case = None
+    ai_case = None
+
+    if args.gen_cases:
+        print("Generating cases for both sides...\n")
+        user_case = generate_case(args.resolution, side, None, stream=True)
+        print("\n")
+        ai_case = generate_case(args.resolution, side.opposite, None, stream=True)
+        print("\n")
+
+    # Initialize and run the round
+    try:
+        controller = RoundController(
+            resolution=args.resolution,
+            user_side=side,
+            user_case=user_case,
+            ai_case=ai_case,
+        )
+
+        decision = controller.run_round()
+
+        # Print final summary
+        print("\n" + "=" * 60)
+        print("FINAL RESULT")
+        print("=" * 60)
+        print(f"Winner: {decision.winning_team} ({decision.winner.value.upper()})")
+        print("\nVoting Issues:")
+        for i, issue in enumerate(decision.voting_issues, 1):
+            print(f"{i}. {issue}")
+        print("\nFeedback:")
+        for feedback in decision.feedback:
+            print(f"- {feedback}")
+        print()
+
+    except Exception as e:
+        print(f"Error running debate: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the debate CLI."""
     parser = argparse.ArgumentParser(
@@ -279,6 +327,30 @@ def main() -> None:
         help="Resolution number, keyword, or full name (optional - lists all if omitted)",
     )
     evidence_parser.set_defaults(func=cmd_evidence)
+
+    # Run command (debate round)
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run a complete debate round against the AI",
+    )
+    run_parser.add_argument(
+        "resolution",
+        type=str,
+        help="The debate resolution",
+    )
+    run_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side you will debate",
+    )
+    run_parser.add_argument(
+        "--gen-cases",
+        action="store_true",
+        help="Generate cases for both sides before starting (default: generates during round)",
+    )
+    run_parser.set_defaults(func=cmd_run)
 
     # Parse args
     args = parser.parse_args()

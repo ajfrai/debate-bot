@@ -6,6 +6,22 @@ A CLI tool for practicing Public Forum debate against an AI opponent with AI jud
 
 ## Running the Project
 
+### Run a Complete Debate Round
+
+```bash
+# Run a full debate round against the AI
+uv run debate run "Resolved: The US should ban TikTok" --side pro
+
+# Or pre-generate cases before starting
+uv run debate run "Resolved: The US should ban TikTok" --side pro --gen-cases
+```
+
+This will:
+1. Generate opening cases for both sides
+2. Walk you through all speeches (constructive, rebuttal, summary, final focus)
+3. Conduct crossfire Q&A after constructives, rebuttals, and summaries
+4. Have an AI judge evaluate the round and declare a winner with feedback
+
 ### Generate a Case (Basic)
 
 ```bash
@@ -46,8 +62,11 @@ uv run debate evidence tiktok
 ## Architecture
 
 - `debate/models.py` - Pydantic models for Case, Contention, Speech, Card, DebateFile, ArgumentSection, Round state
-- `debate/cli.py` - Entry point with subcommands (generate, research, evidence)
+- `debate/cli.py` - Entry point with subcommands (run, generate, research, evidence)
+- `debate/debate_agent.py` - AI debate agent that generates speeches, handles crossfire, and orchestrates debate activities
 - `debate/case_generator.py` - Generates cases using Anthropic API (with or without evidence)
+- `debate/judge_agent.py` - AI judge that evaluates rounds and provides decisions with feedback
+- `debate/round_controller.py` - Manages debate flow, speech order, and user interaction
 - `debate/research_agent.py` - Research agent for cutting evidence cards (uses Haiku for cost efficiency)
 - `debate/evidence_storage.py` - Save/load debate files as directories per resolution
 - `debate/prompts/` - Prompt templates (Markdown files)
