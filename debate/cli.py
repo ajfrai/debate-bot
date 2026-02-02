@@ -12,7 +12,6 @@ from debate.evidence_storage import (
     list_debate_files,
     list_evidence_buckets,
     load_debate_file,
-    save_evidence_bucket,
 )
 from debate.evidence_validator import validate_speech_evidence
 from debate.models import Side
@@ -42,13 +41,14 @@ def cmd_generate(args) -> None:
     if debate_file:
         # Convert debate file sections to evidence buckets
         from debate.models import EvidenceBucket
+
         sections = debate_file.get_sections_for_side(side)
         for section in sections:
             bucket = EvidenceBucket(
                 topic=section.argument,
                 resolution=args.resolution,
                 side=side,
-                cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)]
+                cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)],
             )
             if bucket.cards:
                 evidence_buckets.append(bucket)
@@ -78,7 +78,7 @@ def cmd_generate(args) -> None:
             resolution=args.resolution,
             side=side,
             evidence_buckets=evidence_buckets if evidence_buckets else None,
-            stream=True
+            stream=True,
         )
         print("\n" + "=" * 60)
         print(case.format())
@@ -117,7 +117,7 @@ def cmd_research(args) -> None:
             if section.argument.lower() == args.topic.lower():
                 print(f"\n{'=' * 60}")
                 print(f"{section.get_heading()}")
-                print('=' * 60)
+                print("=" * 60)
                 for card_id in section.card_ids:
                     card = debate_file.get_card(card_id)
                     if card:
@@ -196,16 +196,16 @@ def cmd_evidence(args) -> None:
             print("\nDebate Files (use number or keyword to view):\n")
             for i, file_info in enumerate(debate_files, 1):
                 print(f"  [{i}] {file_info['resolution']}")
-                print(f"      {file_info['num_cards']} cards | PRO: {file_info['num_pro_sections']} sections | CON: {file_info['num_con_sections']} sections")
+                print(
+                    f"      {file_info['num_cards']} cards | PRO: {file_info['num_pro_sections']} sections | CON: {file_info['num_con_sections']} sections"
+                )
                 print()
             print("Example: debate evidence 1")
             print("Example: debate evidence tiktok")
 
         # Also show legacy buckets if any
         buckets = list_evidence_buckets()
-        legacy_only = [b for b in buckets if not any(
-            d['resolution'] == b['resolution'] for d in debate_files
-        )]
+        legacy_only = [b for b in buckets if not any(d["resolution"] == b["resolution"] for d in debate_files)]
 
         if legacy_only:
             print("\nLegacy Evidence Buckets:\n")
@@ -219,7 +219,9 @@ def cmd_evidence(args) -> None:
             for resolution, res_buckets in by_resolution.items():
                 print(f"  {resolution}")
                 for bucket_info in res_buckets:
-                    print(f"    [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)")
+                    print(
+                        f"    [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)"
+                    )
                 print()
 
         if not debate_files and not buckets:
@@ -253,7 +255,9 @@ def cmd_run(args) -> None:
 
         # Highlight winner
         winner_color = "green" if decision.winning_team == "Team A" else "blue"
-        console.print(f"[bold {winner_color}]Winner: {decision.winning_team} ({decision.winner.value.upper()})[/bold {winner_color}]")
+        console.print(
+            f"[bold {winner_color}]Winner: {decision.winning_team} ({decision.winner.value.upper()})[/bold {winner_color}]"
+        )
 
         console.print("\n[bold]Voting Issues:[/bold]")
         for i, issue in enumerate(decision.voting_issues, 1):
@@ -285,7 +289,7 @@ def cmd_validate(args) -> None:
     # Get speech text
     if args.file:
         try:
-            with open(args.file, 'r') as f:
+            with open(args.file) as f:
                 speech_text = f.read()
         except FileNotFoundError:
             print(f"\nFile not found: {args.file}\n")
@@ -309,9 +313,7 @@ def cmd_validate(args) -> None:
     # Validate the speech
     print(f"\nValidating {args.side.upper()} speech for: {args.resolution}\n")
     validation_result = validate_speech_evidence(
-        speech_text=speech_text,
-        side=side.value.upper(),
-        debate_file=debate_file
+        speech_text=speech_text, side=side.value.upper(), debate_file=debate_file
     )
 
     # Display results
@@ -354,7 +356,7 @@ def cmd_validate(args) -> None:
             status = "✓" if citation.matched_card else "✗"
             print(f"  {i}. {status} {citation.author_last} {citation.year}")
             if citation.quoted_text:
-                print(f"      Quote: \"{citation.quoted_text[:100]}...\"")
+                print(f'      Quote: "{citation.quoted_text[:100]}..."')
             if citation.matched_card:
                 print(f"      Matched: {citation.matched_card.tag}")
             print()
@@ -386,13 +388,13 @@ def cmd_prep(args) -> None:
         print(f"\nResolution: {summary['resolution']}")
         print(f"Side: {summary['side'].upper()}")
         print(f"\nAnalyses completed: {len(summary['analyses_completed'])}")
-        for analysis_type in summary['analyses_completed']:
+        for analysis_type in summary["analyses_completed"]:
             print(f"  - {analysis_type}")
 
         print(f"\nArguments developed: {summary['num_arguments']}")
         print(f"Total cards: {summary['total_cards']}")
-        print(f"\nCards by purpose:")
-        for purpose, count in summary['arguments_by_purpose'].items():
+        print("\nCards by purpose:")
+        for purpose, count in summary["arguments_by_purpose"].items():
             print(f"  - {purpose}: {count}")
 
         print(f"\nResearch sessions: {summary['research_sessions']}")
@@ -404,6 +406,7 @@ def cmd_prep(args) -> None:
     except Exception as e:
         print(f"\nError during prep: {e}\n", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

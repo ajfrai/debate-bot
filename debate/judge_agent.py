@@ -4,7 +4,7 @@ from pathlib import Path
 
 import anthropic
 
-from debate.models import JudgeDecision, RoundState, Side
+from debate.models import JudgeDecision, RoundState
 
 
 def load_prompt_template(name: str) -> str:
@@ -126,7 +126,7 @@ class JudgeAgent:
         import re
 
         # Extract winner
-        decision_match = re.search(r'\*\*DECISION:\s*(Team [AB])\*\*', response_text, re.IGNORECASE)
+        decision_match = re.search(r"\*\*DECISION:\s*(Team [AB])\*\*", response_text, re.IGNORECASE)
         if not decision_match:
             raise ValueError("Could not find DECISION marker in response")
 
@@ -143,33 +143,33 @@ class JudgeAgent:
         # Extract voting issues (numbered list after VOTING ISSUES:)
         voting_issues = []
         voting_section = re.search(
-            r'\*\*VOTING ISSUES:\*\*\s*(.*?)\s*\*\*REASON FOR DECISION:\*\*',
-            response_text,
-            re.DOTALL | re.IGNORECASE
+            r"\*\*VOTING ISSUES:\*\*\s*(.*?)\s*\*\*REASON FOR DECISION:\*\*", response_text, re.DOTALL | re.IGNORECASE
         )
         if voting_section:
             issues_text = voting_section.group(1)
             # Extract numbered items
-            issue_matches = re.findall(r'^\d+\.\s*(.+?)(?=^\d+\.|$)', issues_text, re.MULTILINE | re.DOTALL)
+            issue_matches = re.findall(r"^\d+\.\s*(.+?)(?=^\d+\.|$)", issues_text, re.MULTILINE | re.DOTALL)
             voting_issues = [issue.strip() for issue in issue_matches]
 
         # Extract RFD
         rfd = ""
         rfd_match = re.search(
-            r'\*\*REASON FOR DECISION:\*\*\s*(.*?)\s*\*\*FEEDBACK FOR TEAM',
-            response_text,
-            re.DOTALL | re.IGNORECASE
+            r"\*\*REASON FOR DECISION:\*\*\s*(.*?)\s*\*\*FEEDBACK FOR TEAM", response_text, re.DOTALL | re.IGNORECASE
         )
         if rfd_match:
             rfd = rfd_match.group(1).strip()
 
         # Extract feedback
         feedback = []
-        feedback_a = re.search(r'\*\*FEEDBACK FOR TEAM A:\*\*\s*(.*?)(?=\*\*FEEDBACK FOR TEAM B:|\Z)', response_text, re.DOTALL | re.IGNORECASE)
+        feedback_a = re.search(
+            r"\*\*FEEDBACK FOR TEAM A:\*\*\s*(.*?)(?=\*\*FEEDBACK FOR TEAM B:|\Z)",
+            response_text,
+            re.DOTALL | re.IGNORECASE,
+        )
         if feedback_a:
             feedback.append(f"Team A: {feedback_a.group(1).strip()}")
 
-        feedback_b = re.search(r'\*\*FEEDBACK FOR TEAM B:\*\*\s*(.*?)(?=\Z)', response_text, re.DOTALL | re.IGNORECASE)
+        feedback_b = re.search(r"\*\*FEEDBACK FOR TEAM B:\*\*\s*(.*?)(?=\Z)", response_text, re.DOTALL | re.IGNORECASE)
         if feedback_b:
             feedback.append(f"Team B: {feedback_b.group(1).strip()}")
 

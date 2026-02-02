@@ -1,7 +1,5 @@
 """Round controller for managing debate flow and speech order."""
 
-from typing import Optional
-
 from rich.console import Console
 
 from debate.debate_agent import DebateAgent
@@ -25,7 +23,6 @@ from debate.models import (
     Speech,
     SpeechType,
 )
-
 
 # PF Speech Order (from CLAUDE.md)
 SPEECH_ORDER = [
@@ -59,8 +56,8 @@ class RoundController:
         self,
         resolution: str,
         user_side: Side,
-        user_case: Optional[Case] = None,
-        ai_case: Optional[Case] = None,
+        user_case: Case | None = None,
+        ai_case: Case | None = None,
     ):
         """Initialize a debate round.
 
@@ -90,7 +87,7 @@ class RoundController:
         # Load debate file if available
         self.debate_file = self._load_debate_file()
 
-    def _load_debate_file(self) -> Optional[DebateFile]:
+    def _load_debate_file(self) -> DebateFile | None:
         """Try to load debate file for this resolution."""
         try:
             return load_debate_file(self.resolution)
@@ -148,6 +145,7 @@ class RoundController:
         if side == self.user_side:
             # For user, just use case generator directly
             from debate.case_generator import generate_case
+
             return generate_case(
                 resolution=self.resolution,
                 side=side,
@@ -172,9 +170,7 @@ class RoundController:
         # Validate evidence citations in user's speech
         if self.debate_file:
             validation_result = validate_speech_evidence(
-                speech_text=content,
-                side=self.user_side.value.upper(),
-                debate_file=self.debate_file
+                speech_text=content, side=self.user_side.value.upper(), debate_file=self.debate_file
             )
 
             # Display validation results if there are errors or warnings
@@ -196,7 +192,7 @@ class RoundController:
                     print("\n⚠️  Your speech contains citations not backed by evidence files.")
                     print("This violates evidence requirements.")
                     response = input("\nContinue anyway? (y/n): ")
-                    if response.lower() != 'y':
+                    if response.lower() != "y":
                         print("Speech cancelled. Please revise and try again.\n")
                         return self._user_speech(speech_type, speaker_num, time_seconds)
 
@@ -238,9 +234,7 @@ class RoundController:
         # Validate evidence citations in the speech
         if self.debate_file:
             validation_result = validate_speech_evidence(
-                speech_text=content,
-                side=self.ai_side.value.upper(),
-                debate_file=self.debate_file
+                speech_text=content, side=self.ai_side.value.upper(), debate_file=self.debate_file
             )
 
             # Display validation results if there are errors or warnings

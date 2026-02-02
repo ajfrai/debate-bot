@@ -29,9 +29,7 @@ This structure allows:
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Optional
 
 from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
 
@@ -86,30 +84,36 @@ def render_card_markdown(card: Card) -> str:
     ]
 
     if card.purpose:
-        lines.extend([
-            f"**Purpose:** {card.purpose}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"**Purpose:** {card.purpose}",
+                "",
+            ]
+        )
 
-    lines.extend([
-        "---",
-        "",
-        f"**{card.author}**, {card.credentials}",
-        f"*{card.source}*, {card.year}",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            f"**{card.author}**, {card.credentials}",
+            f"*{card.source}*, {card.year}",
+        ]
+    )
 
     if card.url:
         lines.append(f"[Source]({card.url})")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        card.text,
-        "",
-        "---",
-        f"*Card ID: {card.id}*",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            card.text,
+            "",
+            "---",
+            f"*Card ID: {card.id}*",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -192,8 +196,8 @@ def generate_index_markdown(debate_file: DebateFile, resolution_dir: Path) -> st
         "## Quick Navigation",
         "",
         "```",
-        f"grep -r \"keyword\" {resolution_dir}/pro/   # Search PRO evidence",
-        f"grep -r \"keyword\" {resolution_dir}/con/   # Search CON evidence",
+        f'grep -r "keyword" {resolution_dir}/pro/   # Search PRO evidence',
+        f'grep -r "keyword" {resolution_dir}/con/   # Search CON evidence',
         f"ls {resolution_dir}/pro/answer/             # List all PRO answers",
         "```",
         "",
@@ -245,7 +249,7 @@ def generate_index_markdown(debate_file: DebateFile, resolution_dir: Path) -> st
     return "\n".join(lines)
 
 
-def load_debate_file(resolution: str) -> Optional[DebateFile]:
+def load_debate_file(resolution: str) -> DebateFile | None:
     """Load a debate file from its directory.
 
     Args:
@@ -260,7 +264,7 @@ def load_debate_file(resolution: str) -> Optional[DebateFile]:
     if not meta_path.exists():
         return None
 
-    with open(meta_path, "r") as f:
+    with open(meta_path) as f:
         meta = json.load(f)
 
     return DebateFile.model_validate(meta)
@@ -304,13 +308,15 @@ def list_debate_files() -> list[dict]:
         try:
             debate_file = load_debate_file(dir_path.name)
             if debate_file:
-                files.append({
-                    "resolution": debate_file.resolution,
-                    "dir_path": str(dir_path),
-                    "num_cards": len(debate_file.cards),
-                    "num_pro_sections": len(debate_file.pro_sections),
-                    "num_con_sections": len(debate_file.con_sections),
-                })
+                files.append(
+                    {
+                        "resolution": debate_file.resolution,
+                        "dir_path": str(dir_path),
+                        "num_cards": len(debate_file.cards),
+                        "num_pro_sections": len(debate_file.pro_sections),
+                        "num_con_sections": len(debate_file.con_sections),
+                    }
+                )
         except Exception:
             continue
 
@@ -339,7 +345,7 @@ def save_evidence_bucket(bucket: EvidenceBucket) -> str:
 
 def load_evidence_bucket(filepath: str) -> EvidenceBucket:
     """Load an evidence bucket from a JSON file."""
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         data = json.load(f)
     return EvidenceBucket.model_validate(data)
 
@@ -348,7 +354,7 @@ def find_evidence_bucket(
     resolution: str,
     side: Side,
     topic: str,
-) -> Optional[EvidenceBucket]:
+) -> EvidenceBucket | None:
     """Find and load an evidence bucket if it exists."""
     evidence_dir = get_evidence_dir()
 
@@ -365,7 +371,7 @@ def find_evidence_bucket(
     return None
 
 
-def list_evidence_buckets(resolution: Optional[str] = None) -> list[dict]:
+def list_evidence_buckets(resolution: str | None = None) -> list[dict]:
     """List all evidence buckets, optionally filtered by resolution."""
     evidence_dir = get_evidence_dir()
     buckets = []
@@ -377,13 +383,15 @@ def list_evidence_buckets(resolution: Optional[str] = None) -> list[dict]:
             if resolution and bucket.resolution != resolution:
                 continue
 
-            buckets.append({
-                "filepath": str(filepath),
-                "resolution": bucket.resolution,
-                "side": bucket.side.value,
-                "topic": bucket.topic,
-                "num_cards": len(bucket.cards),
-            })
+            buckets.append(
+                {
+                    "filepath": str(filepath),
+                    "resolution": bucket.resolution,
+                    "side": bucket.side.value,
+                    "topic": bucket.topic,
+                    "num_cards": len(bucket.cards),
+                }
+            )
         except Exception:
             continue
 

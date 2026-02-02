@@ -26,4 +26,48 @@ packages = ["debate"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+    "types-pyyaml>=6.0.0",
+    "types-requests>=2.31.0",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false  # Disable to reduce noise initially
+warn_unused_configs = true
+disallow_untyped_defs = false  # Start permissive, tighten later
+check_untyped_defs = false  # Start permissive
+warn_redundant_casts = false
+warn_unused_ignores = false
+ignore_missing_imports = true  # For third-party packages without stubs
+no_implicit_optional = false  # Allow implicit Optional for now
+disable_error_code = ["var-annotated", "arg-type"]  # Disable for now, enable incrementally
+
+# Gradually enable stricter checks per-module as code improves
+[[tool.mypy.overrides]]
+module = "debate.models"
+warn_return_any = true
+check_untyped_defs = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py

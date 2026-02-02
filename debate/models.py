@@ -2,7 +2,6 @@
 
 import uuid
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -52,26 +51,20 @@ class Card(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8], description="Unique card ID")
     tag: str = Field(description="Brief label summarizing the card's argument")
     author: str = Field(description="Author's full name (e.g., 'John Smith')")
-    credentials: str = Field(
-        description="Author's qualifications (e.g., 'Professor of Economics at MIT')"
-    )
+    credentials: str = Field(description="Author's qualifications (e.g., 'Professor of Economics at MIT')")
     year: str = Field(description="Publication year")
     source: str = Field(description="Publication name (e.g., 'New York Times', 'Nature')")
-    url: Optional[str] = Field(default=None, description="URL to source for verification")
-    text: str = Field(
-        description="Full quoted text with **bolded sections** marking what should be read aloud"
-    )
-    purpose: str = Field(
-        default="", description="Strategic purpose of this card (e.g., 'proves economic harm')"
-    )
+    url: str | None = Field(default=None, description="URL to source for verification")
+    text: str = Field(description="Full quoted text with **bolded sections** marking what should be read aloud")
+    purpose: str = Field(default="", description="Strategic purpose of this card (e.g., 'proves economic harm')")
 
     def format_for_reading(self) -> str:
         """Format the card for reading aloud in a speech (only bolded portions)."""
         import re
 
         # Extract only bolded text
-        bolded_parts = re.findall(r'\*\*(.+?)\*\*', self.text)
-        reading_text = ' '.join(bolded_parts)
+        bolded_parts = re.findall(r"\*\*(.+?)\*\*", self.text)
+        reading_text = " ".join(bolded_parts)
 
         last_name = self.author.split()[-1]
         return f"{last_name} {self.year} explains, {reading_text}"
@@ -134,7 +127,7 @@ class DebateFile(BaseModel):
         self.cards[card.id] = card
         return card.id
 
-    def get_card(self, card_id: str) -> Optional[Card]:
+    def get_card(self, card_id: str) -> Card | None:
         """Get a card by ID."""
         return self.cards.get(card_id)
 
@@ -362,8 +355,8 @@ class RoundState(BaseModel):
     resolution: str
     team_a_side: Side = Field(description="Which side Team A (user) is on")
     team_b_side: Side = Field(description="Which side Team B (AI) is on")
-    team_a_case: Optional[Case] = None
-    team_b_case: Optional[Case] = None
+    team_a_case: Case | None = None
+    team_b_case: Case | None = None
     speeches: list[Speech] = Field(default_factory=list)
     crossfires: list[Crossfire] = Field(default_factory=list)
     current_speech_index: int = Field(default=0, description="Index in speech order")
@@ -394,7 +387,7 @@ class AnalysisResult(BaseModel):
     """Result of a systematic analysis process."""
 
     analysis_type: AnalysisType
-    subject: Optional[str] = Field(default=None, description="Subject of analysis (e.g., card ID, claim)")
+    subject: str | None = Field(default=None, description="Subject of analysis (e.g., card ID, claim)")
     output: str = Field(description="Structured output from the analysis")
     timestamp: str = Field(description="When this analysis was performed")
 
@@ -420,9 +413,7 @@ class ResearchEntry(BaseModel):
     cards_from_backfiles: int = 0
     cards_cut_from_web: int = 0
     sources_used: list[str] = Field(default_factory=list)
-    citations_found: list[str] = Field(
-        default_factory=list, description="Citations that could be followed up"
-    )
+    citations_found: list[str] = Field(default_factory=list, description="Citations that could be followed up")
     timestamp: str
 
 
@@ -445,14 +436,10 @@ class PrepFile(BaseModel):
     )
 
     # Arguments (grow as research happens)
-    arguments: list[ArgumentPrep] = Field(
-        default_factory=list, description="Arguments with organized evidence"
-    )
+    arguments: list[ArgumentPrep] = Field(default_factory=list, description="Arguments with organized evidence")
 
     # Research history (tracks what's been researched)
-    research_log: list[ResearchEntry] = Field(
-        default_factory=list, description="Log of all research sessions"
-    )
+    research_log: list[ResearchEntry] = Field(default_factory=list, description="Log of all research sessions")
 
     def add_analysis(self, result: AnalysisResult) -> None:
         """Add an analysis result."""
