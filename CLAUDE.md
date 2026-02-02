@@ -120,6 +120,6 @@ Crossfires after speeches 1-2, 3-4, and 5-6.
 
 Required environment variables:
 - `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude
-- `BRAVE_API_KEY` - (Optional) Your Brave Search API key for evidence research
-  - Default is embedded, but you can override with your own key
+- `BRAVE_API_KEY` - Your Brave Search API key for evidence research
   - Get a free key at https://brave.com/search/api/ (15k queries/month free tier)
+  - If not set, research will fall back to Claude's knowledge base
