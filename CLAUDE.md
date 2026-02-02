@@ -42,27 +42,49 @@ uv run debate evidence --resolution "Resolved: The US should ban TikTok"
 
 ## Architecture
 
-- `debate/models.py` - Pydantic models for Case, Contention, Speech, Card, EvidenceBucket, Round state
+- `debate/models.py` - Pydantic models for Case, Contention, Speech, Card, DebateFile, ArgumentSection, Round state
 - `debate/cli.py` - Entry point with subcommands (generate, research, evidence)
 - `debate/case_generator.py` - Generates cases using Anthropic API (with or without evidence)
 - `debate/research_agent.py` - Research agent for cutting evidence cards (uses Haiku for cost efficiency)
-- `debate/evidence_storage.py` - Save/load evidence buckets as JSON files
+- `debate/evidence_storage.py` - Save/load debate files as directories per resolution
 - `debate/prompts/` - Prompt templates (Markdown files)
-- `evidence/` - Local directory storing evidence buckets (JSON files organized by resolution)
+- `evidence/` - Local directory storing debate files (one directory per resolution)
 
 ## Evidence Card System
 
-The debate bot now supports research and cutting of evidence cards, similar to policy debate evidence buckets:
+The debate bot supports research and cutting of evidence cards, organized into **debate files** by strategic value.
 
 ### Card Structure
 
 Each evidence card includes:
-- **Tag**: Brief argument label (e.g., "Trade increases GDP")
+- **ID**: Unique identifier for cross-referencing across sections
+- **Tag**: Brief argument label that states what the card PROVES (e.g., "TikTok ban costs US economy billions")
+- **Purpose**: Strategic purpose explaining WHY this card matters
 - **Author**: Full name with credentials (e.g., "Jane Smith, Professor of Economics at MIT")
 - **Year**: Publication year
 - **Source**: Publication name (e.g., "Journal of Economic Perspectives")
 - **URL**: Link to source for verification
 - **Text**: Direct quote with **bolded sections** marking what should be read aloud
+
+### Debate File Organization
+
+Cards are organized into **debate files** (one per resolution) structured like a directory:
+
+```
+evidence/
+  resolved_the_us_should_ban_tiktok/
+    debate_file.json    # All cards and section data
+    INDEX.md            # Rendered markdown table of contents
+```
+
+Cards are organized by **strategic value** into sections:
+
+- **Supporting evidence for <argument>** - Cards that prove your arguments
+- **Answer to <argument>** - Cards that respond to opponent arguments
+- **Extensions for <argument>** - Additional warrants to extend arguments
+- **Impact evidence for <argument>** - Impact calculus (magnitude, timeframe, probability)
+
+**Cards can appear in multiple sections** - the same card may be relevant as both support for your argument AND an answer to theirs.
 
 ### Workflow
 
@@ -70,15 +92,17 @@ Each evidence card includes:
    - Research agent uses **Brave Search API** to find real sources
    - Uses Claude Haiku (cost-effective) to extract and format evidence cards
    - Extracts quotes with proper citations and author credentials
+   - **Organizes cards by strategic value** (support, answer, extension, impact)
    - Bolds the key warrants (20-40% of text)
    - **Streams tokens in real-time** so you can see progress
 
-2. **Store in buckets**: Evidence is saved as JSON files in `evidence/` directory
-   - Organized by resolution, side, and topic
-   - Each bucket has a table of contents
+2. **Store in debate files**: Evidence is saved to resolution directories in `evidence/`
+   - One directory per resolution containing all PRO and CON evidence
+   - Markdown INDEX.md provides navigable table of contents
+   - Cards are cross-referenced by ID across sections
 
 3. **Generate with evidence**: Use `debate generate --with-evidence` to create cases
-   - Case generator loads relevant evidence buckets
+   - Case generator loads the debate file for the resolution
    - Debate agent cites real evidence with credentials and direct quotes
    - Only reads bolded portions in speeches (like real debate cards)
    - **Streams tokens in real-time** for immediate feedback
@@ -100,6 +124,9 @@ Each evidence card includes:
 4. **Models are flexible**: Contentions are prose, not structured card lists
 5. **Evidence cards are real**: Research agent finds actual sources with verifiable citations, not fabricated evidence
 6. **Cost-effective research**: Uses Haiku model and local caching to minimize token usage
+7. **Debate files as directories**: Each resolution has its own directory, like a real debate file
+8. **Strategic organization**: Cards organized by purpose (support, answer, extension, impact)
+9. **Cross-referencing**: Cards have IDs and can appear in multiple sections where relevant
 
 ## PF Speech Order
 
