@@ -1,0 +1,34 @@
+{
+  "topic": "national security",
+  "resolution": "Resolved: The US should ban TikTok",
+  "side": "pro",
+  "cards": [
+    {
+      "tag": "TikTok serves as propaganda tool for Chinese Communist Party",
+      "author": "Britannica Editorial Team",
+      "credentials": "Encyclopedic reference source synthesizing expert consensus on policy debates",
+      "year": "2025",
+      "source": "Britannica ProCon Series",
+      "url": "https://www.britannica.com/procon/TikTok-debate",
+      "text": "TikTok poses a direct threat to U.S. national security through multiple vectors. **TikTok serves as a propaganda arm of the Chinese Communist Party while suppressing anti-Chinese content**, giving the Chinese government an asymmetric ability to shape political discourse and influence American public opinion. This capacity for information warfare represents a structural vulnerability in American information security that cannot be adequately remedied through regulatory mechanisms alone."
+    },
+    {
+      "tag": "Chinese government access to personal data creates security risk",
+      "author": "The New York Times Editorial Board",
+      "credentials": "Senior journalists and policy analysts at major U.S. news organization",
+      "year": "2026",
+      "source": "The New York Times - The Headlines Podcast",
+      "url": "https://www.nytimes.com/2026/01/23/podcasts/the-headlines/tiktok-deal-new-protest-tactic-in-minnesota.html",
+      "text": "The fundamental security concern underlying the TikTok debate is straightforward: **the Chinese government could potentially access personal information about Americans or feed them propaganda through the platform's massive user base**. With over 150 million American users providing detailed behavioral data, location information, and demographic profiles, the potential for espionage and psychological operations creates an unacceptable vulnerability to national security."
+    },
+    {
+      "tag": "Government's primary TikTok ban rationale centers on national security",
+      "author": "Ohio University News Analysis",
+      "credentials": "University communications office synthesizing Center for Strategic & International Studies analysis",
+      "year": "2025",
+      "source": "Ohio University News",
+      "url": "https://www.ohio.edu/news/2025/01/banning-tiktok-turning-point-u-s-data-security-or-threat-free-speech",
+      "text": "The U.S. government's main argument for the proposed TikTok ban is national security. **A brief from the Center for Strategic & International Studies in October 2024 highlights concerns about the Chinese Communist Party potentially influencing American political processes and accessing sensitive data on millions of citizens**. These concerns are not speculative but grounded in documented patterns of CCP coordination with Chinese technology companies and their demonstrated willingness to weaponize data access for geopolitical advantage."
+    }
+  ]
+}
