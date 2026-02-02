@@ -1,6 +1,7 @@
 """Generate debate cases using the Anthropic API."""
 
 import json
+import sys
 from pathlib import Path
 
 import anthropic
@@ -19,6 +20,7 @@ def generate_case(
     resolution: str,
     side: Side,
     evidence_buckets: list[EvidenceBucket] | None = None,
+    stream: bool = True,
 ) -> Case:
     """Generate a debate case for the given resolution and side.
 
@@ -28,6 +30,7 @@ def generate_case(
         evidence_buckets: Optional list of evidence buckets to use for the case.
                          If provided, the case will use real evidence cards.
                          If None, the case will use fabricated evidence.
+        stream: Whether to stream tokens as they're generated (default True)
 
     Returns:
         A Case object with 2-3 contentions
@@ -60,13 +63,26 @@ def generate_case(
         evidence_buckets=evidence_section,
     )
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    response_text = message.content[0].text
+    if stream:
+        # Stream the response
+        response_text = ""
+        with client.messages.stream(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream_response:
+            for text in stream_response.text_stream:
+                print(text, end="", flush=True)
+                response_text += text
+        print()  # Add newline after streaming
+    else:
+        # Non-streaming response
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        response_text = message.content[0].text
 
     # Extract JSON from the response
     contentions = _parse_case_response(response_text)

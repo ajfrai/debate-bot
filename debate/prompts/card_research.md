@@ -8,12 +8,16 @@ Research and cut {num_cards} high-quality evidence cards for the following argum
 **Topic/Argument:** {topic}
 
 ## Research Strategy
-Use your knowledge base to generate realistic evidence cards:
-- Focus on: {search_query}
-- Look for credible academic, journalistic, and expert sources
+Use the search results below to generate evidence cards:
+- Search query used: {search_query}
+- Look for credible academic, journalistic, and expert sources in the results
 - Prioritize recent evidence (2020-2026)
 - Focus on sources with clear author credentials
-- Generate realistic evidence based on actual debates and scholarship on this topic
+- Visit the URLs in the search results to extract actual quotes
+
+{search_results}
+
+Use the search results above to find real sources and quotes. If search results are unavailable, use your knowledge base to generate realistic evidence based on actual debates and scholarship on this topic.
 
 ## Card Cutting Guidelines
 

@@ -1,7 +1,7 @@
 """Research agent for finding and cutting evidence cards.
 
 This module provides cost-effective evidence research by:
-1. Using web search to find relevant sources
+1. Using Brave Search to find relevant sources
 2. Using Claude Haiku to extract and format evidence cards
 3. Organizing cards into evidence buckets by argument
 """
@@ -11,6 +11,7 @@ import os
 from typing import Optional
 
 import anthropic
+import requests
 
 from debate.models import Card, EvidenceBucket, Side
 
@@ -20,6 +21,54 @@ def load_prompt_template(name: str) -> str:
     prompt_path = os.path.join(os.path.dirname(__file__), "prompts", f"{name}.md")
     with open(prompt_path, "r") as f:
         return f.read()
+
+
+def _brave_search(query: str, num_results: int = 5) -> Optional[str]:
+    """Search Brave for relevant sources.
+
+    Args:
+        query: Search query
+        num_results: Number of results to fetch (default 5)
+
+    Returns:
+        Formatted search results as a string, or None if search fails
+    """
+    api_key = os.environ.get("BRAVE_API_KEY", "BSArsGVaVsAQqTPz1Mls1Yydfz-C0FJ")
+
+    try:
+        headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
+        params = {"q": query, "count": num_results}
+
+        response = requests.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            headers=headers,
+            params=params,
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            print(f"Warning: Brave Search returned status {response.status_code}")
+            return None
+
+        data = response.json()
+        results = data.get("web", {}).get("results", [])
+
+        if not results:
+            return None
+
+        # Format results for the prompt
+        formatted = ["## Search Results\n"]
+        for i, result in enumerate(results, 1):
+            formatted.append(f"{i}. **{result.get('title', 'No title')}**")
+            formatted.append(f"   URL: {result.get('url', 'No URL')}")
+            formatted.append(f"   Description: {result.get('description', 'No description')}")
+            formatted.append("")
+
+        return "\n".join(formatted)
+
+    except Exception as e:
+        print(f"Warning: Brave Search failed: {e}")
+        return None
 
 
 def _extract_json_from_text(text: str) -> dict:
@@ -45,6 +94,7 @@ def research_evidence(
     topic: str,
     num_cards: int = 3,
     search_query: Optional[str] = None,
+    stream: bool = True,
 ) -> EvidenceBucket:
     """Research and cut evidence cards for a specific argument.
 
@@ -54,6 +104,7 @@ def research_evidence(
         topic: The specific argument/topic to research (e.g., "Economic impacts")
         num_cards: How many cards to cut (default 3, max 5 for cost control)
         search_query: Optional custom search query (auto-generated if not provided)
+        stream: Whether to stream tokens as they're generated (default True)
 
     Returns:
         EvidenceBucket with researched evidence cards
@@ -66,12 +117,22 @@ def research_evidence(
     if num_cards > 5:
         raise ValueError("Maximum 5 cards per research session to control costs")
 
-    # Load the research prompt template
-    template = load_prompt_template("card_research")
-
     # Generate search query if not provided
     if not search_query:
         search_query = f"{resolution} {topic} {side.value}"
+
+    # Perform Brave Search
+    print("Searching Brave for relevant sources...")
+    search_results = _brave_search(search_query, num_results=5)
+
+    if search_results:
+        print("✓ Found search results from Brave")
+    else:
+        print("⚠ Brave Search unavailable, using Claude's knowledge base")
+        search_results = "(No search results available - use your knowledge base)"
+
+    # Load the research prompt template
+    template = load_prompt_template("card_research")
 
     # Format the prompt
     side_info = "affirming" if side == Side.PRO else "negating"
@@ -82,6 +143,7 @@ def research_evidence(
         topic=topic,
         num_cards=num_cards,
         search_query=search_query,
+        search_results=search_results,
     )
 
     # Call Claude API with Haiku for cost-effectiveness
@@ -91,13 +153,27 @@ def research_evidence(
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    response = client.messages.create(
-        model="claude-haiku-4-20250514",  # Most cost-effective model
-        max_tokens=4096,  # Limit tokens for cost control
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    response_text = response.content[0].text
+    if stream:
+        # Stream the response
+        print("\nCutting evidence cards...\n")
+        response_text = ""
+        with client.messages.stream(
+            model="claude-haiku-4-20250514",  # Most cost-effective model
+            max_tokens=4096,  # Limit tokens for cost control
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream_response:
+            for text in stream_response.text_stream:
+                print(text, end="", flush=True)
+                response_text += text
+        print()  # Add newline after streaming
+    else:
+        # Non-streaming response
+        response = client.messages.create(
+            model="claude-haiku-4-20250514",  # Most cost-effective model
+            max_tokens=4096,  # Limit tokens for cost control
+            messages=[{"role": "user", "content": prompt}],
+        )
+        response_text = response.content[0].text
 
     # Parse the response
     try:

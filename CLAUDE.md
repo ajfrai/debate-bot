@@ -67,9 +67,11 @@ Each evidence card includes:
 ### Workflow
 
 1. **Research evidence**: Use `debate research` to cut cards for specific arguments
-   - Research agent uses Claude Haiku (cost-effective) to find and format cards
-   - Searches web sources and extracts quotes with proper citations
+   - Research agent uses **Brave Search API** to find real sources
+   - Uses Claude Haiku (cost-effective) to extract and format evidence cards
+   - Extracts quotes with proper citations and author credentials
    - Bolds the key warrants (20-40% of text)
+   - **Streams tokens in real-time** so you can see progress
 
 2. **Store in buckets**: Evidence is saved as JSON files in `evidence/` directory
    - Organized by resolution, side, and topic
@@ -79,13 +81,16 @@ Each evidence card includes:
    - Case generator loads relevant evidence buckets
    - Debate agent cites real evidence with credentials and direct quotes
    - Only reads bolded portions in speeches (like real debate cards)
+   - **Streams tokens in real-time** for immediate feedback
 
 ### Cost Optimization
 
 - Research agent uses **Claude Haiku** (cheapest model) for card cutting
+- **Brave Search API** finds real sources (free tier: 15k queries/month)
 - Limited to 5 cards max per research session
 - Evidence is cached locally, no need to re-research
 - Case generation can use stored evidence without additional research costs
+- **Token streaming** provides immediate feedback without waiting
 
 ## Key Design Decisions
 
@@ -113,4 +118,8 @@ Crossfires after speeches 1-2, 3-4, and 5-6.
 
 ## Environment
 
-Requires `ANTHROPIC_API_KEY` environment variable.
+Required environment variables:
+- `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude
+- `BRAVE_API_KEY` - (Optional) Your Brave Search API key for evidence research
+  - Default is embedded, but you can override with your own key
+  - Get a free key at https://brave.com/search/api/ (15k queries/month free tier)
