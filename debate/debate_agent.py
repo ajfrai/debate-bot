@@ -573,17 +573,27 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
         if cards_needed > 0:
             print(f"  Researching {cards_needed} more cards from web...")
-            # Use existing research agent
-            research_result = _research_evidence(
+            # Use existing research agent (returns DebateFile)
+            updated_debate_file = _research_evidence(
                 resolution=self.resolution,
                 side=self.side,
                 topic=topic,
                 num_cards=cards_needed,
-                section_type=purpose,
                 stream=stream,
             )
-            new_cards = research_result.get("cards", [])
-            sources_used = research_result.get("sources", [])
+
+            # Extract newly added cards from the debate file
+            # The research agent adds cards to sections, so get them from the appropriate side
+            sections = updated_debate_file.get_sections_for_side(self.side)
+            for section in sections:
+                if topic.lower() in section.argument.lower():
+                    for card_id in section.card_ids:
+                        card = updated_debate_file.get_card(card_id)
+                        if card and card not in existing_cards:
+                            new_cards.append(card)
+
+            # Extract sources from cards
+            sources_used = list(set(card.source for card in new_cards if hasattr(card, 'source')))
 
         # Step 3: Organize into PrepFile immediately
         all_card_ids = []
