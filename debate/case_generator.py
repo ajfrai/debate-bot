@@ -6,6 +6,7 @@ from pathlib import Path
 
 import anthropic
 
+from debate.config import Config
 from debate.models import Case, Contention, EvidenceBucket, Side
 
 
@@ -63,12 +64,16 @@ def generate_case(
         evidence_buckets=evidence_section,
     )
 
+    config = Config()
+    model = config.get_agent_model("case_generator")
+    max_tokens = config.get_max_tokens()
+
     if stream:
         # Stream the response
         response_text = ""
         with client.messages.stream(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            model=model,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         ) as stream_response:
             for text in stream_response.text_stream:
@@ -78,8 +83,8 @@ def generate_case(
     else:
         # Non-streaming response
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            model=model,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
         response_text = message.content[0].text

@@ -1,0 +1,16 @@
+# Debate Bot Configuration
+# This file controls agent behavior and model selection across the application
+
+# Agent model configuration
+agents:
+  # Case generation agent - used for creating debate cases
+  case_generator:
+    model: claude-sonnet-4-5  # High-quality output for competitive cases
+
+  # Research agent - used for cutting evidence cards
+  research:
+    model: claude-haiku-4-5  # Cost-effective for iterative research
+
+# API configuration
+api:
+  max_tokens: 4096  # Maximum tokens per response
