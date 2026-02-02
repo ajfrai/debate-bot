@@ -3,11 +3,12 @@
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import anthropic
 
 from debate.config import Config
-from debate.models import Case, Contention, EvidenceBucket, Side
+from debate.models import Case, Contention, EvidenceBucket, Side, DebateFile
 
 
 def load_prompt_template(name: str) -> str:
@@ -198,3 +199,5 @@ def _parse_case_response(response_text: str) -> list[Contention]:
         raise ValueError(f"Expected 2-3 contentions, got {len(contentions)}")
 
     return contentions
+
+

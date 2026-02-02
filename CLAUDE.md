@@ -4,6 +4,14 @@
 
 A CLI tool for practicing Public Forum debate against an AI opponent with AI judging.
 
+### Latest Features (2025)
+
+**Evidence Validation System:**
+- All speeches automatically validated for unbacked citations
+- Interactive validation with warnings and errors
+- Standalone `debate validate` command
+- Catches citations not backed by evidence files during rounds
+
 ## Running the Project
 
 ### Run a Complete Debate Round

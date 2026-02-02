@@ -13,6 +13,7 @@ from debate.evidence_storage import (
     load_debate_file,
     save_evidence_bucket,
 )
+from debate.evidence_validator import validate_speech_evidence
 from debate.models import Side
 from debate.research_agent import research_evidence
 from debate.round_controller import RoundController
@@ -24,13 +25,37 @@ def cmd_generate(args) -> None:
 
     print(f"\nGenerating {args.side.upper()} case for: {args.resolution}\n")
 
-    # Load evidence buckets if requested
+    # Try to load debate file
+    debate_file = None
+    try:
+        debate_file = load_debate_file(args.resolution)
+        if debate_file:
+            sections = debate_file.get_sections_for_side(side)
+            if sections:
+                print(f"Found debate file with {len(sections)} evidence sections for {args.side.upper()}")
+    except Exception:
+        pass
+
+    # Load evidence buckets (legacy support or if debate file exists)
     evidence_buckets = []
-    if args.with_evidence:
+    if debate_file:
+        # Convert debate file sections to evidence buckets
+        from debate.models import EvidenceBucket
+        sections = debate_file.get_sections_for_side(side)
+        for section in sections:
+            bucket = EvidenceBucket(
+                topic=section.argument,
+                resolution=args.resolution,
+                side=side,
+                cards=[debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)]
+            )
+            if bucket.cards:
+                evidence_buckets.append(bucket)
+    elif args.with_evidence:
+        # Try legacy evidence buckets
         print("Loading evidence buckets...")
         all_buckets = list_evidence_buckets(resolution=args.resolution)
 
-        # Filter by side
         for bucket_info in all_buckets:
             if bucket_info["side"] == side.value:
                 bucket = find_evidence_bucket(
@@ -42,16 +67,19 @@ def cmd_generate(args) -> None:
                     evidence_buckets.append(bucket)
                     print(f"  - Loaded {bucket_info['num_cards']} cards for '{bucket_info['topic']}'")
 
-        if not evidence_buckets:
-            print("  No evidence found. Run 'debate research' first to cut evidence cards.")
-            print("  Generating case without evidence...\n")
-        else:
-            print()
+    if not evidence_buckets:
+        print("No evidence found. Generating case with logical arguments.\n")
 
     print("This may take a moment...\n")
 
     try:
-        case = generate_case(args.resolution, side, evidence_buckets if evidence_buckets else None)
+        case = generate_case(
+            resolution=args.resolution,
+            side=side,
+            evidence_buckets=evidence_buckets if evidence_buckets else None,
+            stream=True
+        )
+        print("\n" + "=" * 60)
         print(case.format())
     except Exception as e:
         print(f"Error generating case: {e}", file=sys.stderr)
@@ -241,6 +269,98 @@ def cmd_run(args) -> None:
         sys.exit(1)
 
 
+def cmd_validate(args) -> None:
+    """Validate evidence citations in a speech."""
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    # Load the debate file for the resolution
+    try:
+        debate_file = load_debate_file(args.resolution)
+    except Exception:
+        print(f"\nNo debate file found for: {args.resolution}")
+        print("Run 'debate research' first to create evidence.\n")
+        sys.exit(1)
+
+    # Get speech text
+    if args.file:
+        try:
+            with open(args.file, 'r') as f:
+                speech_text = f.read()
+        except FileNotFoundError:
+            print(f"\nFile not found: {args.file}\n")
+            sys.exit(1)
+    else:
+        # Read from stdin
+        print("\nEnter speech text (press Ctrl+D or Ctrl+Z when done):\n")
+        lines = []
+        try:
+            while True:
+                line = input()
+                lines.append(line)
+        except EOFError:
+            pass
+        speech_text = "\n".join(lines)
+
+    if not speech_text.strip():
+        print("\nNo speech text provided.\n")
+        sys.exit(1)
+
+    # Validate the speech
+    print(f"\nValidating {args.side.upper()} speech for: {args.resolution}\n")
+    validation_result = validate_speech_evidence(
+        speech_text=speech_text,
+        side=side.value.upper(),
+        debate_file=debate_file
+    )
+
+    # Display results
+    print("=" * 60)
+    print("VALIDATION RESULTS")
+    print("=" * 60)
+
+    if validation_result.is_valid:
+        print("\n✓ Speech is VALID - all citations backed by evidence")
+    else:
+        print("\n✗ Speech is INVALID - contains unbacked citations")
+
+    print()
+
+    # Show errors
+    if validation_result.errors:
+        print("ERRORS:")
+        for error in validation_result.errors:
+            print(f"  {error}")
+        print()
+
+    # Show warnings
+    if validation_result.warnings:
+        print("WARNINGS:")
+        for warning in validation_result.warnings:
+            print(f"  {warning}")
+        print()
+
+    # Show info
+    if validation_result.info:
+        print("INFO:")
+        for info in validation_result.info:
+            print(f"  {info}")
+        print()
+
+    # Summary of citations
+    if validation_result.citations:
+        print("\nCITATIONS FOUND:")
+        for i, citation in enumerate(validation_result.citations, 1):
+            status = "✓" if citation.matched_card else "✗"
+            print(f"  {i}. {status} {citation.author_last} {citation.year}")
+            if citation.quoted_text:
+                print(f"      Quote: \"{citation.quoted_text[:100]}...\"")
+            if citation.matched_card:
+                print(f"      Matched: {citation.matched_card.tag}")
+            print()
+
+    sys.exit(0 if validation_result.is_valid else 1)
+
+
 def main() -> None:
     """Main entry point for the debate CLI."""
     parser = argparse.ArgumentParser(
@@ -344,6 +464,31 @@ def main() -> None:
         help="Which side you will debate",
     )
     run_parser.set_defaults(func=cmd_run)
+
+    # Validate command
+    validate_parser = subparsers.add_parser(
+        "validate",
+        help="Validate evidence citations in a speech",
+        aliases=["val"],
+    )
+    validate_parser.add_argument(
+        "resolution",
+        type=str,
+        help="The debate resolution",
+    )
+    validate_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side is speaking",
+    )
+    validate_parser.add_argument(
+        "--file",
+        type=str,
+        help="File containing speech text (reads from stdin if not provided)",
+    )
+    validate_parser.set_defaults(func=cmd_validate)
 
     # Parse args
     args = parser.parse_args()

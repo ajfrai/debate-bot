@@ -6,12 +6,16 @@ from rich.console import Console
 
 from debate.debate_agent import DebateAgent
 from debate.evidence_storage import load_debate_file
+<<<<<<< HEAD
+from debate.evidence_validator import validate_speech_evidence
+=======
 from debate.interactive_input import (
     display_crossfire_header,
     display_speech_header,
     get_multiline_speech,
     get_single_line_input,
 )
+>>>>>>> origin/main
 from debate.judge_agent import JudgeAgent
 from debate.models import (
     Case,
@@ -168,6 +172,37 @@ class RoundController:
             time_seconds=time_seconds,
         )
 
+        # Validate evidence citations in user's speech
+        if self.debate_file:
+            validation_result = validate_speech_evidence(
+                speech_text=content,
+                side=self.user_side.value.upper(),
+                debate_file=self.debate_file
+            )
+
+            # Display validation results if there are errors or warnings
+            if validation_result.errors or validation_result.warnings:
+                print("\n" + "-" * 60)
+                print("Evidence Validation Results:")
+                print("-" * 60)
+
+                for error in validation_result.errors:
+                    print(f"ERROR: {error}")
+
+                for warning in validation_result.warnings:
+                    print(f"WARNING: {warning}")
+
+                print("-" * 60)
+
+                # If there are errors, warn the user
+                if validation_result.errors:
+                    print("\n⚠️  Your speech contains citations not backed by evidence files.")
+                    print("This violates evidence requirements.")
+                    response = input("\nContinue anyway? (y/n): ")
+                    if response.lower() != 'y':
+                        print("Speech cancelled. Please revise and try again.\n")
+                        return self._user_speech(speech_type, speaker_num, time_seconds)
+
         speech = Speech(
             speech_type=speech_type,
             side=self.user_side,
@@ -202,6 +237,33 @@ class RoundController:
                 stream=True,
             )
             print()
+
+        # Validate evidence citations in the speech
+        if self.debate_file:
+            validation_result = validate_speech_evidence(
+                speech_text=content,
+                side=self.ai_side.value.upper(),
+                debate_file=self.debate_file
+            )
+
+            # Display validation results if there are errors or warnings
+            if validation_result.errors or validation_result.warnings:
+                print("\n" + "-" * 60)
+                print("Evidence Validation Results:")
+                print("-" * 60)
+
+                for error in validation_result.errors:
+                    print(f"ERROR: {error}")
+
+                for warning in validation_result.warnings:
+                    print(f"WARNING: {warning}")
+
+                print("-" * 60)
+
+                # If there are errors, the speech cites unbacked evidence
+                if validation_result.errors:
+                    print("\n⚠️  The AI speech contains citations not backed by evidence files.")
+                    print("This violates evidence requirements.\n")
 
         speech = Speech(
             speech_type=speech_type,
