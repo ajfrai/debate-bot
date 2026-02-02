@@ -53,24 +53,22 @@ Evaluate the round using standard PF judging criteria:
 
 ## Output Format
 
-Provide your decision as JSON:
+Deliver your decision in the following format:
 
-```json
-{
-  "winner": "Team A" or "Team B",
-  "voting_issues": [
-    "First key issue that decided the round (which team won it and why)",
-    "Second key issue (which team won it and why)"
-  ],
-  "rfd": "2-3 paragraph reason for decision explaining the voting issues and comparative weighing",
-  "feedback": [
-    "One piece of constructive feedback for Team A",
-    "One piece of constructive feedback for Team B"
-  ]
-}
-```
+**DECISION: Team A** or **DECISION: Team B**
 
-Be specific in your RFD. Don't just say "Team A had better impacts" - explain WHICH impacts, WHY they outweigh, and HOW the team established this in the round.
+**VOTING ISSUES:**
+1. [First key issue that decided the round - which team won it and why]
+2. [Second key issue - which team won it and why]
+
+**REASON FOR DECISION:**
+[2-3 paragraphs explaining the voting issues and comparative weighing. Be specific - don't just say "Team A had better impacts," explain WHICH impacts, WHY they outweigh, and HOW the team established this in the round.]
+
+**FEEDBACK FOR TEAM A:**
+[One piece of constructive feedback]
+
+**FEEDBACK FOR TEAM B:**
+[One piece of constructive feedback]
 
 Your decision should be:
 - **Objective** - Based only on what was said in the round
