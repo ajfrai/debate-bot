@@ -178,6 +178,49 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
 
 Crossfires after speeches 1-2, 3-4, and 5-6.
 
+## Configuration
+
+Agent behavior and model selection is controlled by `config.yaml` in the project root. This file manages settings that can grow beyond model selection to include other agent parameters and future capabilities.
+
+### Current Configuration
+
+```yaml
+# Agent model configuration
+agents:
+  # Case generation agent - used for creating debate cases
+  case_generator:
+    model: claude-sonnet-4-5-20250929  # High-quality output for competitive cases
+
+  # Research agent - used for cutting evidence cards
+  research:
+    model: claude-haiku-4-5-20251001  # Cost-effective for iterative research
+
+# API configuration
+api:
+  max_tokens: 4096  # Maximum tokens per response
+```
+
+### Customizing Agent Models
+
+You can override the default models by editing `config.yaml`:
+
+- **case_generator**: Set the model for generating debate cases. Use high-capacity models (Opus, Sonnet) for better quality contentions.
+- **research**: Set the model for cutting evidence cards. Haiku is recommended for cost efficiency since many cards are researched per session.
+
+Supported models (as of 2026):
+- `claude-opus-4-5-20251101` - Most capable, best for complex reasoning
+- `claude-sonnet-4-5-20250929` - Balanced quality and speed
+- `claude-haiku-4-5-20251001` - Most cost-effective, fast responses
+
+### Configuration File Growth
+
+This `config.yaml` file is designed to grow beyond model settings to include:
+- Agent-specific parameters and behavior tuning
+- API rate limiting and timeout settings
+- Feature flags for research modes or debate formats
+- Output formatting preferences
+- Caching and storage settings
+
 ## Environment
 
 Required environment variables:

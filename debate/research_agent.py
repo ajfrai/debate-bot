@@ -13,6 +13,7 @@ from typing import Optional
 import anthropic
 import requests
 
+from debate.config import Config
 from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
 from debate.evidence_storage import get_or_create_debate_file, save_debate_file
 
@@ -205,20 +206,24 @@ def research_evidence(
     if lessons:
         prompt = f"## Lessons Learned (consult before cutting cards)\n\n{lessons}\n\n---\n\n{prompt}"
 
-    # Call Claude API with Haiku for cost-effectiveness
+    # Call Claude API with configured model
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY environment variable not set")
 
     client = anthropic.Anthropic(api_key=api_key)
 
+    config = Config()
+    model = config.get_agent_model("research")
+    max_tokens = config.get_max_tokens()
+
     if stream:
         # Stream the response
         print("\nCutting evidence cards...\n")
         response_text = ""
         with client.messages.stream(
-            model="claude-haiku-4-5",  # Most cost-effective model
-            max_tokens=4096,  # Limit tokens for cost control
+            model=model,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         ) as stream_response:
             for text in stream_response.text_stream:
@@ -228,8 +233,8 @@ def research_evidence(
     else:
         # Non-streaming response
         response = client.messages.create(
-            model="claude-haiku-4-5",  # Most cost-effective model
-            max_tokens=4096,  # Limit tokens for cost control
+            model=model,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
         response_text = response.content[0].text
