@@ -1,13 +1,31 @@
 """Storage system for debate files and evidence.
 
-Manages saving and loading debate files as directories,
-organized by resolution with markdown index files.
+Manages saving and loading debate files as directory trees,
+optimized for quick searching during rounds.
 
 Directory structure:
     evidence/
         {resolution_slug}/
-            debate_file.json    # The main DebateFile data
-            INDEX.md            # Rendered markdown table of contents
+            INDEX.md                    # Master table of contents
+            pro/
+                support/
+                    {tag_slug}.md       # Individual card files
+                answer/
+                    {tag_slug}.md
+                extension/
+                    {tag_slug}.md
+                impact/
+                    {tag_slug}.md
+            con/
+                support/
+                answer/
+                extension/
+                impact/
+
+This structure allows:
+    - `ls pro/answer/` to see all answers
+    - `grep -r "billion" pro/` to find cards fast
+    - Direct file access for any card
 """
 
 import json
@@ -15,42 +33,89 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from debate.models import DebateFile, EvidenceBucket, Side
+from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
 
 
 def get_evidence_dir() -> Path:
     """Get the evidence storage directory, creating it if needed."""
-    # Store evidence in a local evidence/ directory
     evidence_dir = Path("evidence")
     evidence_dir.mkdir(exist_ok=True)
     return evidence_dir
 
 
-def sanitize_filename(text: str) -> str:
+def sanitize_filename(text: str, max_length: int = 60) -> str:
     """Convert text to a safe filename/directory name."""
-    # Remove/replace problematic characters
     safe = text.lower()
     safe = safe.replace(" ", "_")
     safe = safe.replace(":", "")
     safe = safe.replace("/", "_")
     safe = safe.replace("\\", "_")
+    safe = safe.replace("'", "")
+    safe = safe.replace('"', "")
+    safe = safe.replace(".", "")
+    safe = safe.replace(",", "")
     # Keep only alphanumeric, underscore, hyphen
     safe = "".join(c for c in safe if c.isalnum() or c in "_-")
-    # Truncate to reasonable length
-    return safe[:100]
+    # Remove consecutive underscores
+    while "__" in safe:
+        safe = safe.replace("__", "_")
+    # Strip leading/trailing underscores
+    safe = safe.strip("_")
+    return safe[:max_length]
 
 
 def get_resolution_dir(resolution: str) -> Path:
     """Get the directory for a resolution, creating it if needed."""
     evidence_dir = get_evidence_dir()
-    resolution_slug = sanitize_filename(resolution)
+    resolution_slug = sanitize_filename(resolution, max_length=80)
     resolution_dir = evidence_dir / resolution_slug
     resolution_dir.mkdir(exist_ok=True)
     return resolution_dir
 
 
+def get_section_type_dir(section_type: SectionType) -> str:
+    """Get directory name for a section type."""
+    return section_type.value  # support, answer, extension, impact
+
+
+def render_card_markdown(card: Card) -> str:
+    """Render a card as a standalone markdown file."""
+    lines = [
+        f"# {card.tag}",
+        "",
+    ]
+
+    if card.purpose:
+        lines.extend([
+            f"**Purpose:** {card.purpose}",
+            "",
+        ])
+
+    lines.extend([
+        "---",
+        "",
+        f"**{card.author}**, {card.credentials}",
+        f"*{card.source}*, {card.year}",
+    ])
+
+    if card.url:
+        lines.append(f"[Source]({card.url})")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        card.text,
+        "",
+        "---",
+        f"*Card ID: {card.id}*",
+    ])
+
+    return "\n".join(lines)
+
+
 def save_debate_file(debate_file: DebateFile) -> str:
-    """Save a debate file to its resolution directory.
+    """Save a debate file as a directory tree.
 
     Args:
         debate_file: The debate file to save
@@ -58,27 +123,130 @@ def save_debate_file(debate_file: DebateFile) -> str:
     Returns:
         Path to the resolution directory
 
-    Creates/updates:
-        evidence/{resolution}/debate_file.json
+    Creates:
         evidence/{resolution}/INDEX.md
+        evidence/{resolution}/pro/{section_type}/{tag}.md
+        evidence/{resolution}/con/{section_type}/{tag}.md
     """
     resolution_dir = get_resolution_dir(debate_file.resolution)
 
-    # Save JSON data
-    json_path = resolution_dir / "debate_file.json"
-    with open(json_path, "w") as f:
-        json.dump(debate_file.model_dump(), f, indent=2)
+    # Create side directories
+    for side in ["pro", "con"]:
+        side_dir = resolution_dir / side
+        side_dir.mkdir(exist_ok=True)
+        for section_type in SectionType:
+            (side_dir / section_type.value).mkdir(exist_ok=True)
 
-    # Save markdown index
+    # Save cards to their section directories
+    saved_cards = set()  # Track which cards we've saved
+
+    def save_sections(sections, side_name: str):
+        for section in sections:
+            section_dir = resolution_dir / side_name / section.section_type.value
+
+            for card_id in section.card_ids:
+                card = debate_file.cards.get(card_id)
+                if not card:
+                    continue
+
+                # Create filename from the section's specific argument + card tag
+                # This makes files more specific and searchable
+                filename = sanitize_filename(card.tag) + ".md"
+                filepath = section_dir / filename
+
+                # Write the card file
+                with open(filepath, "w") as f:
+                    f.write(render_card_markdown(card))
+
+                saved_cards.add(card_id)
+
+    save_sections(debate_file.pro_sections, "pro")
+    save_sections(debate_file.con_sections, "con")
+
+    # Generate and save INDEX.md
+    index_content = generate_index_markdown(debate_file, resolution_dir)
     index_path = resolution_dir / "INDEX.md"
     with open(index_path, "w") as f:
-        f.write(debate_file.render_full_file())
+        f.write(index_content)
+
+    # Also save a minimal JSON for programmatic loading
+    # (just metadata, cards are in the markdown files)
+    meta_path = resolution_dir / ".debate_meta.json"
+    meta = {
+        "resolution": debate_file.resolution,
+        "cards": {cid: card.model_dump() for cid, card in debate_file.cards.items()},
+        "pro_sections": [s.model_dump() for s in debate_file.pro_sections],
+        "con_sections": [s.model_dump() for s in debate_file.con_sections],
+    }
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
 
     return str(resolution_dir)
 
 
+def generate_index_markdown(debate_file: DebateFile, resolution_dir: Path) -> str:
+    """Generate the INDEX.md table of contents."""
+    lines = [
+        f"# {debate_file.resolution}",
+        "",
+        "## Quick Navigation",
+        "",
+        "```",
+        f"grep -r \"keyword\" {resolution_dir}/pro/   # Search PRO evidence",
+        f"grep -r \"keyword\" {resolution_dir}/con/   # Search CON evidence",
+        f"ls {resolution_dir}/pro/answer/             # List all PRO answers",
+        "```",
+        "",
+    ]
+
+    def render_side(sections, side_name: str, side_label: str):
+        if not sections:
+            return
+
+        lines.append(f"## {side_label}")
+        lines.append("")
+
+        # Group by section type
+        by_type = {}
+        for section in sections:
+            if section.section_type not in by_type:
+                by_type[section.section_type] = []
+            by_type[section.section_type].append(section)
+
+        type_labels = {
+            SectionType.SUPPORT: "Supporting Evidence",
+            SectionType.ANSWER: "Answers",
+            SectionType.EXTENSION: "Extensions",
+            SectionType.IMPACT: "Impact Evidence",
+        }
+
+        for section_type in SectionType:
+            if section_type not in by_type:
+                continue
+
+            lines.append(f"### {type_labels[section_type]}")
+            lines.append(f"*`{side_name}/{section_type.value}/`*")
+            lines.append("")
+
+            for section in by_type[section_type]:
+                lines.append(f"**{section.argument}**")
+                for card_id in section.card_ids:
+                    card = debate_file.cards.get(card_id)
+                    if card:
+                        filename = sanitize_filename(card.tag) + ".md"
+                        filepath = f"{side_name}/{section_type.value}/{filename}"
+                        last_name = card.author.split()[-1]
+                        lines.append(f"- [{card.tag}]({filepath}) ({last_name} {card.year})")
+                lines.append("")
+
+    render_side(debate_file.pro_sections, "pro", "PRO")
+    render_side(debate_file.con_sections, "con", "CON")
+
+    return "\n".join(lines)
+
+
 def load_debate_file(resolution: str) -> Optional[DebateFile]:
-    """Load a debate file for a resolution.
+    """Load a debate file from its directory.
 
     Args:
         resolution: The debate resolution
@@ -87,15 +255,15 @@ def load_debate_file(resolution: str) -> Optional[DebateFile]:
         DebateFile if found, None otherwise
     """
     resolution_dir = get_resolution_dir(resolution)
-    json_path = resolution_dir / "debate_file.json"
+    meta_path = resolution_dir / ".debate_meta.json"
 
-    if not json_path.exists():
+    if not meta_path.exists():
         return None
 
-    with open(json_path, "r") as f:
-        data = json.load(f)
+    with open(meta_path, "r") as f:
+        meta = json.load(f)
 
-    return DebateFile.model_validate(data)
+    return DebateFile.model_validate(meta)
 
 
 def get_or_create_debate_file(resolution: str) -> tuple[DebateFile, bool]:
@@ -106,14 +274,12 @@ def get_or_create_debate_file(resolution: str) -> tuple[DebateFile, bool]:
 
     Returns:
         Tuple of (DebateFile, is_new)
-        is_new is True if a new file was created, False if loaded from disk
     """
     existing = load_debate_file(resolution)
 
     if existing:
         return existing, False
 
-    # Create new empty debate file
     new_file = DebateFile(resolution=resolution)
     return new_file, True
 
@@ -122,7 +288,7 @@ def list_debate_files() -> list[dict]:
     """List all debate files.
 
     Returns:
-        List of dicts with 'resolution', 'dir_path', 'num_cards', 'num_sections'
+        List of dicts with resolution info
     """
     evidence_dir = get_evidence_dir()
     files = []
@@ -131,8 +297,8 @@ def list_debate_files() -> list[dict]:
         if not dir_path.is_dir():
             continue
 
-        json_path = dir_path / "debate_file.json"
-        if not json_path.exists():
+        meta_path = dir_path / ".debate_meta.json"
+        if not meta_path.exists():
             continue
 
         try:
@@ -155,20 +321,9 @@ def list_debate_files() -> list[dict]:
 
 
 def save_evidence_bucket(bucket: EvidenceBucket) -> str:
-    """Save an evidence bucket to a JSON file (legacy format).
-
-    Args:
-        bucket: The evidence bucket to save
-
-    Returns:
-        Path to the saved file
-
-    File naming: evidence/{resolution}_{side}_{topic}.json
-    Example: evidence/us_should_ban_tiktok_pro_economic_impacts.json
-    """
+    """Save an evidence bucket to a JSON file (legacy format)."""
     evidence_dir = get_evidence_dir()
 
-    # Create filename
     resolution_slug = sanitize_filename(bucket.resolution)
     side_slug = bucket.side.value
     topic_slug = sanitize_filename(bucket.topic)
@@ -176,7 +331,6 @@ def save_evidence_bucket(bucket: EvidenceBucket) -> str:
 
     filepath = evidence_dir / filename
 
-    # Save as JSON
     with open(filepath, "w") as f:
         json.dump(bucket.model_dump(), f, indent=2)
 
@@ -184,17 +338,9 @@ def save_evidence_bucket(bucket: EvidenceBucket) -> str:
 
 
 def load_evidence_bucket(filepath: str) -> EvidenceBucket:
-    """Load an evidence bucket from a JSON file.
-
-    Args:
-        filepath: Path to the JSON file
-
-    Returns:
-        EvidenceBucket loaded from file
-    """
+    """Load an evidence bucket from a JSON file."""
     with open(filepath, "r") as f:
         data = json.load(f)
-
     return EvidenceBucket.model_validate(data)
 
 
@@ -203,19 +349,9 @@ def find_evidence_bucket(
     side: Side,
     topic: str,
 ) -> Optional[EvidenceBucket]:
-    """Find and load an evidence bucket if it exists.
-
-    Args:
-        resolution: The debate resolution
-        side: Which side the evidence supports
-        topic: The topic/argument
-
-    Returns:
-        EvidenceBucket if found, None otherwise
-    """
+    """Find and load an evidence bucket if it exists."""
     evidence_dir = get_evidence_dir()
 
-    # Construct expected filename
     resolution_slug = sanitize_filename(resolution)
     side_slug = side.value
     topic_slug = sanitize_filename(topic)
@@ -230,14 +366,7 @@ def find_evidence_bucket(
 
 
 def list_evidence_buckets(resolution: Optional[str] = None) -> list[dict]:
-    """List all evidence buckets, optionally filtered by resolution.
-
-    Args:
-        resolution: Optional resolution to filter by
-
-    Returns:
-        List of dicts with 'filepath', 'resolution', 'side', 'topic', 'num_cards'
-    """
+    """List all evidence buckets, optionally filtered by resolution."""
     evidence_dir = get_evidence_dir()
     buckets = []
 
@@ -245,21 +374,17 @@ def list_evidence_buckets(resolution: Optional[str] = None) -> list[dict]:
         try:
             bucket = load_evidence_bucket(str(filepath))
 
-            # Filter by resolution if specified
             if resolution and bucket.resolution != resolution:
                 continue
 
-            buckets.append(
-                {
-                    "filepath": str(filepath),
-                    "resolution": bucket.resolution,
-                    "side": bucket.side.value,
-                    "topic": bucket.topic,
-                    "num_cards": len(bucket.cards),
-                }
-            )
+            buckets.append({
+                "filepath": str(filepath),
+                "resolution": bucket.resolution,
+                "side": bucket.side.value,
+                "topic": bucket.topic,
+                "num_cards": len(bucket.cards),
+            })
         except Exception:
-            # Skip invalid files
             continue
 
     return buckets
@@ -270,23 +395,12 @@ def get_or_create_evidence_bucket(
     side: Side,
     topic: str,
 ) -> tuple[EvidenceBucket, bool]:
-    """Get existing evidence bucket or create a new empty one.
-
-    Args:
-        resolution: The debate resolution
-        side: Which side the evidence supports
-        topic: The topic/argument
-
-    Returns:
-        Tuple of (EvidenceBucket, is_new)
-        is_new is True if a new bucket was created, False if loaded from disk
-    """
+    """Get existing evidence bucket or create a new empty one."""
     existing = find_evidence_bucket(resolution, side, topic)
 
     if existing:
         return existing, False
 
-    # Create new empty bucket
     new_bucket = EvidenceBucket(
         topic=topic,
         resolution=resolution,

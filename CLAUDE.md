@@ -68,23 +68,54 @@ Each evidence card includes:
 
 ### Debate File Organization
 
-Cards are organized into **debate files** (one per resolution) structured like a directory:
+Cards are organized into **debate files** (one per resolution) as a searchable directory tree:
 
 ```
 evidence/
   resolved_the_us_should_ban_tiktok/
-    debate_file.json    # All cards and section data
-    INDEX.md            # Rendered markdown table of contents
+    INDEX.md                              # Master table of contents
+    pro/
+      support/
+        tiktok_ban_eliminates_100k_jobs.md
+        creator_economy_loses_4_billion.md
+      answer/
+        no_verified_chinese_data_access.md
+      extension/
+      impact/
+        economic_recession_triggers.md
+    con/
+      support/
+      answer/
+      extension/
+      impact/
+```
+
+**Quick search during rounds:**
+```bash
+ls pro/answer/                    # See all your answers
+grep -r "billion" pro/            # Find cards mentioning "billion"
+grep -r "security" con/support/   # Find opponent's security evidence
 ```
 
 Cards are organized by **strategic value** into sections:
 
-- **Supporting evidence for <argument>** - Cards that prove your arguments
-- **Answer to <argument>** - Cards that respond to opponent arguments
-- **Extensions for <argument>** - Additional warrants to extend arguments
-- **Impact evidence for <argument>** - Impact calculus (magnitude, timeframe, probability)
+- **support/** - Evidence that PROVES your specific claims
+- **answer/** - Evidence that RESPONDS TO opponent's specific arguments
+- **extension/** - Additional warrants to STRENGTHEN existing arguments
+- **impact/** - Evidence showing WHY something matters (magnitude, timeframe, probability)
 
-**Cards can appear in multiple sections** - the same card may be relevant as both support for your argument AND an answer to theirs.
+### Specific Argument Headers
+
+Headers must be SPECIFIC CLAIMS, not vague topics:
+
+**BAD (too vague):**
+- "Answer to economic impacts"
+- "Supporting evidence for national security"
+
+**GOOD (specific):**
+- "Answer to: Opponent claim that TikTok ban hurts creator jobs"
+- "Supporting evidence for: Chinese government can access user data"
+- "Impact evidence for: Data breaches lead to identity theft"
 
 ### Workflow
 
