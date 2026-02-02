@@ -189,11 +189,11 @@ Agent behavior and model selection is controlled by `config.yaml` in the project
 agents:
   # Case generation agent - used for creating debate cases
   case_generator:
-    model: claude-sonnet-4-5-20250929  # High-quality output for competitive cases
+    model: claude-sonnet-4-5  # High-quality output for competitive cases
 
   # Research agent - used for cutting evidence cards
   research:
-    model: claude-haiku-4-5-20251001  # Cost-effective for iterative research
+    model: claude-haiku-4-5  # Cost-effective for iterative research
 
 # API configuration
 api:
@@ -208,9 +208,9 @@ You can override the default models by editing `config.yaml`:
 - **research**: Set the model for cutting evidence cards. Haiku is recommended for cost efficiency since many cards are researched per session.
 
 Supported models (as of 2026):
-- `claude-opus-4-5-20251101` - Most capable, best for complex reasoning
-- `claude-sonnet-4-5-20250929` - Balanced quality and speed
-- `claude-haiku-4-5-20251001` - Most cost-effective, fast responses
+- `claude-opus-4-5` - Most capable, best for complex reasoning
+- `claude-sonnet-4-5` - Balanced quality and speed
+- `claude-haiku-4-5` - Most cost-effective, fast responses
 
 ### Configuration File Growth
 
