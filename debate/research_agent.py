@@ -236,7 +236,8 @@ def research_evidence(
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
-        response_text = response.content[0].text
+        first_block = response.content[0]
+        response_text = first_block.text if hasattr(first_block, "text") else ""
 
     # Parse the response and add cards to debate file
     try:
@@ -335,11 +336,20 @@ def research_case_evidence(
         title = contention["title"]
         topic = contention["topic"]
 
-        bucket = research_evidence(
+        debate_file = research_evidence(
             resolution=resolution,
             side=side,
             topic=topic,
             num_cards=cards_per_contention,
+        )
+
+        # Convert to EvidenceBucket for legacy compatibility
+        cards = [debate_file.cards[cid] for cid in debate_file.cards]
+        bucket = EvidenceBucket(
+            topic=topic,
+            resolution=resolution,
+            side=side,
+            cards=cards,
         )
 
         buckets[title] = bucket

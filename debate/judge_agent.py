@@ -75,7 +75,8 @@ class JudgeAgent:
                 max_tokens=8192,
                 messages=[{"role": "user", "content": prompt}],
             )
-            response_text = message.content[0].text
+            first_block = message.content[0]
+            response_text = first_block.text if hasattr(first_block, "text") else ""
 
         # Parse the decision from formatted text
         return self._parse_decision(response_text, round_state)

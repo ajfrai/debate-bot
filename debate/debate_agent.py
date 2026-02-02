@@ -58,7 +58,7 @@ class DebateAgent:
         num_cards: int = 3,
         section_type: str = "support",
         stream: bool = True,
-    ) -> list:
+    ) -> DebateFile:
         """Research evidence cards for a specific topic.
 
         Args:
@@ -68,7 +68,7 @@ class DebateAgent:
             stream: Whether to stream tokens as they're generated
 
         Returns:
-            List of evidence cards
+            DebateFile with researched evidence
         """
         from debate.research_agent import research_evidence
 
@@ -77,7 +77,6 @@ class DebateAgent:
             side=self.side,
             topic=topic,
             num_cards=num_cards,
-            section_type=section_type,
             stream=stream,
         )
 
@@ -103,13 +102,12 @@ class DebateAgent:
             sections = debate_file.get_sections_for_side(self.side)
             evidence_buckets = []
             for section in sections:
+                cards = [debate_file.get_card(card_id) for card_id in section.card_ids]
                 bucket = EvidenceBucket(
                     topic=section.argument,
                     resolution=self.resolution,
                     side=self.side,
-                    cards=[
-                        debate_file.get_card(card_id) for card_id in section.card_ids if debate_file.get_card(card_id)
-                    ],
+                    cards=[c for c in cards if c is not None],
                 )
                 evidence_buckets.append(bucket)
 
@@ -214,7 +212,8 @@ class DebateAgent:
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            response_text = message.content[0].text
+            first_block = message.content[0]
+            response_text = first_block.text if hasattr(first_block, "text") else ""
 
         return response_text
 
@@ -287,7 +286,8 @@ Provide a concise, strategic answer (1-3 sentences). Be confident but don't conc
                 max_tokens=512,
                 messages=[{"role": "user", "content": context}],
             )
-            response_text = message.content[0].text
+            first_block = message.content[0]
+            response_text = first_block.text if hasattr(first_block, "text") else ""
 
         return response_text
 
@@ -338,7 +338,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 max_tokens=256,
                 messages=[{"role": "user", "content": context}],
             )
-            response_text = message.content[0].text
+            first_block = message.content[0]
+            response_text = first_block.text if hasattr(first_block, "text") else ""
 
         return response_text
 
@@ -455,8 +456,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 tools=tools,
             )
 
-            # Add assistant response to messages
-            messages.append({"role": "assistant", "content": response.content})
+            # Add assistant response to messages (content must be list of blocks for tool use)
+            messages.append({"role": "assistant", "content": list(response.content)})  # type: ignore[dict-item]
 
             # Display thinking
             for block in response.content:
@@ -503,8 +504,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
                         print(f"[{tool_name} complete]\n")
 
-                # Add tool results to messages
-                messages.append({"role": "user", "content": tool_results})
+                # Add tool results to messages (must be list of tool result blocks)
+                messages.append({"role": "user", "content": tool_results})  # type: ignore[dict-item]
 
             elif response.stop_reason == "end_turn":
                 # Agent decided to stop
@@ -540,7 +541,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
             timestamp=datetime.now().isoformat(),
         )
 
-        self.prep_file.add_analysis(result)
+        if self.prep_file:
+            self.prep_file.add_analysis(result)
 
         return {
             "analysis_type": analysis_type,
@@ -609,7 +611,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
             strategic_notes=f"Evidence for {purpose}",
         )
 
-        self.prep_file.add_argument(argument)
+        if self.prep_file:
+            self.prep_file.add_argument(argument)
 
         # Log research
         entry = ResearchEntry(
@@ -622,7 +625,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
             timestamp=datetime.now().isoformat(),
         )
 
-        self.prep_file.log_research(entry)
+        if self.prep_file:
+            self.prep_file.log_research(entry)
 
         return {
             "topic": topic,
@@ -635,4 +639,6 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
     def _read_prep_skill(self) -> dict:
         """Return current prep state summary."""
-        return self.prep_file.get_summary()
+        if self.prep_file:
+            return self.prep_file.get_summary()
+        return {"error": "No prep file available"}
