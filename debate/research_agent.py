@@ -3,7 +3,7 @@
 This module provides cost-effective evidence research by:
 1. Using Brave Search to find relevant sources
 2. Using Claude Haiku to extract and format evidence cards
-3. Organizing cards into evidence buckets by argument
+3. Organizing cards into debate files by strategic value
 """
 
 import json
@@ -13,7 +13,8 @@ from typing import Optional
 import anthropic
 import requests
 
-from debate.models import Card, EvidenceBucket, Side
+from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
+from debate.evidence_storage import get_or_create_debate_file, save_debate_file
 
 
 def load_prompt_template(name: str) -> str:
@@ -91,6 +92,17 @@ def _extract_json_from_text(text: str) -> dict:
     return json.loads(text)
 
 
+def _parse_section_type(section_str: str) -> SectionType:
+    """Parse section type string to SectionType enum."""
+    section_map = {
+        "support": SectionType.SUPPORT,
+        "answer": SectionType.ANSWER,
+        "extension": SectionType.EXTENSION,
+        "impact": SectionType.IMPACT,
+    }
+    return section_map.get(section_str.lower(), SectionType.SUPPORT)
+
+
 def research_evidence(
     resolution: str,
     side: Side,
@@ -98,7 +110,7 @@ def research_evidence(
     num_cards: int = 3,
     search_query: Optional[str] = None,
     stream: bool = True,
-) -> EvidenceBucket:
+) -> DebateFile:
     """Research and cut evidence cards for a specific argument.
 
     Args:
@@ -110,7 +122,7 @@ def research_evidence(
         stream: Whether to stream tokens as they're generated (default True)
 
     Returns:
-        EvidenceBucket with researched evidence cards
+        DebateFile with researched evidence cards organized by strategic value
 
     Cost optimization:
         - Uses Haiku (cheapest model) for card cutting
@@ -119,6 +131,13 @@ def research_evidence(
     """
     if num_cards > 5:
         raise ValueError("Maximum 5 cards per research session to control costs")
+
+    # Load or create debate file for this resolution
+    debate_file, is_new = get_or_create_debate_file(resolution)
+    if is_new:
+        print(f"Creating new debate file for: {resolution}")
+    else:
+        print(f"Adding to existing debate file ({len(debate_file.cards)} cards)")
 
     # Generate search query if not provided
     if not search_query:
@@ -178,13 +197,12 @@ def research_evidence(
         )
         response_text = response.content[0].text
 
-    # Parse the response
+    # Parse the response and add cards to debate file
     try:
         data = _extract_json_from_text(response_text)
         cards_data = data.get("cards", [])
 
-        # Create Card objects
-        cards = []
+        # Create Card objects and add to debate file
         for card_data in cards_data:
             card = Card(
                 tag=card_data["tag"],
@@ -194,21 +212,56 @@ def research_evidence(
                 source=card_data["source"],
                 url=card_data.get("url"),
                 text=card_data["text"],
+                purpose=card_data.get("purpose", ""),
             )
-            cards.append(card)
 
-        # Create evidence bucket
-        bucket = EvidenceBucket(
-            topic=topic,
-            resolution=resolution,
-            side=side,
-            cards=cards,
-        )
+            # Add card to master list
+            card_id = debate_file.add_card(card)
 
-        return bucket
+            # Add card to appropriate section
+            section_type = _parse_section_type(card_data.get("section_type", "support"))
+            argument = card_data.get("argument", topic)
+
+            debate_file.add_to_section(
+                side=side,
+                section_type=section_type,
+                argument=argument,
+                card_id=card_id,
+            )
+
+        # Save the updated debate file
+        dir_path = save_debate_file(debate_file)
+        print(f"\n✓ Saved debate file to: {dir_path}")
+
+        return debate_file
 
     except (json.JSONDecodeError, KeyError) as e:
         raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}")
+
+
+def research_evidence_legacy(
+    resolution: str,
+    side: Side,
+    topic: str,
+    num_cards: int = 3,
+    search_query: Optional[str] = None,
+    stream: bool = True,
+) -> EvidenceBucket:
+    """Research and cut evidence cards (legacy format returning EvidenceBucket).
+
+    This is maintained for backwards compatibility. New code should use research_evidence().
+    """
+    debate_file = research_evidence(resolution, side, topic, num_cards, search_query, stream)
+
+    # Convert to legacy EvidenceBucket format
+    cards = [debate_file.cards[cid] for cid in debate_file.cards]
+    bucket = EvidenceBucket(
+        topic=topic,
+        resolution=resolution,
+        side=side,
+        cards=cards,
+    )
+    return bucket
 
 
 def research_case_evidence(

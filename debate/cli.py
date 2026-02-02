@@ -6,7 +6,9 @@ import sys
 from debate.case_generator import generate_case
 from debate.evidence_storage import (
     find_evidence_bucket,
+    list_debate_files,
     list_evidence_buckets,
+    load_debate_file,
     save_evidence_bucket,
 )
 from debate.models import Side
@@ -64,7 +66,7 @@ def cmd_research(args) -> None:
     print("This may take a moment...\n")
 
     try:
-        bucket = research_evidence(
+        debate_file = research_evidence(
             resolution=args.resolution,
             side=side,
             topic=args.topic,
@@ -72,21 +74,27 @@ def cmd_research(args) -> None:
             search_query=args.query,
         )
 
-        # Save the bucket
-        filepath = save_evidence_bucket(bucket)
-        print(f"\n✓ Researched {len(bucket.cards)} evidence cards")
-        print(f"✓ Saved to: {filepath}\n")
+        print(f"\n✓ Debate file now contains {len(debate_file.cards)} total cards")
 
         # Show table of contents
-        print(bucket.get_table_of_contents())
-        print()
+        print("\n" + debate_file.get_table_of_contents())
 
-        # Show each card
-        for i, card in enumerate(bucket.cards, 1):
-            print(f"\n{'=' * 60}")
-            print(f"Card {i}: {card.tag}")
-            print('=' * 60)
-            print(card.format_full())
+        # Show the newly added cards
+        sections = debate_file.get_sections_for_side(side)
+        for section in sections:
+            if section.argument.lower() == args.topic.lower():
+                print(f"\n{'=' * 60}")
+                print(f"{section.get_heading()}")
+                print('=' * 60)
+                for card_id in section.card_ids:
+                    card = debate_file.get_card(card_id)
+                    if card:
+                        print(f"\n[{card_id}] {card.tag}")
+                        if card.purpose:
+                            print(f"Purpose: {card.purpose}")
+                        print("-" * 40)
+                        print(card.format_full())
+                        print()
 
     except Exception as e:
         print(f"Error researching evidence: {e}", file=sys.stderr)
@@ -94,17 +102,27 @@ def cmd_research(args) -> None:
 
 
 def cmd_evidence(args) -> None:
-    """List or view evidence buckets."""
-    if args.resolution:
-        # List buckets for specific resolution
-        buckets = list_evidence_buckets(resolution=args.resolution)
+    """List or view evidence (debate files)."""
+    # Try to load debate files first (new format)
+    debate_files = list_debate_files()
 
+    if args.resolution:
+        # Show specific resolution's debate file
+        debate_file = load_debate_file(args.resolution)
+
+        if debate_file:
+            # Show the full rendered debate file
+            print(debate_file.render_full_file())
+            return
+
+        # Fall back to legacy buckets
+        buckets = list_evidence_buckets(resolution=args.resolution)
         if not buckets:
             print(f"\nNo evidence found for: {args.resolution}")
             print("Run 'debate research' to cut evidence cards.\n")
             return
 
-        print(f"\nEvidence for: {args.resolution}\n")
+        print(f"\nEvidence for: {args.resolution} (legacy format)\n")
         for bucket_info in buckets:
             print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']}")
             print(f"      {bucket_info['num_cards']} cards")
@@ -112,29 +130,41 @@ def cmd_evidence(args) -> None:
             print()
 
     else:
-        # List all buckets
-        buckets = list_evidence_buckets()
+        # List all debate files
+        if debate_files:
+            print("\nDebate Files:\n")
+            for file_info in debate_files:
+                print(f"Resolution: {file_info['resolution']}")
+                print(f"  Cards: {file_info['num_cards']}")
+                print(f"  PRO sections: {file_info['num_pro_sections']}")
+                print(f"  CON sections: {file_info['num_con_sections']}")
+                print(f"  Path: {file_info['dir_path']}")
+                print()
 
-        if not buckets:
+        # Also show legacy buckets if any
+        buckets = list_evidence_buckets()
+        legacy_only = [b for b in buckets if not any(
+            d['resolution'] == b['resolution'] for d in debate_files
+        )]
+
+        if legacy_only:
+            print("\nLegacy Evidence Buckets:\n")
+            by_resolution = {}
+            for bucket_info in legacy_only:
+                res = bucket_info["resolution"]
+                if res not in by_resolution:
+                    by_resolution[res] = []
+                by_resolution[res].append(bucket_info)
+
+            for resolution, res_buckets in by_resolution.items():
+                print(f"Resolution: {resolution}")
+                for bucket_info in res_buckets:
+                    print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)")
+                print()
+
+        if not debate_files and not buckets:
             print("\nNo evidence found.")
             print("Run 'debate research' to cut evidence cards.\n")
-            return
-
-        print("\nAll Evidence Buckets:\n")
-
-        # Group by resolution
-        by_resolution = {}
-        for bucket_info in buckets:
-            res = bucket_info["resolution"]
-            if res not in by_resolution:
-                by_resolution[res] = []
-            by_resolution[res].append(bucket_info)
-
-        for resolution, res_buckets in by_resolution.items():
-            print(f"Resolution: {resolution}")
-            for bucket_info in res_buckets:
-                print(f"  [{bucket_info['side'].upper()}] {bucket_info['topic']} ({bucket_info['num_cards']} cards)")
-            print()
 
 
 def main() -> None:
