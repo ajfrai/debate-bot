@@ -364,6 +364,9 @@ Generate a strategic crossfire question (1-2 sentences) that:
         # Initialize or load existing prep file
         self.prep_file = PrepFile(resolution=self.resolution, side=self.side)
 
+        # Storage for fetched sources (so agent can reference them without copying text)
+        self.fetched_sources: dict[str, dict] = {}
+
         # Define tools for agent
         tools = [
             {
@@ -421,7 +424,7 @@ Generate a strategic crossfire question (1-2 sentences) that:
             },
             {
                 "name": "fetch_source",
-                "description": "Fetch full article text from a URL. Returns the raw text that you can then mark up.",
+                "description": "Fetch full article text from a URL. Returns a fetch_id that you can reference when cutting cards. The text is stored so you don't need to copy it.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -434,30 +437,23 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 },
             },
             {
-                "name": "mark_warrants",
-                "description": "Mark key warrants in text by bolding specific phrases. Like using Edit tool on code - you specify which phrases to bold, and the tool adds ** markers programmatically. NEVER rewrite the text, just specify which exact phrases to bold.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "text": {
-                            "type": "string",
-                            "description": "The raw text to mark up (from fetch_source)",
-                        },
-                        "warrant_phrases": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of exact phrases to bold (will add **phrase** markers). Each phrase should be 3-15 words. Aim for 3-6 phrases covering 20-40% of text.",
-                        },
-                    },
-                    "required": ["text", "warrant_phrases"],
-                },
-            },
-            {
                 "name": "cut_card",
-                "description": "Save a cut card with marked-up text to the debate file. Call this after mark_warrants.",
+                "description": "Cut a card from a fetched source. Like editing code - specify WHERE to cut (start/end phrases), and the tool extracts that section programmatically. No need to copy the text yourself. You can cut multiple cards from the same fetch_id.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
+                        "fetch_id": {
+                            "type": "string",
+                            "description": "The fetch_id from fetch_source",
+                        },
+                        "start_phrase": {
+                            "type": "string",
+                            "description": "Exact phrase where the card should START (3-10 words). Tool will find this and start cutting from here.",
+                        },
+                        "end_phrase": {
+                            "type": "string",
+                            "description": "Exact phrase where the card should END (3-10 words). Tool will find this and stop cutting here. Should be AFTER start_phrase in the text.",
+                        },
                         "tag": {
                             "type": "string",
                             "description": "Brief label (5-10 words) stating what the card PROVES",
@@ -487,21 +483,13 @@ Generate a strategic crossfire question (1-2 sentences) that:
                             "type": "string",
                             "description": "Publication name (e.g., 'New York Times')",
                         },
-                        "url": {
-                            "type": "string",
-                            "description": "URL to source",
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": "The marked-up text from mark_warrants (already has **bold** markers)",
-                        },
                         "evidence_type": {
                             "type": "string",
                             "enum": ["statistical", "analytical", "consensus", "empirical", "predictive"],
                             "description": "Type of evidence",
                         },
                     },
-                    "required": ["tag", "argument", "purpose", "author", "credentials", "year", "source", "text"],
+                    "required": ["fetch_id", "start_phrase", "end_phrase", "tag", "argument", "purpose", "author", "credentials", "year", "source"],
                 },
             },
             {
@@ -580,13 +568,11 @@ Generate a strategic crossfire question (1-2 sentences) that:
                             result = self._fetch_source_skill(
                                 url=tool_input["url"],
                             )
-                        elif tool_name == "mark_warrants":
-                            result = self._mark_warrants_skill(
-                                text=tool_input["text"],
-                                warrant_phrases=tool_input["warrant_phrases"],
-                            )
                         elif tool_name == "cut_card":
                             result = self._cut_card_skill(
+                                fetch_id=tool_input["fetch_id"],
+                                start_phrase=tool_input["start_phrase"],
+                                end_phrase=tool_input["end_phrase"],
                                 tag=tool_input["tag"],
                                 argument=tool_input["argument"],
                                 purpose=tool_input["purpose"],
@@ -594,8 +580,6 @@ Generate a strategic crossfire question (1-2 sentences) that:
                                 credentials=tool_input["credentials"],
                                 year=tool_input["year"],
                                 source=tool_input["source"],
-                                url=tool_input.get("url"),
-                                text=tool_input["text"],
                                 evidence_type=tool_input.get("evidence_type"),
                             )
                         elif tool_name == "read_prep":
@@ -838,8 +822,12 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
             }
 
     def _fetch_source_skill(self, url: str) -> dict:
-        """Fetch full article text from a URL using trafilatura."""
+        """Fetch full article text from a URL using trafilatura.
+
+        Stores the text internally and returns a fetch_id for reference.
+        """
         import trafilatura
+        import uuid
 
         print(f"  Fetching: {url[:60]}...")
 
@@ -866,17 +854,29 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
                     "message": f"Could not extract text from {url}",
                 }
 
-            # Truncate if too long (keep first 3000 chars for token efficiency)
-            if len(text) > 3000:
-                text = text[:3000] + "\n\n[... truncated for length ...]"
+            # Truncate if too long (keep first 5000 chars for better coverage)
+            if len(text) > 5000:
+                text = text[:5000] + "\n\n[... truncated for length ...]"
 
-            print(f"  ✓ Fetched {len(text)} characters")
+            # Generate fetch_id and store
+            fetch_id = str(uuid.uuid4())[:8]
+            self.fetched_sources[fetch_id] = {
+                "url": url,
+                "text": text,
+            }
+
+            print(f"  ✓ Fetched {len(text)} characters (ID: {fetch_id})")
+
+            # Show first 500 chars as preview
+            preview = text[:500] + "..." if len(text) > 500 else text
 
             return {
                 "status": "success",
+                "fetch_id": fetch_id,
                 "url": url,
-                "text": text,
-                "message": "Article text fetched. Use mark_warrants to bold key phrases.",
+                "length": len(text),
+                "preview": preview,
+                "message": f"Source fetched with ID {fetch_id}. Use cut_card to extract cards by specifying start/end phrases.",
             }
 
         except Exception as e:
@@ -886,52 +886,11 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
                 "message": f"Error fetching {url}: {str(e)}",
             }
 
-    def _mark_warrants_skill(self, text: str, warrant_phrases: list[str]) -> dict:
-        """Mark key warrants by bolding specific phrases in the text.
-
-        This is like using the Edit tool - we find exact phrases and add ** markers.
-        Never regenerate the text, just mark it up programmatically.
-        """
-        print(f"  Marking {len(warrant_phrases)} warrant phrases...")
-
-        marked_text = text
-        marked_count = 0
-
-        # Bold each phrase (in order, to avoid position shifts)
-        # We need to be careful about already-bolded text
-        for phrase in warrant_phrases:
-            if phrase in marked_text:
-                # Only bold if not already bolded
-                if f"**{phrase}**" not in marked_text:
-                    marked_text = marked_text.replace(phrase, f"**{phrase}**", 1)
-                    marked_count += 1
-                    print(f"    ✓ Bolded: {phrase[:50]}...")
-            else:
-                print(f"    ⚠ Phrase not found: {phrase[:50]}...")
-
-        if marked_count == 0:
-            return {
-                "status": "error",
-                "message": "No phrases were found in the text. Make sure phrases are exact matches.",
-            }
-
-        # Calculate how much is bolded
-        bold_chars = sum(len(p) for p in warrant_phrases if p in text)
-        total_chars = len(text)
-        bold_pct = (bold_chars / total_chars * 100) if total_chars > 0 else 0
-
-        print(f"  ✓ Marked {marked_count}/{len(warrant_phrases)} phrases (~{bold_pct:.0f}% of text)")
-
-        return {
-            "status": "success",
-            "marked_text": marked_text,
-            "phrases_marked": marked_count,
-            "bold_percentage": bold_pct,
-            "message": f"Marked {marked_count} phrases. Use cut_card to save this card.",
-        }
-
     def _cut_card_skill(
         self,
+        fetch_id: str,
+        start_phrase: str,
+        end_phrase: str,
         tag: str,
         argument: str,
         purpose: str,
@@ -939,13 +898,46 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
         credentials: str,
         year: str,
         source: str,
-        text: str,
-        url: str | None = None,
         evidence_type: str | None = None,
     ) -> dict:
-        """Cut a card and add it to the flat debate file structure."""
+        """Cut a card from a fetched source by specifying start/end phrases.
+
+        Like editing code - the tool extracts text between markers programmatically.
+        """
         from debate.evidence_storage import get_or_create_flat_debate_file, save_flat_debate_file
         from debate.models import EvidenceType
+
+        # Get the fetched source
+        if fetch_id not in self.fetched_sources:
+            return {
+                "status": "error",
+                "message": f"fetch_id '{fetch_id}' not found. Use fetch_source first.",
+            }
+
+        source_data = self.fetched_sources[fetch_id]
+        full_text = source_data["text"]
+        url = source_data["url"]
+
+        # Find start and end positions
+        start_idx = full_text.find(start_phrase)
+        if start_idx == -1:
+            return {
+                "status": "error",
+                "message": f"Start phrase not found in text: '{start_phrase[:50]}...'",
+            }
+
+        # Look for end phrase after start phrase
+        end_idx = full_text.find(end_phrase, start_idx + len(start_phrase))
+        if end_idx == -1:
+            return {
+                "status": "error",
+                "message": f"End phrase not found after start phrase: '{end_phrase[:50]}...'",
+            }
+
+        # Extract text (include the end phrase)
+        extracted_text = full_text[start_idx : end_idx + len(end_phrase)]
+
+        print(f"  ✓ Extracted {len(extracted_text)} characters from fetch {fetch_id}")
 
         # Parse evidence type
         evidence_type_enum = None
@@ -959,7 +951,7 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
             }
             evidence_type_enum = type_map.get(evidence_type.lower())
 
-        # Create card
+        # Create card with extracted text (no bolding)
         card = Card(
             tag=tag,
             author=author,
@@ -967,7 +959,7 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
             year=year,
             source=source,
             url=url,
-            text=text,
+            text=extracted_text,
             purpose=f"{purpose} - {argument}",
             evidence_type=evidence_type_enum,
         )

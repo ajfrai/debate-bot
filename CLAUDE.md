@@ -180,42 +180,54 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
 
 ### Edit-Style Card Cutting (Token Efficient)
 
-**The agent uses an Edit-style workflow during autonomous prep** - similar to how Claude edits code:
+**The agent uses a true Edit-style workflow during autonomous prep** - just like editing code:
 
 **Workflow:**
 1. `search(query)` → Brave API returns URLs and descriptions
-2. `fetch_source(url)` → Downloads article, extracts text (up to 3000 chars)
-3. `mark_warrants(text, phrases)` → Agent identifies exact phrases to bold, tool adds `**markers**` programmatically
-4. `cut_card(metadata, marked_text)` → Saves card to argument file
+2. `fetch_source(url)` → Downloads article, stores text, returns `fetch_id` + preview
+3. `cut_card(fetch_id, start_phrase, end_phrase, metadata)` → Tool extracts text between phrases programmatically
+4. Agent can cut multiple cards from same `fetch_id`
 
-**Key principle: The agent NEVER regenerates text**
-- Agent reads raw article text
-- Agent identifies which exact phrases should be bolded
-- Tool adds `**markers**` around those phrases automatically
-- Like using Edit tool: find exact matches, add markers programmatically
+**Key principle: The agent NEVER copies or regenerates text**
+- Agent sees preview of fetched text
+- Agent specifies WHERE to cut (start phrase, end phrase)
+- Tool finds those phrases and extracts text between them automatically
+- Like using Edit tool: specify locations, tool does the extraction
+
+**No bolding:**
+- Cards are saved as raw text (no `**bold**` markers)
+- Agent decides what to read during rounds
+- Simpler workflow, fewer tokens
 
 **Benefits:**
-- **No text regeneration**: Agent never rewrites content (saves tokens, prevents hallucination)
-- **Token efficient**: Only identifies phrases, doesn't rewrite full text
+- **No text copying**: Agent only specifies start/end phrases (5-10 words each)
+- **No regeneration**: Tool extracts text programmatically
+- **Token efficient**: Only outputs ~20 words per card instead of full text
 - **Accurate**: Uses exact text from source
-- **Edit-like**: Same pattern as code editing
+- **Multiple cuts**: Can cut many cards from same fetch_id
 
 **Example:**
 ```
-Raw text from fetch_source:
-"The ban would eliminate jobs and hurt the economy significantly."
+fetch_source(url) returns:
+- fetch_id: "a7f3"
+- preview: "India's 2020 ban on TikTok and 58 other Chinese apps..."
+- (full text stored internally)
 
-Agent calls mark_warrants with:
-warrant_phrases: ["eliminate jobs", "hurt the economy significantly"]
+Agent calls cut_card:
+- fetch_id: "a7f3"
+- start_phrase: "India's 2020 ban on TikTok"
+- end_phrase: "platform bans"
+- (+ metadata)
 
-Tool returns:
-"The ban would **eliminate jobs** and **hurt the economy significantly**."
+Tool automatically extracts text between those phrases and saves card.
 ```
 
 ### Cost Optimization
 
 - Autonomous prep uses **Sonnet** for reasoning, but Edit-style workflow minimizes token costs
-- **Edit-style card cutting**: Agent never regenerates text, only identifies phrases to bold
+- **Edit-style card cutting**: Agent only outputs start/end phrases (~20 words), tool extracts programmatically
+- **No text copying**: Agent never copies full card text in tool calls
+- **No bolding**: Cards saved as raw text, simpler workflow
 - **Brave Search API** finds real sources (free tier: 15k queries/month)
 - **Trafilatura** extracts article text efficiently (open source, no API costs)
 - Evidence is cached locally in argument files, no need to re-research

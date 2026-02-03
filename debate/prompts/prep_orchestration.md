@@ -97,49 +97,40 @@ Need: warrants for each link, strong impact evidence
 
 ### 3. `fetch_source(url)`
 
-**Fetch full article text from a URL.** Returns raw text that you can mark up.
+**Fetch full article text from a URL.** Returns a `fetch_id` that references the stored text.
 
 **How it works:**
 1. Downloads and extracts article text from the URL
-2. Returns up to 3000 characters of text
-3. Use `mark_warrants` to bold key phrases in this text
+2. Stores the text internally with a unique fetch_id
+3. Returns the fetch_id and a preview (first 500 chars)
+4. You can cut multiple cards from the same fetch_id
+
+**Important:**
+- Text is stored so you don't need to copy it
+- Returns a preview so you can see what's available
+- Use the fetch_id when calling cut_card
 
 **When to use:**
 - After `search` gives you URLs
-- To get the full text before cutting cards
+- Before cutting cards from a source
 
-### 4. `mark_warrants(text, warrant_phrases)`
+### 4. `cut_card(fetch_id, start_phrase, end_phrase, tag, argument, purpose, author, credentials, year, source, evidence_type?)`
 
-**CRITICAL: This is like using the Edit tool on code.** You specify which exact phrases to bold, and the tool adds `**markers**` programmatically. **NEVER rewrite or paraphrase the text** - just identify which phrases should be bolded.
-
-**How it works:**
-1. Takes raw text from `fetch_source`
-2. Takes a list of exact phrases to bold (3-6 phrases covering 20-40% of text)
-3. Programmatically adds `**phrase**` markers around those phrases
-4. Returns the marked-up text
-
-**Important:**
-- Warrant phrases must be **exact matches** from the text
-- Each phrase should be 3-15 words
-- Aim for 3-6 phrases total
-- Do NOT rewrite or paraphrase - copy phrases exactly as they appear
-
-**Example:**
-```
-text: "The ban would eliminate jobs and hurt the economy significantly."
-warrant_phrases: ["eliminate jobs", "hurt the economy significantly"]
-→ Returns: "The ban would **eliminate jobs** and **hurt the economy significantly**."
-```
-
-### 5. `cut_card(tag, argument, purpose, author, credentials, year, source, url, text, evidence_type?)`
-
-**Save the cut card to the debate file.** Call this after `mark_warrants`.
+**Cut a card from a fetched source.** Like editing code - specify WHERE to cut (start/end phrases), and the tool extracts that section programmatically.
 
 **How it works:**
-1. Takes card metadata (tag, author, credentials, etc.)
-2. Takes the marked-up text from `mark_warrants`
-3. Saves card to the debate file in the appropriate argument file
-4. Organizes by purpose and argument in your PrepFile
+1. Takes fetch_id from fetch_source
+2. Takes start_phrase and end_phrase (exact text where to start/stop cutting)
+3. Tool finds those phrases and extracts text between them programmatically
+4. No need to copy the text yourself - tool does it automatically
+5. Saves card to the debate file with NO bolding (agent decides what to read during round)
+
+**Parameters:**
+- `fetch_id`: The ID from fetch_source
+- `start_phrase`: Exact phrase where card should START (3-10 words)
+- `end_phrase`: Exact phrase where card should END (3-10 words, after start)
+- Standard metadata: tag, argument, purpose, author, credentials, year, source
+- `evidence_type` (optional): statistical, analytical, consensus, empirical, predictive
 
 **Purpose types:**
 - `support`: Evidence that proves your claims
@@ -147,16 +138,23 @@ warrant_phrases: ["eliminate jobs", "hurt the economy significantly"]
 - `extension`: Additional warrants to strengthen existing arguments
 - `impact`: Evidence showing why something matters
 
-**Evidence types** (optional but recommended):
-- `statistical`: Numbers, data, quantified claims
-- `analytical`: Expert reasoning, causal analysis
-- `consensus`: Multiple sources agreeing
-- `empirical`: Case studies, real-world examples
-- `predictive`: Forecasts, projections
-
 **Important:**
-- The `argument` field must be SPECIFIC (e.g., "TikTok ban eliminates 100k jobs"), NOT vague (e.g., "economic impacts")
-- The `text` field should be the marked-up text from `mark_warrants` (already has **bold** markers)
+- Start and end phrases must be EXACT matches from the fetched text
+- Agent decides what to read during rounds (no pre-bolding needed)
+- You can cut multiple cards from the same fetch_id
+- The `argument` field must be SPECIFIC (e.g., "TikTok ban eliminates 100k jobs")
+
+**Example:**
+```
+fetch_source returns ID "a7f3" with text about TikTok bans
+cut_card(
+  fetch_id="a7f3",
+  start_phrase="India's 2020 ban on TikTok",
+  end_phrase="democratic nations can successfully execute platform bans",
+  ...
+)
+→ Tool extracts text between those phrases automatically
+```
 
 ### 6. `read_prep()`
 
@@ -185,34 +183,34 @@ View current prep state to see what you've built and identify gaps.
    - Review what sources look promising
 
 3. **Fetch article text** (call `fetch_source` with a URL)
-   - Gets full article text (up to 3000 chars)
-   - Returns raw text for marking up
+   - Gets full article text (up to 5000 chars)
+   - Returns fetch_id and preview (first 500 chars)
+   - Text is stored internally, no need to copy
 
-4. **Mark up warrants** (call `mark_warrants` with text and exact phrases)
-   - **Like Edit tool**: Specify exact phrases to bold
-   - Tool adds `**markers**` programmatically
-   - NEVER rewrite the text
+4. **Cut cards** (call `cut_card` with fetch_id and start/end phrases)
+   - Specify start_phrase (where to start cutting)
+   - Specify end_phrase (where to stop cutting)
+   - Tool extracts text between those phrases programmatically
+   - Add metadata (author, credentials, year, etc.)
+   - Card saved to debate file with NO bolding
 
-5. **Save the card** (call `cut_card` with metadata and marked text)
-   - Add author, credentials, year, source
-   - Specify SPECIFIC argument
-   - Card saved to debate file
+5. **Repeat step 4 for more cards from the same fetch_id**
+   - Cut multiple cards from the same source
+   - Just specify different start/end phrases
 
-6. **Repeat steps 3-5 for more cards from the same search**
-   - Fetch different URLs, mark warrants, cut cards
-
-7. **Brief follow-up analysis** (only if evidence reveals new angles)
+6. **Brief follow-up analysis** (only if evidence reveals new angles)
    - NOT after every card
    - Only when new evidence suggests unexplored research directions
 
-8. **Repeat search + fetch + mark + cut cycle** (this is 80% of your work)
+7. **Repeat search + fetch + cut cycle** (this is 80% of your work)
 
-**Tool workflow (Edit-style):**
+**Tool workflow (True Edit-style):**
 - `search`: Finds sources → URLs
-- `fetch_source`: Gets article text → raw text
-- `mark_warrants`: Specify exact phrases → marked text (programmatic bolding)
-- `cut_card`: Save with metadata → debate file
-- **Key point**: Agent never rewrites text, just identifies phrases to bold
+- `fetch_source`: Downloads text → fetch_id + stored text
+- `cut_card`: Specify WHERE to cut (start/end phrases) → tool extracts programmatically
+- **Key point**: Agent NEVER copies text, only specifies WHERE to cut
+- **No bolding**: Cards saved as-is, agent decides what to read during rounds
+- **Multiple cuts**: Can cut many cards from same fetch_id
 
 **Know when you're done:**
 - Core arguments have evidence
@@ -222,4 +220,4 @@ View current prep state to see what you've built and identify gaps.
 
 ---
 
-**Begin your autonomous prep. CUT CARDS, not strategic frameworks. Use `search` → `fetch_source` → `mark_warrants` → `cut_card` workflow. Like using Edit tool: identify exact phrases to bold, never rewrite. Cut cards 3x more than you analyze.**
+**Begin your autonomous prep. CUT CARDS, not strategic frameworks. Use `search` → `fetch_source` → `cut_card` workflow. Like editing code: specify WHERE to cut (start/end phrases), tool extracts programmatically. NEVER copy text. Cut cards 3x more than you analyze.**
