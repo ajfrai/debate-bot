@@ -16,6 +16,10 @@ You are autonomously prepping for a Public Forum debate.
 
 Research should be **3x as common** as analysis. Your job is to CUT CARDS, not produce strategic frameworks.
 
+For the purposes of this process, an argument is any point that needs to be won for a judge to grant the debater credit for an impact. This means an argument is any link, any impact statement, any turn, etc. Each of these are independent research tsrgets.
+
+For example, if the resolution is about US intervention in the Middle East, intervention increases oil prices is an argument. Each implication of oil price increases are each arguments, the third order effects are each individual arguments, etc.
+
 **Target:** Cut **{max_turns} topics** with **5 cards per topic** ({total_cards} cards total) using {max_turns} turns.
 - Rule of thumb: **3 supporting cards + 2 answer cards** per argument
 - Supporting cards prove YOUR claims
@@ -34,7 +38,8 @@ Develop prep by:
 
 **IMPORTANT:** Use analysis SPARINGLY. Only when:
 - Starting prep (breadcrumb_initial)
-- After getting new evidence that reveals research gaps (breadcrumb_followup)
+- Research targets are exhausted
+- You get new ideas and want to explore a new argument tree.
 
 **Analysis Types:**
 
@@ -80,16 +85,24 @@ Resolution: Ban TikTok
 ```
 ∙ ban -> reduced social media use -> improved grades
 ∙ ban -> reduced phone use -> mental health improvements
-∙ ban -> removes Chinese data collection -> national security
-Need: warrants for each link, strong impact evidence
-
-(Blockers are optional - only include if there's a clear challenge)
+∙ ban -> removes Chinese data collection
 ```
 
-**When to use:**
-- START of prep: `breadcrumb_initial` once to map the argument tree
-- AFTER research: `breadcrumb_followup` if evidence reveals new branches (not after every research)
-- DEFAULT ACTION: research, not analyze
+Not all link trees must start at the resolution, but be sure to only include relevant subtrees
+
+```
+∙ chinese data collection -> increased algorithm addictiveness
+∙ algorithm addictiveness --> reduced stem edu
+∙ reduced stem edu -> less innovation/gdp (find empirical evidence)
+
+If you'd like to during analysis you can also enumerate ways to sever links or turn them. Or show they are non-unique.
+
+```
+∙ algorithm addictiveness non-unique: us algorithms as addictive
+∙ reduced stem edu -/> less gdp: stem obsolete by ai
+∙ chinese data collection good: more pro-china sentiment means less likelihood of war```
+
+Treat these as research targets to burn down in a todo list.
 
 ### 2. `search(query, num_results?)`
 

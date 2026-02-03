@@ -12,6 +12,7 @@ dependencies = [
     "rich>=13.0.0",
     "prompt-toolkit>=3.0.0",
     "trafilatura>=1.6.0",
+    "pypdf>=3.0.0",
 ]
 
 [project.scripts]

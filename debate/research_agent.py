@@ -6,13 +6,17 @@ This module provides cost-effective evidence research by:
 3. Organizing cards into debate files by strategic value
 """
 
+import datetime
 import json
 import os
+import re
 import time
+from pathlib import Path
 
 import anthropic
 import requests
 
+from debate.article_fetcher import FetchedArticle, fetch_source
 from debate.config import Config
 from debate.evidence_storage import get_or_create_debate_file, save_debate_file
 from debate.models import (
@@ -96,7 +100,7 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
 
             # Handle rate limiting (429)
             if response.status_code == 429 and retry_on_rate_limit and retry_count < max_retries:
-                print(f"  Rate limited (429), waiting 10s before retry...")
+                print("  Rate limited (429), waiting 10s before retry...")
                 time.sleep(10)
                 retry_count += 1
                 continue
@@ -128,6 +132,81 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
     # If we exhausted retries
     print("  Rate limit retries exhausted")
     return None
+
+
+def _extract_urls_from_search_results(search_results: str) -> list[str]:
+    """Extract URLs from formatted search results.
+
+    Args:
+        search_results: Formatted markdown search results from _brave_search
+
+    Returns:
+        List of URLs found in the search results
+    """
+    urls = []
+    # Match lines like "   URL: https://example.com"
+    pattern = r"URL:\s*(https?://[^\s]+)"
+    matches = re.finditer(pattern, search_results)
+    for match in matches:
+        urls.append(match.group(1))
+    return urls
+
+
+def _fetch_articles_from_search(
+    search_results: str,
+    max_articles: int = 2,
+    brave_api_key: str | None = None,
+) -> list[FetchedArticle]:
+    """Fetch full article text from search result URLs.
+
+    Args:
+        search_results: Formatted search results from _brave_search
+        max_articles: Maximum number of articles to fetch
+        brave_api_key: Brave API key for paywall retry
+
+    Returns:
+        List of successfully fetched articles
+    """
+    urls = _extract_urls_from_search_results(search_results)
+    fetched_articles = []
+
+    for url in urls[:max_articles]:
+        article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key)
+        if article:
+            fetched_articles.append(article)
+            # Brief pause between fetches
+            time.sleep(2)
+
+        # Stop if we have enough articles
+        if len(fetched_articles) >= max_articles:
+            break
+
+    return fetched_articles
+
+
+def _format_fetched_articles_for_prompt(articles: list[FetchedArticle]) -> str:
+    """Format fetched articles for inclusion in Claude prompt.
+
+    Args:
+        articles: List of fetched articles
+
+    Returns:
+        Formatted markdown string with article contents
+    """
+    if not articles:
+        return ""
+
+    sections = ["## Full Article Text\n"]
+    for i, article in enumerate(articles, 1):
+        sections.append(f"### Article {i}: {article.title or 'Untitled'}")
+        sections.append(f"**Source:** {article.url}")
+        sections.append(f"**Type:** {article.content_type.upper()}")
+        sections.append(f"**Word Count:** {article.word_count}")
+        sections.append("")
+        sections.append(article.full_text)
+        sections.append("\n---\n")
+
+    return "\n".join(sections)
 
 
 def _extract_json_from_text(text: str) -> dict:
@@ -211,33 +290,41 @@ def generate_research_queries(
     side_term = "benefits" if side == Side.PRO else "concerns"
 
     # 1. Exploratory - broad discovery
-    queries.append({
-        "strategy": QueryStrategy.EXPLORATORY,
-        "query": f"{topic} research analysis {side_term}",
-        "purpose": "Discover broad landscape of evidence",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.EXPLORATORY,
+            "query": f"{topic} research analysis {side_term}",
+            "purpose": "Discover broad landscape of evidence",
+        }
+    )
 
     # 2. Spearfish - specific claim with year
-    queries.append({
-        "strategy": QueryStrategy.SPEARFISH,
-        "query": f'"{topic}" study findings 2024 OR 2025',
-        "purpose": "Find recent specific studies",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SPEARFISH,
+            "query": f'"{topic}" study findings 2024 OR 2025',
+            "purpose": "Find recent specific studies",
+        }
+    )
 
     # 3. Source-targeted - credible institutions
     think_tanks = " OR ".join(f"site:{s}" for s in CREDIBLE_SOURCES["think_tanks"][:3])
-    queries.append({
-        "strategy": QueryStrategy.SOURCE_TARGETED,
-        "query": f"{topic} ({think_tanks})",
-        "purpose": "Find think tank/policy analysis",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SOURCE_TARGETED,
+            "query": f"{topic} ({think_tanks})",
+            "purpose": "Find think tank/policy analysis",
+        }
+    )
 
     # 4. Expert - find authorities
-    queries.append({
-        "strategy": QueryStrategy.EXPERT,
-        "query": f"{topic} professor expert analysis opinion",
-        "purpose": "Find expert voices with credentials",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.EXPERT,
+            "query": f"{topic} professor expert analysis opinion",
+            "purpose": "Find expert voices with credentials",
+        }
+    )
 
     # 5. Verbatim - if we have existing cards, find related evidence
     if existing_cards:
@@ -245,22 +332,27 @@ def generate_research_queries(
         for card in existing_cards[:2]:
             # Find a quotable phrase from the bolded text
             import re
+
             bolded = re.findall(r"\*\*(.+?)\*\*", card.text)
             if bolded:
                 phrase = bolded[0][:50]  # First 50 chars of first bold
-                queries.append({
-                    "strategy": QueryStrategy.VERBATIM,
-                    "query": f'"{phrase}"',
-                    "purpose": f"Find sources citing similar evidence to {card.tag[:30]}",
-                })
+                queries.append(
+                    {
+                        "strategy": QueryStrategy.VERBATIM,
+                        "query": f'"{phrase}"',
+                        "purpose": f"Find sources citing similar evidence to {card.tag[:30]}",
+                    }
+                )
                 break
 
     # 6. Statistical focus
-    queries.append({
-        "strategy": QueryStrategy.SPEARFISH,
-        "query": f"{topic} statistics data numbers percent",
-        "purpose": "Find quantitative evidence",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SPEARFISH,
+            "query": f"{topic} statistics data numbers percent",
+            "purpose": "Find quantitative evidence",
+        }
+    )
 
     return queries
 
@@ -452,7 +544,19 @@ def research_evidence(
             result = _brave_search(q["query"], num_results=5)
             if result:
                 search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
-                print(f"✓ Found results from search")
+                print("✓ Found results from search")
+
+                # Fetch full article text from top results
+                brave_api_key = os.environ.get("BRAVE_API_KEY")
+                print("Fetching full article text from top sources...")
+                fetched_articles = _fetch_articles_from_search(result, max_articles=2, brave_api_key=brave_api_key)
+
+                if fetched_articles:
+                    print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
+                    article_text = _format_fetched_articles_for_prompt(fetched_articles)
+                    search_results = f"{search_results}\n\n{article_text}"
+                else:
+                    print("⚠ Could not fetch full article text")
             else:
                 print("⚠ No search results, using Claude's knowledge base")
                 search_results = "(No search results available - use your knowledge base)"
@@ -469,13 +573,26 @@ def research_evidence(
         # Add 3-second pause to avoid rate limiting
         time.sleep(3)
 
-        search_results = _brave_search(search_query, num_results=5)
+        brave_results = _brave_search(search_query, num_results=5)
 
-        if search_results:
+        if brave_results:
+            search_results = brave_results
             print("✓ Found search results from Brave")
+
+            # Fetch full article text from top results
+            brave_api_key = os.environ.get("BRAVE_API_KEY")
+            print("Fetching full article text from top sources...")
+            fetched_articles = _fetch_articles_from_search(brave_results, max_articles=2, brave_api_key=brave_api_key)
+
+            if fetched_articles:
+                print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
+                article_text = _format_fetched_articles_for_prompt(fetched_articles)
+                search_results = f"{search_results}\n\n{article_text}"
+            else:
+                print("⚠ Could not fetch full article text")
         else:
-            print("⚠ Brave Search unavailable, using Claude's knowledge base")
             search_results = "(No search results available - use your knowledge base)"
+            print("⚠ Brave Search unavailable, using Claude's knowledge base")
 
     # Load lessons for the research agent
     lessons = load_lessons("research", "organization")
@@ -628,7 +745,6 @@ def research_evidence_efficient(
     Returns:
         List of file paths where cards were placed
     """
-    import datetime
     from debate.card_import import import_card
 
     # Default argument to topic if not provided
@@ -636,9 +752,7 @@ def research_evidence_efficient(
         argument = topic
 
     # Load existing debate file
-    debate_file = get_or_create_debate_file(resolution)
-    is_new = debate_file[1]
-    debate_file = debate_file[0]
+    debate_file, _is_new = get_or_create_debate_file(resolution)
 
     # Search Brave
     if not search_query:
@@ -650,12 +764,13 @@ def research_evidence_efficient(
     # Add 3-second pause to avoid rate limiting
     time.sleep(3)
 
-    search_results = _brave_search(search_query, num_results=5)
+    brave_results = _brave_search(search_query, num_results=5)
 
-    if not search_results:
+    if not brave_results:
         print("⚠ No search results available")
         return []
 
+    search_results = brave_results
     print("✓ Found search results")
 
     # Create temp directory
@@ -755,7 +870,7 @@ Output ONLY the marked-up card. Do not include explanations."""
         print(f"✗ Failed to import card: {e}")
         print(f"  Marked-up file saved at: {temp_file}")
         print("  You can manually review and fix the format, then run:")
-        print(f"  uv run debate card-import {temp_file} \"{resolution}\" --side {side.value}")
+        print(f'  uv run debate card-import {temp_file} "{resolution}" --side {side.value}')
         return []
 
 
@@ -963,8 +1078,8 @@ def build_prep_state_from_debate_file(
         # Old structure
         sections = debate_file.get_sections_for_side(side)
         for section in sections:
-            cards = [debate_file.get_card(cid) for cid in section.card_ids if debate_file.get_card(cid)]
-            evidence_types = {c.evidence_type for c in cards if c and c.evidence_type}
+            cards = [c for cid in section.card_ids if (c := debate_file.get_card(cid)) is not None]
+            evidence_types = {c.evidence_type for c in cards if c.evidence_type}
 
             state.update_argument(section.argument, len(cards), evidence_types)
 
