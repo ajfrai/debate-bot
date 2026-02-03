@@ -97,41 +97,54 @@ Each evidence card includes:
 
 ### Debate File Organization
 
-Cards are organized into **debate files** (one per resolution) as a searchable directory tree:
+Cards are organized into **debate files** (one per resolution) with a flat argument-based structure:
 
 ```
 evidence/
   resolved_the_us_should_ban_tiktok/
     INDEX.md                              # Master table of contents
     pro/
-      support/
-        tiktok_ban_eliminates_100k_jobs.md
-        creator_economy_loses_4_billion.md
-      answer/
-        no_verified_chinese_data_access.md
-      extension/
-      impact/
-        economic_recession_triggers.md
+      economic_harm.md                    # Argument file
+      national_security.md                # Argument file
+      at_privacy_concerns.md              # Answer file (AT: = "answer to")
     con/
-      support/
-      answer/
-      extension/
-      impact/
+      privacy_protection.md               # Argument file
+      at_economic_harm.md                 # Answer file
+```
+
+**Each file contains an argument with multiple claims and numbered cards:**
+
+```markdown
+# TikTok ban eliminates creator jobs
+Evidence that the TikTok ban would destroy the creator economy.
+
+## Supporting claim: Ban eliminates 100k jobs
+### 1. Smith '24 - Journal of Economics
+**Purpose:** Quantify job losses
+
+The TikTok ban would **eliminate over 100,000 jobs** in the creator economy...
+
+### 2. Jones '25 - Tech Policy Report
+...
+
+## Supporting claim: Creator economy contributes $4B annually
+### 1. Brown '24 - Economic Analysis
+...
 ```
 
 **Quick search during rounds:**
 ```bash
-ls pro/answer/                    # See all your answers
+ls pro/                           # See all PRO arguments
+cat pro/economic_harm.md          # View all evidence for economic harm
 grep -r "billion" pro/            # Find cards mentioning "billion"
-grep -r "security" con/support/   # Find opponent's security evidence
+grep -r "security" con/           # Find opponent's security evidence
 ```
 
-Cards are organized by **strategic value** into sections:
-
-- **support/** - Evidence that PROVES your specific claims
-- **answer/** - Evidence that RESPONDS TO opponent's specific arguments
-- **extension/** - Additional warrants to STRENGTHEN existing arguments
-- **impact/** - Evidence showing WHY something matters (magnitude, timeframe, probability)
+**Benefits:**
+- All evidence for an argument in one file
+- Easy to navigate and read entire argument
+- Fast searching with grep
+- Answer files clearly marked with `AT:` prefix
 
 ### Specific Argument Headers
 
@@ -148,18 +161,16 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
 
 ### Workflow
 
-1. **Research evidence**: Use `debate research` to cut cards for specific arguments
-   - Research agent uses **Brave Search API** to find real sources
-   - Uses Claude Haiku (cost-effective) to extract and format evidence cards
-   - Extracts quotes with proper citations and author credentials
-   - **Organizes cards by strategic value** (support, answer, extension, impact)
-   - Bolds the key warrants (20-40% of text)
+1. **Autonomous prep**: Use `debate prep` to run agent-driven research
+   - Agent uses **Edit-style workflow** (no text regeneration)
+   - Searches Brave API, fetches articles, marks warrants programmatically
+   - Saves cards to argument-based files
    - **Streams tokens in real-time** so you can see progress
 
 2. **Store in debate files**: Evidence is saved to resolution directories in `evidence/`
    - One directory per resolution containing all PRO and CON evidence
+   - Each argument in its own file with numbered cards
    - Markdown INDEX.md provides navigable table of contents
-   - Cards are cross-referenced by ID across sections
 
 3. **Generate with evidence**: Use `debate generate --with-evidence` to create cases
    - Case generator loads the debate file for the resolution
@@ -167,85 +178,47 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
    - Only reads bolded portions in speeches (like real debate cards)
    - **Streams tokens in real-time** for immediate feedback
 
-### Two Card-Cutting Workflows
+### Edit-Style Card Cutting (Token Efficient)
 
-#### 1. Autonomous Prep (Fully Automated)
+**The agent uses an Edit-style workflow during autonomous prep** - similar to how Claude edits code:
 
-**Use when:** Running `debate prep` for agent-driven research
+**Workflow:**
+1. `search(query)` → Brave API returns URLs and descriptions
+2. `fetch_source(url)` → Downloads article, extracts text (up to 3000 chars)
+3. `mark_warrants(text, phrases)` → Agent identifies exact phrases to bold, tool adds `**markers**` programmatically
+4. `cut_card(metadata, marked_text)` → Saves card to argument file
 
-The `research()` tool automatically:
-- Checks existing debate files for relevant evidence
-- Searches Brave API for new sources (3s pause between searches)
-- Extracts and formats evidence cards with proper citations
-- Organizes cards by strategic purpose (support/answer/extension/impact)
-- Tracks everything in PrepFile
+**Key principle: The agent NEVER regenerates text**
+- Agent reads raw article text
+- Agent identifies which exact phrases should be bolded
+- Tool adds `**markers**` around those phrases automatically
+- Like using Edit tool: find exact matches, add markers programmatically
 
-**No manual intervention needed.** The agent manages the entire research workflow during autonomous prep.
+**Benefits:**
+- **No text regeneration**: Agent never rewrites content (saves tokens, prevents hallucination)
+- **Token efficient**: Only identifies phrases, doesn't rewrite full text
+- **Accurate**: Uses exact text from source
+- **Edit-like**: Same pattern as code editing
 
-#### 2. Manual Card-Cutting (Token-Efficient)
+**Example:**
+```
+Raw text from fetch_source:
+"The ban would eliminate jobs and hurt the economy significantly."
 
-**Use when:** You want manual oversight and token efficiency
+Agent calls mark_warrants with:
+warrant_phrases: ["eliminate jobs", "hurt the economy significantly"]
 
-**Problem**: Having LLM regenerate full card text during extraction is expensive.
-
-**Solution - Token-Efficient Manual Workflow**:
-
-1. **Capture raw source** (Bash)
-   ```bash
-   cat > evidence/temp/raw_source_001.txt <<'EOF'
-   [paste full text from Brave search result]
-   EOF
-   ```
-
-2. **Mark up the card** (Edit tool or text editor)
-   - Bold key warrants: `**like this**`
-   - Add metadata at top:
-     ```
-     TAG: India TikTok ban removed 100M users effectively
-     CITE: Kumar & Thussu '23, Media scholars at Amsterdam/Westminster
-     AUTHOR: Anilesh Kumar and Daya Thussu
-     YEAR: 2023
-     SECTION: answer,support
-     ARGUMENT: TikTok bans are effective at removing platform access
-     URL: https://journals.sagepub.com/...
-     ```
-   - Mark extract region:
-     ```
-     >>> START
-     India's 2020 ban on **TikTok** and 58 other Chinese apps **successfully removed the platform from access for over 100 million active users within weeks**. The ban **demonstrated effective enforcement through ISP-level blocking and app store removal**, setting a precedent for how democratic nations can successfully execute platform bans.
-     <<< END
-     ```
-
-3. **Import card** (CLI command)
-   ```bash
-   uv run debate card-import evidence/temp/raw_source_001.txt "Resolved: The US should ban TikTok" --side pro
-   ```
-   - Script reads metadata from marked-up file
-   - Extracts text between `>>> START` and `<<< END` markers
-   - Generates proper card markdown format
-   - Places in correct evidence directory based on SECTION/ARGUMENT metadata
-
-**Multiple Destinations:**
-
-Cards can be placed in multiple sections by:
-- **Comma-separated SECTION field**: `SECTION: answer,support,extension`
-- **--copy-to flag**: `--copy-to impact,extension`
-
-This allows cards to serve multiple purposes (e.g., rebuts opponent AND supports your claim).
-
-**Benefits**:
-- LLM doesn't regenerate text (saves tokens)
-- Edit tool is precise (no hallucination risk)
-- Bash commands are cheap
-- Script handles file organization (no LLM JSON generation)
-- Can reuse same source for multiple cards by editing different sections
+Tool returns:
+"The ban would **eliminate jobs** and **hurt the economy significantly**."
+```
 
 ### Cost Optimization
 
-- Research agent uses **Claude Haiku** (cheapest model) for card cutting
+- Autonomous prep uses **Sonnet** for reasoning, but Edit-style workflow minimizes token costs
+- **Edit-style card cutting**: Agent never regenerates text, only identifies phrases to bold
 - **Brave Search API** finds real sources (free tier: 15k queries/month)
-- Limited to 5 cards max per research session
-- Evidence is cached locally, no need to re-research
+- **Trafilatura** extracts article text efficiently (open source, no API costs)
+- Evidence is cached locally in argument files, no need to re-research
 - Case generation can use stored evidence without additional research costs
 - **Token streaming** provides immediate feedback without waiting
 
@@ -256,10 +229,10 @@ This allows cards to serve multiple purposes (e.g., rebuts opponent AND supports
 3. **Round as state machine**: `round.py` manages speech order and turn state
 4. **Models are flexible**: Contentions are prose, not structured card lists
 5. **Evidence cards are real**: Research agent finds actual sources with verifiable citations, not fabricated evidence
-6. **Cost-effective research**: Uses Haiku model and local caching to minimize token usage
-7. **Debate files as directories**: Each resolution has its own directory, like a real debate file
-8. **Strategic organization**: Cards organized by purpose (support, answer, extension, impact)
-9. **Cross-referencing**: Cards have IDs and can appear in multiple sections where relevant
+6. **Edit-style card cutting**: Agent never regenerates text - only identifies phrases to bold, tool adds markers programmatically
+7. **Argument-based organization**: Each argument is a file with multiple claims and numbered cards (not scattered across folders)
+8. **Token efficiency**: No text regeneration, local caching, minimal API usage
+9. **Tool-based workflow**: Agent uses tools (search, fetch_source, mark_warrants, cut_card) instead of generating full JSON structures
 
 ## PF Speech Order
 
