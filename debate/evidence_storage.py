@@ -340,8 +340,8 @@ def list_debate_files() -> list[dict]:
                     # Count total cards across all arguments
                     total_cards = 0
                     for arg in flat_file.pro_arguments + flat_file.con_arguments:
-                        for claim in arg.claims:
-                            total_cards += len(claim.cards)
+                        for group in arg.semantic_groups:
+                            total_cards += len(group.cards)
 
                     files.append(
                         {
@@ -465,12 +465,12 @@ def render_argument_file_markdown(argument: ArgumentFile) -> str:
         # Argument Title
         Strategic purpose...
 
-        ## Claim 1
-        ### 1. Author 2024 - Source
+        ## Semantic Category 1
+        1. Author 2024 - Source
         **Purpose:** ...
         [card content]
 
-        ### 2. Author 2025 - Source
+        2. Author 2025 - Source
         ...
     """
     lines = []
@@ -484,14 +484,14 @@ def render_argument_file_markdown(argument: ArgumentFile) -> str:
     lines.append(argument.purpose)
     lines.append("")
 
-    # Claims with numbered cards
-    for claim_cards in argument.claims:
-        lines.append(f"## {claim_cards.claim}")
+    # Semantic groups with numbered cards
+    for semantic_group in argument.semantic_groups:
+        lines.append(f"## {semantic_group.semantic_category}")
         lines.append("")
 
-        for i, card in enumerate(claim_cards.cards, 1):
+        for i, card in enumerate(semantic_group.cards, 1):
             last_name = card.author.split()[-1]
-            lines.append(f"### {i}. {last_name} {card.year} - {card.source}")
+            lines.append(f"{i}. {last_name} {card.year} - {card.source}")
             lines.append("")
 
             if card.purpose:
@@ -576,34 +576,41 @@ def _serialize_argument_file(arg: ArgumentFile) -> dict:
         "is_answer": arg.is_answer,
         "answers_to": arg.answers_to,
         "purpose": arg.purpose,
-        "claims": [
+        "semantic_groups": [
             {
-                "claim": claim.claim,
-                "cards": [card.model_dump() for card in claim.cards],
+                "semantic_category": group.semantic_category,
+                "cards": [card.model_dump() for card in group.cards],
             }
-            for claim in arg.claims
+            for group in arg.semantic_groups
         ],
     }
 
 
 def _deserialize_argument_file(data: dict) -> ArgumentFile:
     """Deserialize ArgumentFile from JSON."""
-    claims = []
-    for claim_data in data.get("claims", []):
+    semantic_groups = []
+
+    # Handle both old "claims" format and new "semantic_groups" format for backwards compatibility
+    groups_data = data.get("semantic_groups") or data.get("claims", [])
+
+    for group_data in groups_data:
         cards = []
-        for card_data in claim_data.get("cards", []):
+        for card_data in group_data.get("cards", []):
             # Handle evidence_type enum
             if card_data.get("evidence_type"):
                 card_data["evidence_type"] = EvidenceType(card_data["evidence_type"])
             cards.append(Card(**card_data))
-        claims.append(ClaimCards(claim=claim_data["claim"], cards=cards))
+
+        # Handle both old "claim" and new "semantic_category" field names
+        category = group_data.get("semantic_category") or group_data.get("claim", "")
+        semantic_groups.append(ClaimCards(semantic_category=category, cards=cards))
 
     return ArgumentFile(
         title=data["title"],
         is_answer=data.get("is_answer", False),
         answers_to=data.get("answers_to"),
         purpose=data.get("purpose", ""),
-        claims=claims,
+        semantic_groups=semantic_groups,
     )
 
 
@@ -639,10 +646,10 @@ def generate_flat_index_markdown(debate_file: FlatDebateFile, resolution_dir: Pa
             lines.append("")
             for arg in main_args:
                 filename = arg.get_filename()
-                card_count = sum(len(c.cards) for c in arg.claims)
+                card_count = sum(len(g.cards) for g in arg.semantic_groups)
                 lines.append(f"- [{arg.title}]({side_name}/{filename}) ({card_count} cards)")
-                for claim in arg.claims:
-                    lines.append(f"  - {claim.claim} ({len(claim.cards)} cards)")
+                for group in arg.semantic_groups:
+                    lines.append(f"  - {group.semantic_category} ({len(group.cards)} cards)")
             lines.append("")
 
         if at_args:
@@ -650,7 +657,7 @@ def generate_flat_index_markdown(debate_file: FlatDebateFile, resolution_dir: Pa
             lines.append("")
             for arg in at_args:
                 filename = arg.get_filename()
-                card_count = sum(len(c.cards) for c in arg.claims)
+                card_count = sum(len(g.cards) for g in arg.semantic_groups)
                 lines.append(f"- [AT: {arg.answers_to}]({side_name}/{filename}) ({card_count} cards)")
             lines.append("")
 

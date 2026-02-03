@@ -86,6 +86,7 @@ class Card(BaseModel):
     - Complete citation information
     - Direct quote with bolded sections (using **text** for what to read aloud)
     - Source URL for verification
+    - Semantic category for grouping semantically similar cards
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8], description="Unique card ID")
@@ -99,6 +100,9 @@ class Card(BaseModel):
     purpose: str = Field(default="", description="Strategic purpose of this card (e.g., 'proves economic harm')")
     evidence_type: EvidenceType | None = Field(
         default=None, description="Type of evidence (statistical, analytical, consensus, empirical, predictive)"
+    )
+    semantic_category: str = Field(
+        default="", description="Semantic grouping for this card (heading-2 in markdown output)"
     )
 
     def format_for_reading(self) -> str:
@@ -523,14 +527,16 @@ class PrepFile(BaseModel):
 # ========== Flat Evidence Structure (New) ==========
 
 
-class ClaimCards(BaseModel):
-    """A claim with numbered cards supporting it.
+class SemanticGroup(BaseModel):
+    """A semantic grouping of cards with similar arguments.
 
-    Within an argument file, claims are organized as ## headers with numbered cards.
+    Within an argument file, semantic groups are organized as ## headers with numbered cards.
     """
 
-    claim: str = Field(description="Specific claim this evidence supports (e.g., 'TikTok ban costs $4B annually')")
-    cards: list[Card] = Field(default_factory=list, description="Numbered cards supporting this claim")
+    semantic_category: str = Field(
+        description="Semantic category this evidence group supports (e.g., 'TikTok ban costs $4B annually')"
+    )
+    cards: list[Card] = Field(default_factory=list, description="Numbered cards in this semantic group")
 
     def add_card(self, card: Card) -> int:
         """Add a card and return its number (1-indexed)."""
@@ -538,12 +544,16 @@ class ClaimCards(BaseModel):
         return len(self.cards)
 
     def get_evidence_types(self) -> set[EvidenceType]:
-        """Get the set of evidence types present in this claim's cards."""
+        """Get the set of evidence types present in this semantic group's cards."""
         return {card.evidence_type for card in self.cards if card.evidence_type}
 
 
+# Keep ClaimCards as deprecated alias for backwards compatibility
+ClaimCards = SemanticGroup
+
+
 class ArgumentFile(BaseModel):
-    """A single argument file containing related claims and evidence.
+    """A single argument file containing related semantic groups and evidence.
 
     File structure (flat, under side directory):
         evidence/{resolution}/pro/{argument_slug}.md
@@ -553,14 +563,14 @@ class ArgumentFile(BaseModel):
         # Argument Title
         Strategic purpose explaining what this argument proves.
 
-        ## Claim 1
-        ### 1. Author 2024 - Source
+        ## Semantic Category 1
+        1. Author 2024 - Source
         [card content]
 
-        ### 2. Author 2025 - Source
+        2. Author 2025 - Source
         [card content]
 
-        ## Claim 2
+        ## Semantic Category 2
         ...
     """
 
@@ -568,30 +578,44 @@ class ArgumentFile(BaseModel):
     is_answer: bool = Field(default=False, description="True if this is an AT (answer to) file")
     answers_to: str | None = Field(default=None, description="If is_answer, what opponent argument this answers")
     purpose: str = Field(description="Strategic purpose of this argument")
-    claims: list[ClaimCards] = Field(default_factory=list, description="Claims with their supporting cards")
+    semantic_groups: list[SemanticGroup] = Field(default_factory=list, description="Semantic groups with their supporting cards")
 
-    def add_claim(self, claim: str) -> ClaimCards:
-        """Add a new claim and return it."""
-        claim_cards = ClaimCards(claim=claim)
-        self.claims.append(claim_cards)
-        return claim_cards
+    # Keep claims as deprecated alias for backwards compatibility
+    @property
+    def claims(self) -> list[SemanticGroup]:
+        """Deprecated: use semantic_groups instead."""
+        return self.semantic_groups
 
-    def find_or_create_claim(self, claim: str) -> ClaimCards:
-        """Find existing claim or create new one."""
-        # Check for similar claims (case-insensitive, partial match)
-        claim_lower = claim.lower()
-        for existing in self.claims:
-            if claim_lower in existing.claim.lower() or existing.claim.lower() in claim_lower:
+    def add_semantic_group(self, semantic_category: str) -> SemanticGroup:
+        """Add a new semantic group and return it."""
+        group = SemanticGroup(semantic_category=semantic_category)
+        self.semantic_groups.append(group)
+        return group
+
+    def add_claim(self, claim: str) -> SemanticGroup:
+        """Deprecated: use add_semantic_group instead."""
+        return self.add_semantic_group(claim)
+
+    def find_or_create_semantic_group(self, semantic_category: str) -> SemanticGroup:
+        """Find existing semantic group or create new one."""
+        # Check for similar categories (case-insensitive, partial match)
+        category_lower = semantic_category.lower()
+        for existing in self.semantic_groups:
+            if category_lower in existing.semantic_category.lower() or existing.semantic_category.lower() in category_lower:
                 return existing
-        return self.add_claim(claim)
+        return self.add_semantic_group(semantic_category)
+
+    def find_or_create_claim(self, claim: str) -> SemanticGroup:
+        """Deprecated: use find_or_create_semantic_group instead."""
+        return self.find_or_create_semantic_group(claim)
 
     def get_all_cards(self) -> list[Card]:
-        """Get all cards across all claims."""
-        return [card for claim in self.claims for card in claim.cards]
+        """Get all cards across all semantic groups."""
+        return [card for group in self.semantic_groups for card in group.cards]
 
     def get_evidence_type_coverage(self) -> dict[str, set[EvidenceType]]:
-        """Get evidence type coverage per claim."""
-        return {claim.claim: claim.get_evidence_types() for claim in self.claims}
+        """Get evidence type coverage per semantic group."""
+        return {group.semantic_category: group.get_evidence_types() for group in self.semantic_groups}
 
     def get_filename(self) -> str:
         """Generate filename for this argument."""
@@ -665,16 +689,16 @@ class FlatDebateFile(BaseModel):
                 lines.append("### Arguments")
                 lines.append("")
                 for arg in regular_args:
-                    total_cards = sum(len(claim.cards) for claim in arg.claims)
+                    total_cards = sum(len(group.cards) for group in arg.semantic_groups)
                     lines.append(f"**{arg.title}** ({total_cards} cards)")
                     lines.append("")
                     if arg.purpose:
                         lines.append(f"*{arg.purpose}*")
                         lines.append("")
-                    for claim in arg.claims:
-                        lines.append(f"#### {claim.claim}")
+                    for group in arg.semantic_groups:
+                        lines.append(f"#### {group.semantic_category}")
                         lines.append("")
-                        for i, card in enumerate(claim.cards, 1):
+                        for i, card in enumerate(group.cards, 1):
                             lines.append(f"**Card {i}:** {card.tag}")
                             lines.append("")
                             lines.append(card.format_full())
@@ -686,13 +710,13 @@ class FlatDebateFile(BaseModel):
                 lines.append("### Answers (AT)")
                 lines.append("")
                 for arg in answer_args:
-                    total_cards = sum(len(claim.cards) for claim in arg.claims)
+                    total_cards = sum(len(group.cards) for group in arg.semantic_groups)
                     lines.append(f"**AT: {arg.answers_to}** ({total_cards} cards)")
                     lines.append("")
-                    for claim in arg.claims:
-                        lines.append(f"#### {claim.claim}")
+                    for group in arg.semantic_groups:
+                        lines.append(f"#### {group.semantic_category}")
                         lines.append("")
-                        for i, card in enumerate(claim.cards, 1):
+                        for i, card in enumerate(group.cards, 1):
                             lines.append(f"**Card {i}:** {card.tag}")
                             lines.append("")
                             lines.append(card.format_full())
