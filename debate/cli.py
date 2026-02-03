@@ -417,18 +417,29 @@ def cmd_card_import(args) -> None:
 
 def cmd_prep(args) -> None:
     """Run autonomous debate prep."""
+    import os
+    from datetime import datetime
+
     side = Side.PRO if args.side == "pro" else Side.CON
 
     print(f"\nStarting autonomous prep for {args.side.upper()}")
     print(f"Resolution: {args.resolution}")
     print(f"Turn budget: {args.max_turns}\n")
 
+    # Generate log file path if logging is enabled
+    log_path = None
+    if args.log:
+        transcripts_dir = "transcripts"
+        os.makedirs(transcripts_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(transcripts_dir, f"prep_{timestamp}.txt")
+
     try:
         # Create debate agent
         agent = DebateAgent(side=side, resolution=args.resolution)
 
         # Run autonomous prep
-        prep_file = agent.prep(max_turns=args.max_turns, stream=True)
+        prep_file = agent.prep(max_turns=args.max_turns, stream=True, log_path=log_path, command=sys.argv)
 
         print("\n" + "=" * 60)
         print("PREP SUMMARY")
@@ -452,7 +463,12 @@ def cmd_prep(args) -> None:
 
         print("\n" + "=" * 60)
         print("✓ Prep complete!")
-        print("=" * 60 + "\n")
+        print("=" * 60)
+
+        if log_path:
+            print(f"\n✓ Transcript saved to: {log_path}\n")
+        else:
+            print()
 
     except Exception as e:
         print(f"\nError during prep: {e}\n", file=sys.stderr)
@@ -555,6 +571,11 @@ def main() -> None:
         type=int,
         default=10,
         help="Maximum tool calls for autonomous prep (default: 10)",
+    )
+    prep_parser.add_argument(
+        "--log",
+        action="store_true",
+        help="Log the prep session transcript to transcripts/ directory with timestamp",
     )
     prep_parser.set_defaults(func=cmd_prep)
 

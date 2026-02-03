@@ -346,7 +346,9 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
     # ========== Autonomous Prep Methods ==========
 
-    def prep(self, max_turns: int = 10, stream: bool = True) -> PrepFile:
+    def prep(
+        self, max_turns: int = 10, stream: bool = True, log_path: str | None = None, command: list[str] | None = None
+    ) -> PrepFile:
         """Run autonomous prep workflow using skill orchestration.
 
         The agent autonomously:
@@ -357,6 +359,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
         Args:
             max_turns: Maximum tool calls (default 10 for cost control)
             stream: Whether to stream agent thinking
+            log_path: Optional file path to log the prep session transcript
+            command: Original command line arguments for logging
 
         Returns:
             Completed PrepFile with strategic prep
@@ -523,6 +527,25 @@ Generate a strategic crossfire question (1-2 sentences) that:
         messages = []
         current_turn = 0
 
+        # Initialize log file if path provided
+        log_file = None
+        if log_path:
+            log_file = open(log_path, "w")
+            log_file.write(f"{'=' * 60}\n")
+            log_file.write("AUTONOMOUS PREP TRANSCRIPT\n")
+            log_file.write(f"{'=' * 60}\n\n")
+
+            # Log the command that was run
+            if command:
+                log_file.write(f"Command: {' '.join(command)}\n\n")
+
+            log_file.write(f"Resolution: {self.resolution}\n")
+            log_file.write(f"Side: {self.side.value.upper()}\n")
+            log_file.write(f"Max Turns: {max_turns}\n")
+            log_file.write(f"Started: {datetime.now().isoformat()}\n")
+            log_file.write(f"\n{'=' * 60}\n\n")
+            log_file.flush()
+
         print(f"\n{'=' * 60}")
         print(f"AUTONOMOUS PREP: {self.side.value.upper()} on {self.resolution}")
         print(f"Budget: {max_turns} turns")
@@ -531,6 +554,12 @@ Generate a strategic crossfire question (1-2 sentences) that:
         while current_turn < max_turns:
             current_turn += 1
             print(f"\n--- Turn {current_turn}/{max_turns} ---\n")
+
+            if log_file:
+                log_file.write(f"\n{'─' * 60}\n")
+                log_file.write(f"Turn {current_turn}/{max_turns}\n")
+                log_file.write(f"{'─' * 60}\n\n")
+                log_file.flush()
 
             # Add turn tracking to the first message
             if not messages:
@@ -554,6 +583,9 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 if block.type == "text":
                     print(block.text)
                     print()
+                    if log_file:
+                        log_file.write(f"\nAgent Thinking:\n{block.text}\n")
+                        log_file.flush()
 
             # Handle tool use
             if response.stop_reason == "tool_use":
@@ -565,6 +597,12 @@ Generate a strategic crossfire question (1-2 sentences) that:
                         tool_input = block.input
 
                         print(f"[Calling {tool_name}...]")
+
+                        if log_file:
+                            log_file.write(f"\nTool Call: {tool_name}\n")
+                            log_file.write(f"Input: {json.dumps(tool_input, indent=2)}\n")
+                            log_file.write("─" * 40 + "\n")
+                            log_file.flush()
 
                         # Execute tool
                         if tool_name == "analyze":
@@ -608,6 +646,10 @@ Generate a strategic crossfire question (1-2 sentences) that:
                             }
                         )
 
+                        if log_file:
+                            log_file.write(f"Result:\n{json.dumps(result, indent=2)}\n\n")
+                            log_file.flush()
+
                         print(f"[{tool_name} complete]\n")
 
                 # Add tool results to messages (must be list of tool result blocks)
@@ -616,6 +658,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
             elif response.stop_reason == "end_turn":
                 # Agent decided to stop
                 print("\n[Agent concluded prep]\n")
+                if log_file:
+                    log_file.write("\n[Agent concluded prep]\n")
                 break
 
         print(f"\n{'=' * 60}")
@@ -625,6 +669,18 @@ Generate a strategic crossfire question (1-2 sentences) that:
         print(f"Total cards: {sum(len(arg.card_ids) for arg in self.prep_file.arguments)}")
         print(f"Analyses: {len(self.prep_file.analyses)}")
         print(f"{'=' * 60}\n")
+
+        # Write final summary to log file
+        if log_file:
+            log_file.write(f"\n{'=' * 60}\n")
+            log_file.write("PREP COMPLETE\n")
+            log_file.write(f"{'=' * 60}\n\n")
+            log_file.write(f"Turns used: {current_turn}/{max_turns}\n")
+            log_file.write(f"Arguments: {len(self.prep_file.arguments)}\n")
+            log_file.write(f"Total cards: {sum(len(arg.card_ids) for arg in self.prep_file.arguments)}\n")
+            log_file.write(f"Analyses: {len(self.prep_file.analyses)}\n")
+            log_file.write(f"Completed: {datetime.now().isoformat()}\n")
+            log_file.close()
 
         return self.prep_file
 
