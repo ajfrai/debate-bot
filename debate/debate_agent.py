@@ -555,77 +555,104 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
     def _run_analysis(self, analysis_type: str, subject: str | None = None) -> str:
         """Run a specific analysis type using LLM with streaming output."""
+        # IMPORTANT: Analysis is for STRATEGY only, not for citing evidence
+        # Evidence comes from the research tool with real sources
+        no_sources_warning = """
+CRITICAL: Do NOT cite specific sources, studies, statistics, or evidence.
+This is a STRATEGIC analysis only. Real evidence will come from research later.
+Focus on argument STRUCTURE and LOGIC, not specific claims or numbers."""
+
         # Build prompt based on analysis type
         prompts = {
             "enumerate_arguments": f"""List all possible arguments for both sides of: {self.resolution}
 
-For each side (PRO and CON), identify:
-- 3-5 main contentions
-- Key warrants for each
-- Potential weaknesses
+{no_sources_warning}
 
-Format as a structured list.""",
+For each side (PRO and CON), identify:
+- 3-5 main argument TOPICS (not specific claims with numbers)
+- The logical warrant for each (why it matters)
+- Potential weaknesses in the logic
+
+Format as a simple structured list. NO statistics, NO author names, NO specific studies.""",
 
             "adversarial_brainstorm": f"""You are prepping {self.side.opposite.value.upper()} against: {self.resolution}
 
-What is the STRONGEST case the opponent could run?
-- What are their best 2-3 arguments?
-- What evidence would they likely have?
-- What are the hardest attacks you'd face?
+{no_sources_warning}
 
-Think like a skilled opponent.""",
+What argument CATEGORIES would the opponent likely run?
+- What are their 2-3 strongest argument types?
+- What logical warrants would they use?
+- What attacks would be hardest to answer?
+
+Think strategically. NO specific sources or statistics.""",
 
             "find_novel_angles": f"""Find unusual or creative angles for {self.side.value.upper()} on: {self.resolution}
+
+{no_sources_warning}
 
 Consider:
 - Alternative frameworks (rights, util, precedent, etc.)
 - Edge cases or unusual applications
-- Counterintuitive arguments
-- Novel impact scenarios
+- Counterintuitive logical arguments
+- Novel impact categories
 
-What arguments might opponents NOT expect?""",
+What argument structures might opponents NOT expect? NO specific evidence.""",
 
             "identify_uncertainty": f"""Analyze gaps in current prep for {self.side.value.upper()} on: {self.resolution}
 
-What claims lack evidence?
-What arguments are under-developed?
+What argument areas lack coverage?
+What logical weaknesses exist?
 Where are we vulnerable to attack?
-What do we need to research next?""",
+What topics should we research next?""",
 
-            "brainstorm_rebuttals": f"""Generate 3-5 different ways to answer: {subject or 'opponent argument'}
+            "brainstorm_rebuttals": f"""Generate 3-5 different strategic approaches to answer: {subject or 'opponent argument'}
+
+{no_sources_warning}
 
 For each rebuttal strategy:
-- State the response approach
-- Identify what evidence would support it
-- Note strengths and weaknesses""",
+- State the response approach (deny, mitigate, turn, etc.)
+- Explain the logical structure
+- Note what TYPE of evidence would help (statistical, expert, etc.)
 
-            "extend_argument": f"""Find additional warrants and angles for: {subject or 'the argument'}
+NO specific sources or made-up statistics.""",
 
-What other reasons support this claim?
-What different types of evidence could back it?
-How can we make this argument stronger?""",
+            "extend_argument": f"""Find additional logical warrants for: {subject or 'the argument'}
 
-            "build_block": f"""Build a comprehensive block against: {subject or 'opponent argument'}
+{no_sources_warning}
+
+What other REASONS support this claim?
+What types of evidence could back it?
+What logical angles strengthen it?
+
+Focus on argument structure, not specific sources.""",
+
+            "build_block": f"""Build a strategic block structure against: {subject or 'opponent argument'}
+
+{no_sources_warning}
 
 Include:
-1. Initial response (deny/mitigate/turn)
-2. 2-3 independent answers
-3. Evidence needs for each
-4. Strategic notes on when to deploy""",
+1. Initial response type (deny/mitigate/turn)
+2. 2-3 independent logical answers
+3. What TYPE of evidence each needs
+4. Strategic notes on deployment
+
+NO made-up statistics or sources.""",
 
             "map_clash": f"""Map where {self.side.value.upper()} clashes with opponent on: {self.resolution}
 
 For each clash point:
-- What's our argument?
-- What's their likely response?
-- Who wins and why?
-- What evidence decides it?""",
+- What's our argument category?
+- What's their likely response type?
+- What determines who wins?
+- What kind of evidence decides it?""",
 
             "identify_framework": f"""Determine the best weighing framework for {self.side.value.upper()} on: {self.resolution}
 
 What values/criteria should the judge prioritize?
-Why does our framework favor our side?
-How do we win the framework debate?""",
+Why does this framework favor our side?
+How do we win the framework debate?
+
+Focus on values and logic, not specific evidence.""",
 
             "analyze_source": f"""Analyze the evidence: {subject or 'the card'}
 
