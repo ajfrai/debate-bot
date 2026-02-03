@@ -12,6 +12,7 @@ from debate.models import (
     AnalysisResult,
     AnalysisType,
     ArgumentPrep,
+    Card,
     Case,
     DebateFile,
     PrepFile,
@@ -501,10 +502,12 @@ Generate a strategic crossfire question (1-2 sentences) that:
 
         # Load system prompt
         template = load_prompt_template("prep_orchestration")
+        total_cards = max_turns * 5
         system_prompt = template.format(
             resolution=self.resolution,
             side=self.side.value.upper(),
             max_turns=max_turns,
+            total_cards=total_cards,
         )
 
         messages = []
