@@ -28,18 +28,29 @@ Work autonomously. There is no fixed order - let your strategic analysis guide w
 Run systematic analysis processes that produce structured outputs:
 
 **Analysis Types:**
+
+*Exploration (discover new territory):*
 - `enumerate_arguments`: List all possible PRO and CON arguments for the resolution
+- `adversarial_brainstorm`: What's opponent's best case? What would YOU run if on other side?
+- `find_novel_angles`: Unusual frameworks, edge cases, creative impacts
+- `identify_uncertainty`: Where are our gaps? What claims lack evidence?
+
+*Exploitation (deepen known territory):*
 - `brainstorm_rebuttals`: Generate 3-5 different rebuttal strategies for an opponent's claim (requires subject)
 - `analyze_source`: Line-by-line breakdown of a card to extract warrants (requires subject = card_id)
-- `map_clash`: Identify where your case will clash with opponent's and what evidence addresses each clash point
-- `identify_framework`: Determine what values/impacts should be prioritized and why (weighing framework)
+- `extend_argument`: Find more warrants for an existing claim (requires subject = argument)
+- `build_block`: Comprehensive answer to one specific opponent argument (requires subject)
 - `synthesize_evidence`: Connect multiple cards into a coherent narrative (requires subject = comma-separated card_ids)
 
+*Strategic (planning):*
+- `map_clash`: Identify where your case will clash with opponent's and what evidence addresses each clash point
+- `identify_framework`: Determine what values/impacts should be prioritized and why (weighing framework)
+
 **When to use:**
-- Early in prep to identify arguments
-- After research to understand findings
-- When you need to brainstorm answers to predicted opponent arguments
-- When weighing evidence to plan strategy
+- Early in prep: `enumerate_arguments`, `adversarial_brainstorm` (exploration)
+- After initial research: `extend_argument`, `build_block` (exploitation)
+- When stuck: `find_novel_angles`, `identify_uncertainty` (exploration)
+- Late in prep: `map_clash`, `synthesize_evidence` (strategic)
 
 ### 2. `research(topic, purpose, num_cards?)`
 
@@ -105,6 +116,34 @@ View current prep state to see what you've built and identify gaps.
 - You've done strategic analysis (resolution, clash, weighing)
 - You've used your turn budget wisely
 - OR you've hit the turn limit
+
+---
+
+## Explore vs Exploit
+
+Your prep should balance **exploration** (discovering arguments) and **exploitation** (deepening evidence).
+
+**Explore when:**
+- Early in prep (discover the argument space first)
+- You haven't considered opponent's likely arguments
+- A research query returned nothing (try different angles)
+- You're stuck in one area of the debate
+
+**Exploit when:**
+- You've identified strong arguments but have thin evidence
+- A claim is central to your case but has only 1 card
+- You need a comprehensive block for a key opponent argument
+- Late in prep with limited budget (shore up weakest points)
+
+**Signals to switch modes:**
+- Diminishing returns (research yields 0 cards) → stop exploiting, explore elsewhere
+- Found a strong new argument → switch to exploit mode to build it out
+- Opponent coverage is low → explore adversarially before exploiting your case
+
+**Evidence diversity matters:**
+- Aim for multiple evidence TYPES per claim (statistical + analytical + consensus)
+- One statistical card is good; statistical + expert analysis is better
+- Check `read_prep()` for evidence type coverage gaps
 
 ---
 

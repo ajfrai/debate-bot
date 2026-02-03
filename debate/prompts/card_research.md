@@ -79,7 +79,14 @@ Each evidence card should have:
 
 9. **url**: Direct link to the source (if available)
 
-10. **text**: The actual quote with **bolded sections** marking what should be read aloud
+10. **evidence_type**: Classify the type of evidence (REQUIRED):
+    - **statistical**: Numbers, data, quantified claims (e.g., "costs $4 billion", "affects 100,000 jobs")
+    - **analytical**: Expert reasoning, causal analysis (e.g., "this leads to X because Y")
+    - **consensus**: Multiple sources agreeing, institutional positions (e.g., "experts agree", "agencies report")
+    - **empirical**: Case studies, real-world examples (e.g., "in 2023, when X happened...")
+    - **predictive**: Forecasts, projections (e.g., "will likely result in", "projected to")
+
+11. **text**: The actual quote with **bolded sections** marking what should be read aloud
     - Bold the KEY WARRANTS (the most important claims)
     - Bold should be 20-40% of total text
     - Use markdown format: `**bolded text**`
@@ -113,6 +120,7 @@ Return a JSON object:
       "year": "2024",
       "source": "Journal of Economic Perspectives",
       "url": "https://example.com/article",
+      "evidence_type": "statistical",
       "text": "The proposed TikTok ban would **eliminate over 100,000 jobs in the creator economy** and disrupt supply chains. Analysis shows **direct GDP impact of $2-4 billion annually**, with cascading effects on digital advertising markets."
     }},
     {{
@@ -125,6 +133,7 @@ Return a JSON object:
       "year": "2024",
       "source": "Brookings Tech Policy Report",
       "url": "https://example.com/report",
+      "evidence_type": "analytical",
       "text": "Claims about TikTok's data practices are largely speculative. **Independent audits show data handling comparable to US platforms**, and **no evidence of data transfer to Chinese government has been verified** despite extensive investigation."
     }}
   ]
@@ -138,7 +147,10 @@ Return a JSON object:
 - **EVERY argument field must be SPECIFIC, not a general topic**
 - **Tags must state what the card PROVES, not just a topic**
 - **Purpose must explain strategic use in one sentence**
+- **evidence_type is REQUIRED** - classify each card accurately
 - Bold 20-40% of each quote (the key warrants)
 - Include full author credentials for verification
+- **Seek evidence diversity**: aim for mix of statistical, analytical, and other types
+- **Avoid duplication**: check existing coverage section above for what's already researched
 
-Now research and cut {num_cards} evidence cards with SPECIFIC argument headers.
+Now research and cut {num_cards} evidence cards with SPECIFIC argument headers and evidence types.

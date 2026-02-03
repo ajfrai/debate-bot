@@ -57,6 +57,52 @@ This file contains lessons learned from past research sessions. The research age
 - Older evidence okay for historical context or foundational concepts
 - Be wary of outdated statistics
 
+## Query Strategy
+
+### Multi-Strategy Queries Find More
+- Single naive queries often miss good sources
+- Combine multiple query types:
+  - **Exploratory**: Broad discovery queries
+  - **Spearfish**: Specific claim + year targeting
+  - **Source-targeted**: Search within known credible sources (brookings.edu, cfr.org)
+  - **Expert**: Find professors, analysts, researchers
+  - **Verbatim**: Exact phrase matching for related sources
+
+### Avoid Duplication
+- Check existing coverage before researching
+- If you have 3+ cards on a claim, low value to add more of same type
+- Higher value: Different evidence TYPE on same claim (statistical vs analytical)
+- Follow citations in existing cards to find related sources
+
+## Evidence Types
+
+### Classify Every Card
+- **statistical**: Numbers, percentages, dollar amounts, job counts
+- **analytical**: Expert reasoning, causal explanations
+- **consensus**: Multiple sources agreeing, institutional positions
+- **empirical**: Case studies, real-world examples
+- **predictive**: Forecasts, projections, "will likely"
+
+### Seek Type Diversity
+- One strong statistical card is good
+- Statistical + analytical is better
+- Statistical + analytical + consensus is best
+- Different types reinforce each other
+
+## Explore vs Exploit
+
+### When to Explore
+- Early in prep (discover argument landscape)
+- After diminishing returns (research yields 0 cards)
+- When opponent coverage is low
+- When stuck on one topic
+
+### When to Exploit
+- After identifying key arguments
+- When claims have thin coverage (1-2 cards)
+- Building comprehensive blocks
+- Late in prep with limited budget
+
 ---
 
 *Add new lessons below as they're learned:*
