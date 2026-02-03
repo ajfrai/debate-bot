@@ -18,7 +18,6 @@ import requests
 
 from debate.article_fetcher import FetchedArticle, fetch_source
 from debate.config import Config
-from debate.evidence_storage import get_or_create_debate_file, save_debate_file
 from debate.models import (
     Card,
     DebateFile,
@@ -479,7 +478,7 @@ def research_evidence(
     search_query: str | None = None,
     stream: bool = True,
     use_multi_strategy: bool = True,
-) -> DebateFile:
+) -> FlatDebateFile:
     """Research and cut evidence cards for a specific argument.
 
     Args:
@@ -492,7 +491,7 @@ def research_evidence(
         use_multi_strategy: Whether to use multi-strategy query generation (default True)
 
     Returns:
-        DebateFile with researched evidence cards organized by strategic value
+        FlatDebateFile with researched evidence cards organized by file and semantic categories
 
     Cost optimization:
         - Uses Haiku (cheapest model) for card cutting
@@ -507,15 +506,23 @@ def research_evidence(
     if num_cards > 5:
         raise ValueError("Maximum 5 cards per research session to control costs")
 
-    # Load or create debate file for this resolution
-    debate_file, is_new = get_or_create_debate_file(resolution)
+    # Load or create flat debate file for this resolution
+    from debate.evidence_storage import get_or_create_flat_debate_file
+
+    flat_file, is_new = get_or_create_flat_debate_file(resolution)
     if is_new:
         print(f"Creating new debate file for: {resolution}")
     else:
-        print(f"Adding to existing debate file ({len(debate_file.cards)} cards)")
+        # Count existing cards
+        total_cards = sum(
+            len(group.cards)
+            for arg in flat_file.pro_arguments + flat_file.con_arguments
+            for group in arg.semantic_groups
+        )
+        print(f"Adding to existing debate file ({total_cards} cards)")
 
     # Analyze existing coverage to avoid duplication
-    coverage = analyze_existing_coverage(debate_file if not is_new else None, topic, side)
+    coverage = analyze_existing_coverage(flat_file if not is_new else None, topic, side)
     coverage_prompt = format_coverage_for_prompt(coverage)
 
     if coverage["card_count"] > 0:
@@ -525,8 +532,13 @@ def research_evidence(
 
     # Generate search queries
     if use_multi_strategy and not search_query:
-        # Get existing cards for verbatim queries
-        existing_cards = debate_file.find_cards_by_tag(topic) if not is_new else []
+        # Get existing cards for verbatim queries from flat file
+        existing_cards: list[Card] = []
+        if not is_new:
+            args = flat_file.get_arguments_for_side(side)
+            for arg in args:
+                if topic.lower() in arg.title.lower():
+                    existing_cards.extend(arg.get_all_cards())
 
         # Generate diverse queries
         queries = generate_research_queries(resolution, topic, side, existing_cards)
@@ -658,24 +670,30 @@ def research_evidence(
         first_block = response.content[0]
         response_text = first_block.text if hasattr(first_block, "text") else ""
 
-    # Parse the response and add cards to debate file
+    # Parse the response and add cards to flat debate file
     try:
+        from debate.evidence_storage import save_flat_debate_file
+        from debate.models import ArgumentFile, SemanticGroup
+
         data = _extract_json_from_text(response_text)
         cards_data = data.get("cards", [])
 
         # Track evidence types found for reporting
         evidence_types_found: set[EvidenceType] = set()
 
-        # Create Card objects and add to debate file
+        # Group cards by file_category, then by semantic_category
+        file_groups: dict[str, dict[str, list[Card]]] = {}
+
+        # Create Card objects and organize them
         for card_data in cards_data:
             # Parse evidence type
             evidence_type = _parse_evidence_type(card_data.get("evidence_type"))
             if evidence_type:
                 evidence_types_found.add(evidence_type)
 
-            # Determine semantic category (what this card proves)
-            argument = card_data.get("argument", topic)
-            section_type = _parse_section_type(card_data.get("section_type", "support"))
+            # Parse the two-level structure
+            file_category = card_data.get("file_category", topic)  # Broad category
+            semantic_category = card_data.get("semantic_category", card_data.get("argument", topic))  # Medium-specific
 
             card = Card(
                 tag=card_data["tag"],
@@ -687,29 +705,58 @@ def research_evidence(
                 text=card_data["text"],
                 purpose=card_data.get("purpose", ""),
                 evidence_type=evidence_type,
-                semantic_category=argument,  # Store semantic grouping on the card
+                semantic_category=semantic_category,  # Store semantic grouping on the card
             )
 
-            # Add card to master list
-            card_id = debate_file.add_card(card)
+            # Organize cards by file_category → semantic_category
+            if file_category not in file_groups:
+                file_groups[file_category] = {}
+            if semantic_category not in file_groups[file_category]:
+                file_groups[file_category][semantic_category] = []
+            file_groups[file_category][semantic_category].append(card)
 
-            debate_file.add_to_section(
-                side=side,
-                section_type=section_type,
-                argument=argument,
-                card_id=card_id,
-            )
+        # Create or update ArgumentFiles
+        for file_category, semantic_groups in file_groups.items():
+            # Find existing argument file or create new one
+            existing_arg = flat_file.find_argument(side, file_category)
+
+            if existing_arg:
+                # Add cards to existing argument file
+                for semantic_category, cards in semantic_groups.items():
+                    semantic_group = existing_arg.find_or_create_semantic_group(semantic_category)
+                    for card in cards:
+                        semantic_group.add_card(card)
+            else:
+                # Create new argument file
+                section_type = _parse_section_type(cards_data[0].get("section_type", "support"))
+                is_answer = section_type == SectionType.ANSWER
+
+                new_arg = ArgumentFile(
+                    title=file_category,
+                    is_answer=is_answer,
+                    answers_to=file_category if is_answer else None,
+                    purpose=f"Evidence for: {file_category}",
+                    semantic_groups=[
+                        SemanticGroup(semantic_category=sem_cat, cards=cards_list)
+                        for sem_cat, cards_list in semantic_groups.items()
+                    ],
+                )
+                flat_file.add_argument(side, new_arg)
 
         # Report evidence diversity
         if evidence_types_found:
             type_names = [t.value for t in evidence_types_found]
             print(f"✓ Evidence types found: {', '.join(type_names)}")
 
-        # Save the updated debate file
-        dir_path = save_debate_file(debate_file)
+        # Count cards added
+        total_cards = sum(len(cards) for sem_groups in file_groups.values() for cards in sem_groups.values())
+        print(f"✓ Added {total_cards} card(s) to {len(file_groups)} argument file(s)")
+
+        # Save the updated flat debate file
+        dir_path = save_flat_debate_file(flat_file)
         print(f"\n✓ Saved debate file to: {dir_path}")
 
-        return debate_file
+        return flat_file
 
     except (json.JSONDecodeError, KeyError) as e:
         raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}") from e
@@ -747,6 +794,7 @@ def research_evidence_efficient(
         List of file paths where cards were placed
     """
     from debate.card_import import import_card
+    from debate.evidence_storage import get_or_create_debate_file
 
     # Default argument to topic if not provided
     if not argument:
@@ -887,10 +935,10 @@ def research_evidence_legacy(
 
     This is maintained for backwards compatibility. New code should use research_evidence().
     """
-    debate_file = research_evidence(resolution, side, topic, num_cards, search_query, stream)
+    flat_file = research_evidence(resolution, side, topic, num_cards, search_query, stream)
 
     # Convert to legacy EvidenceBucket format
-    cards = [debate_file.cards[cid] for cid in debate_file.cards]
+    cards = flat_file.get_all_cards()
     bucket = EvidenceBucket(
         topic=topic,
         resolution=resolution,
@@ -930,7 +978,7 @@ def research_case_evidence(
         title = contention["title"]
         topic = contention["topic"]
 
-        debate_file = research_evidence(
+        flat_file = research_evidence(
             resolution=resolution,
             side=side,
             topic=topic,
@@ -938,7 +986,7 @@ def research_case_evidence(
         )
 
         # Convert to EvidenceBucket for legacy compatibility
-        cards = [debate_file.cards[cid] for cid in debate_file.cards]
+        cards = flat_file.get_all_cards()
         bucket = EvidenceBucket(
             topic=topic,
             resolution=resolution,

@@ -15,6 +15,7 @@ from debate.models import (
     Card,
     Case,
     DebateFile,
+    FlatDebateFile,
     PrepFile,
     ResearchEntry,
     RoundState,
@@ -59,7 +60,7 @@ class DebateAgent:
         num_cards: int = 3,
         section_type: str = "support",
         stream: bool = True,
-    ) -> DebateFile:
+    ) -> FlatDebateFile:
         """Research evidence cards for a specific topic.
 
         Args:
