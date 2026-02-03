@@ -167,11 +167,28 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
    - Only reads bolded portions in speeches (like real debate cards)
    - **Streams tokens in real-time** for immediate feedback
 
-### Token-Efficient Card Cutting Workflow (NEW)
+### Two Card-Cutting Workflows
 
-**Problem**: Having LLM regenerate full card text is expensive and wasteful.
+#### 1. Autonomous Prep (Fully Automated)
 
-**New Workflow**:
+**Use when:** Running `debate prep` for agent-driven research
+
+The `research()` tool automatically:
+- Checks existing debate files for relevant evidence
+- Searches Brave API for new sources (3s pause between searches)
+- Extracts and formats evidence cards with proper citations
+- Organizes cards by strategic purpose (support/answer/extension/impact)
+- Tracks everything in PrepFile
+
+**No manual intervention needed.** The agent manages the entire research workflow during autonomous prep.
+
+#### 2. Manual Card-Cutting (Token-Efficient)
+
+**Use when:** You want manual oversight and token efficiency
+
+**Problem**: Having LLM regenerate full card text during extraction is expensive.
+
+**Solution - Token-Efficient Manual Workflow**:
 
 1. **Capture raw source** (Bash)
    ```bash

@@ -134,29 +134,24 @@ View current prep state to see what you've built and identify gaps.
    - Identify evidence needs
 
 2. **Research 3 cards** (repeat this most of the time)
-   - Check backfiles first with grep
-   - Search web if needed (3s pause between searches)
-   - Single search strategy, not 5 parallel searches
+   - Research tool checks backfiles automatically
+   - Searches web if backfile evidence insufficient
+   - Single search strategy (3s pause between searches)
+   - Organizes cards automatically into PrepFile
 
-3. **Copy existing cards** (when grep finds relevant backfile evidence)
-   - Use `cp` to place cards in new argument sections
-   - Reuse cards across multiple sections
-
-4. **Brief follow-up analysis** (only if evidence reveals new angles)
+3. **Brief follow-up analysis** (only if evidence reveals new angles)
    - NOT after every research
    - Only when new evidence suggests unexplored research directions
 
-5. **Repeat research cycle** (this is 80% of your work)
+4. **Repeat research cycle** (this is 80% of your work)
 
-**Rate Limiting:**
-- Pause 3 seconds between web searches to avoid 429 errors
-- If rate limited, wait 10s before retry
-- Use single search strategy per research call
-
-**Backfile Search:**
-- Check backfiles BEFORE web research with grep patterns
-- Reuse existing cards across argument sections
-- Only search web when backfiles insufficient
+**What the research tool does automatically:**
+- Checks existing debate files for relevant cards
+- Searches Brave API with single focused query
+- Pauses 3 seconds between searches to avoid rate limiting
+- Extracts and formats evidence cards
+- Organizes by strategic purpose (support/answer/extension/impact)
+- Tracks research history in PrepFile
 
 **Know when you're done:**
 - Core arguments have evidence

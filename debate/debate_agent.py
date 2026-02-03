@@ -21,6 +21,7 @@ from debate.models import (
     Side,
 )
 from debate.research_agent import research_evidence as _research_evidence
+from debate.research_agent import research_evidence_efficient as _research_evidence_efficient
 
 
 def load_prompt_template(name: str) -> str:

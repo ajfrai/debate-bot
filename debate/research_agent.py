@@ -597,6 +597,168 @@ def research_evidence(
         raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}") from e
 
 
+def research_evidence_efficient(
+    resolution: str,
+    side: Side,
+    topic: str,
+    purpose: SectionType,
+    argument: str | None = None,
+    num_cards: int = 1,
+    search_query: str | None = None,
+) -> list[str]:
+    """Token-efficient research using card_import workflow.
+
+    This workflow:
+    1. Searches Brave for sources
+    2. Saves raw results to temp file
+    3. Asks LLM to mark up (add metadata + bold key warrants)
+    4. Uses card_import to place card
+
+    More token-efficient than full card extraction.
+
+    Args:
+        resolution: Debate resolution
+        side: Which side (PRO/CON)
+        topic: Research topic
+        purpose: Section type (support, answer, extension, impact)
+        argument: Specific argument this card addresses (defaults to topic if not provided)
+        num_cards: Number of cards to cut (default 1)
+        search_query: Optional custom search query
+
+    Returns:
+        List of file paths where cards were placed
+    """
+    import datetime
+    from debate.card_import import import_card
+
+    # Default argument to topic if not provided
+    if not argument:
+        argument = topic
+
+    # Load existing debate file
+    debate_file = get_or_create_debate_file(resolution)
+    is_new = debate_file[1]
+    debate_file = debate_file[0]
+
+    # Search Brave
+    if not search_query:
+        search_query = f"{resolution} {topic} {side.value}"
+
+    print(f"Searching for: {topic}")
+    print(f"  Query: {search_query[:70]}...")
+
+    # Add 3-second pause to avoid rate limiting
+    time.sleep(3)
+
+    search_results = _brave_search(search_query, num_results=5)
+
+    if not search_results:
+        print("⚠ No search results available")
+        return []
+
+    print("✓ Found search results")
+
+    # Create temp directory
+    temp_dir = Path("evidence/temp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save raw results to temp file
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    temp_file = temp_dir / f"raw_{side.value}_{timestamp}.txt"
+    temp_file.write_text(search_results)
+
+    # Ask LLM to mark up the text (smaller task than full extraction)
+    print("Marking up evidence...")
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    config = Config()
+    model = config.get_agent_model("research")
+
+    markup_prompt = f"""You are marking up a source document for debate evidence.
+
+**Task**: Add metadata and bold key warrants in the text below.
+
+**Resolution**: {resolution}
+**Side**: {side.value.upper()}
+**Topic**: {topic}
+**Purpose**: {purpose.value}
+**Argument**: {argument}
+
+**Source Text**:
+{search_results}
+
+**Instructions**:
+1. Choose the BEST 1-2 paragraph excerpt that supports "{argument}"
+2. Add metadata header:
+   TAG: [what the card proves, 5-10 words]
+   CITE: [author last name year, credentials]
+   AUTHOR: [full author name]
+   YEAR: [publication year]
+   SECTION: {purpose.value}
+   ARGUMENT: {argument}
+   URL: [source URL]
+
+3. Add >>> START before the excerpt
+4. Bold key warrants using **text**
+5. Add <<< END after the excerpt
+
+**Output Format**:
+TAG: Card tag line
+CITE: Author '24, Credentials
+AUTHOR: Full Author Name
+YEAR: 2024
+SECTION: {purpose.value}
+ARGUMENT: {argument}
+URL: https://...
+
+>>> START
+Excerpt text with **key warrants bolded** like this. The **most important claims** should be **bolded** for emphasis.
+<<< END
+
+Output ONLY the marked-up card. Do not include explanations."""
+
+    # Get markup from LLM (streaming)
+    print("  Extracting and marking up...")
+    response_text = ""
+    with client.messages.stream(
+        model=model,
+        max_tokens=1024,  # Smaller than full extraction
+        messages=[{"role": "user", "content": markup_prompt}],
+    ) as stream:
+        for text in stream.text_stream:
+            response_text += text
+
+    # Save marked-up text
+    temp_file.write_text(response_text)
+    print(f"  Saved to {temp_file}")
+
+    # Import using card_import
+    try:
+        paths = import_card(
+            temp_file_path=str(temp_file),
+            resolution=resolution,
+            side=side,
+        )
+
+        print(f"✓ Imported {len(paths)} card(s):")
+        for path in paths:
+            print(f"  - {Path(path).relative_to('evidence')}")
+
+        return paths
+
+    except Exception as e:
+        print(f"✗ Failed to import card: {e}")
+        print(f"  Marked-up file saved at: {temp_file}")
+        print("  You can manually review and fix the format, then run:")
+        print(f"  uv run debate card-import {temp_file} \"{resolution}\" --side {side.value}")
+        return []
+
+
 def research_evidence_legacy(
     resolution: str,
     side: Side,
