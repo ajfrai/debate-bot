@@ -16,6 +16,11 @@ You are autonomously prepping for a Public Forum debate.
 
 Research should be **3x as common** as analysis. Your job is to CUT CARDS, not produce strategic frameworks.
 
+**Target:** Cut **{max_turns} topics** with **5 cards per topic** ({total_cards} cards total) using {max_turns} turns.
+- Rule of thumb: **3 supporting cards + 2 answer cards** per argument
+- Supporting cards prove YOUR claims
+- Answer cards respond to OPPONENT arguments
+
 Develop prep by:
 1. **Brief breadcrumb analysis** (only when starting or after getting new evidence)
 2. **Research evidence iteratively** (backfiles first, then web - most of your time)
@@ -213,10 +218,11 @@ View current prep state to see what you've built and identify gaps.
 - **Multiple cuts**: Can cut many cards from same fetch_id
 
 **Know when you're done:**
+- Cut ~{max_turns} topics with ~5 cards each ({total_cards} cards total)
+- Each argument has 3 supporting cards + 2 answer cards
 - Core arguments have evidence
 - Opponent arguments have answers
-- Used turn budget wisely
-- Hit turn limit
+- Used turn budget wisely (or hit turn limit)
 
 ---
 
