@@ -29,12 +29,52 @@ class SpeechType(str, Enum):
 
 
 class SectionType(str, Enum):
-    """Types of argument sections in a debate file."""
+    """Types of argument sections in a debate file.
+
+    DEPRECATED: Use EvidenceType for tracking evidence diversity.
+    Kept for backwards compatibility with existing code.
+    """
 
     SUPPORT = "support"  # Supporting evidence for an argument
     ANSWER = "answer"  # Answer/response to an argument
     EXTENSION = "extension"  # Extension/additional warrants
     IMPACT = "impact"  # Impact calculus evidence
+
+
+class EvidenceType(str, Enum):
+    """Types of evidence for diversity tracking.
+
+    Claims benefit from having multiple evidence types:
+    - Statistical evidence provides concrete numbers
+    - Analytical evidence provides expert reasoning
+    - Consensus evidence shows agreement across sources
+    - Empirical evidence provides real-world examples
+    - Predictive evidence provides forecasts
+    """
+
+    STATISTICAL = "statistical"  # Numbers, data, quantified claims
+    ANALYTICAL = "analytical"  # Expert reasoning, causal analysis
+    CONSENSUS = "consensus"  # Multiple sources agreeing, institutional positions
+    EMPIRICAL = "empirical"  # Case studies, real-world examples
+    PREDICTIVE = "predictive"  # Forecasts, projections
+
+
+class QueryStrategy(str, Enum):
+    """Query strategies for multi-strategy research.
+
+    Different query types find different sources:
+    - Exploratory: broad discovery of the topic space
+    - Spearfish: targeted search for specific claims
+    - Source-targeted: search within known credible sources
+    - Expert: find authoritative voices
+    - Verbatim: exact phrase matching
+    """
+
+    EXPLORATORY = "exploratory"  # Broad topic queries
+    SPEARFISH = "spearfish"  # Specific claim targeting
+    SOURCE_TARGETED = "source_targeted"  # Known credible sources
+    EXPERT = "expert"  # Find authorities
+    VERBATIM = "verbatim"  # Exact phrase matching
 
 
 class Card(BaseModel):
@@ -57,6 +97,9 @@ class Card(BaseModel):
     url: str | None = Field(default=None, description="URL to source for verification")
     text: str = Field(description="Full quoted text with **bolded sections** marking what should be read aloud")
     purpose: str = Field(default="", description="Strategic purpose of this card (e.g., 'proves economic harm')")
+    evidence_type: EvidenceType | None = Field(
+        default=None, description="Type of evidence (statistical, analytical, consensus, empirical, predictive)"
+    )
 
     def format_for_reading(self) -> str:
         """Format the card for reading aloud in a speech (only bolded portions)."""
@@ -469,3 +512,236 @@ class PrepFile(BaseModel):
                 "impact": len([a for a in self.arguments if a.purpose == SectionType.IMPACT]),
             },
         }
+
+
+# ========== Flat Evidence Structure (New) ==========
+
+
+class ClaimCards(BaseModel):
+    """A claim with numbered cards supporting it.
+
+    Within an argument file, claims are organized as ## headers with numbered cards.
+    """
+
+    claim: str = Field(description="Specific claim this evidence supports (e.g., 'TikTok ban costs $4B annually')")
+    cards: list[Card] = Field(default_factory=list, description="Numbered cards supporting this claim")
+
+    def add_card(self, card: Card) -> int:
+        """Add a card and return its number (1-indexed)."""
+        self.cards.append(card)
+        return len(self.cards)
+
+    def get_evidence_types(self) -> set[EvidenceType]:
+        """Get the set of evidence types present in this claim's cards."""
+        return {card.evidence_type for card in self.cards if card.evidence_type}
+
+
+class ArgumentFile(BaseModel):
+    """A single argument file containing related claims and evidence.
+
+    File structure (flat, under side directory):
+        evidence/{resolution}/pro/{argument_slug}.md
+        evidence/{resolution}/con/at_{argument_slug}.md
+
+    File format:
+        # Argument Title
+        Strategic purpose explaining what this argument proves.
+
+        ## Claim 1
+        ### 1. Author 2024 - Source
+        [card content]
+
+        ### 2. Author 2025 - Source
+        [card content]
+
+        ## Claim 2
+        ...
+    """
+
+    title: str = Field(description="Argument title (e.g., 'Economic Harm from TikTok Ban')")
+    is_answer: bool = Field(default=False, description="True if this is an AT (answer to) file")
+    answers_to: str | None = Field(default=None, description="If is_answer, what opponent argument this answers")
+    purpose: str = Field(description="Strategic purpose of this argument")
+    claims: list[ClaimCards] = Field(default_factory=list, description="Claims with their supporting cards")
+
+    def add_claim(self, claim: str) -> ClaimCards:
+        """Add a new claim and return it."""
+        claim_cards = ClaimCards(claim=claim)
+        self.claims.append(claim_cards)
+        return claim_cards
+
+    def find_or_create_claim(self, claim: str) -> ClaimCards:
+        """Find existing claim or create new one."""
+        # Check for similar claims (case-insensitive, partial match)
+        claim_lower = claim.lower()
+        for existing in self.claims:
+            if claim_lower in existing.claim.lower() or existing.claim.lower() in claim_lower:
+                return existing
+        return self.add_claim(claim)
+
+    def get_all_cards(self) -> list[Card]:
+        """Get all cards across all claims."""
+        return [card for claim in self.claims for card in claim.cards]
+
+    def get_evidence_type_coverage(self) -> dict[str, set[EvidenceType]]:
+        """Get evidence type coverage per claim."""
+        return {claim.claim: claim.get_evidence_types() for claim in self.claims}
+
+    def get_filename(self) -> str:
+        """Generate filename for this argument."""
+        from debate.evidence_storage import sanitize_filename
+
+        prefix = "at_" if self.is_answer else ""
+        base = self.answers_to if self.is_answer and self.answers_to else self.title
+        return f"{prefix}{sanitize_filename(base)}.md"
+
+
+class FlatDebateFile(BaseModel):
+    """Flat debate file structure: side → argument files.
+
+    Directory structure:
+        evidence/{resolution}/
+            pro/
+                economic_harm.md
+                national_security.md
+                at_privacy_concerns.md
+            con/
+                privacy_protection.md
+                at_economic_harm.md
+    """
+
+    resolution: str
+    pro_arguments: list[ArgumentFile] = Field(default_factory=list)
+    con_arguments: list[ArgumentFile] = Field(default_factory=list)
+
+    def get_arguments_for_side(self, side: Side) -> list[ArgumentFile]:
+        """Get all argument files for a side."""
+        return self.pro_arguments if side == Side.PRO else self.con_arguments
+
+    def find_argument(self, side: Side, title: str) -> ArgumentFile | None:
+        """Find an argument by title."""
+        args = self.get_arguments_for_side(side)
+        title_lower = title.lower()
+        for arg in args:
+            if title_lower in arg.title.lower():
+                return arg
+        return None
+
+    def add_argument(self, side: Side, argument: ArgumentFile) -> None:
+        """Add an argument file to the appropriate side."""
+        if side == Side.PRO:
+            self.pro_arguments.append(argument)
+        else:
+            self.con_arguments.append(argument)
+
+    def get_all_cards(self) -> list[Card]:
+        """Get all cards across all arguments."""
+        cards = []
+        for arg in self.pro_arguments + self.con_arguments:
+            cards.extend(arg.get_all_cards())
+        return cards
+
+
+# ========== Explore/Exploit Framework ==========
+
+
+class ExploreExploitMode(str, Enum):
+    """Current mode for prep: explore (discover) or exploit (deepen)."""
+
+    EXPLORE = "explore"
+    EXPLOIT = "exploit"
+
+
+class ArgumentState(BaseModel):
+    """Track explore/exploit state for an argument."""
+
+    claim: str
+    evidence_depth: int = Field(default=0, description="Number of cards")
+    evidence_types: set[EvidenceType] = Field(default_factory=set, description="Evidence types present")
+    times_researched: int = Field(default=0, description="How many research attempts")
+    last_research_yield: int = Field(default=0, description="Cards found in last attempt")
+
+    @property
+    def evidence_diversity(self) -> float:
+        """0-1 score based on evidence type coverage."""
+        if not self.evidence_types:
+            return 0.0
+        # 5 possible evidence types
+        return len(self.evidence_types) / 5.0
+
+    @property
+    def uncertainty(self) -> float:
+        """0-1 score, high = unexplored, low = well-covered."""
+        if self.evidence_depth == 0:
+            return 1.0
+        # Diminishing returns: more cards = less uncertainty
+        # 5+ cards = low uncertainty
+        return max(0.0, 1.0 - (self.evidence_depth / 5.0))
+
+    class Config:
+        """Pydantic config to allow set type."""
+
+        arbitrary_types_allowed = True
+
+
+class PrepState(BaseModel):
+    """Overall prep state for explore/exploit decisions."""
+
+    arguments: dict[str, ArgumentState] = Field(
+        default_factory=dict, description="Argument states keyed by claim"
+    )
+    opponent_arguments_identified: int = Field(default=0, description="Known opponent arguments")
+    opponent_arguments_answered: int = Field(default=0, description="Arguments with AT evidence")
+
+    @property
+    def argument_space_coverage(self) -> float:
+        """Estimate of how much of the argument space we've explored."""
+        # Heuristic: assume ~10 core arguments per side
+        expected_args = 10
+        return min(1.0, len(self.arguments) / expected_args)
+
+    @property
+    def opponent_coverage(self) -> float:
+        """How many opponent args do we have answers for?"""
+        if self.opponent_arguments_identified == 0:
+            return 0.0
+        return self.opponent_arguments_answered / self.opponent_arguments_identified
+
+    @property
+    def avg_evidence_depth(self) -> float:
+        """Average cards per argument."""
+        if not self.arguments:
+            return 0.0
+        return sum(a.evidence_depth for a in self.arguments.values()) / len(self.arguments)
+
+    def get_weakest_argument(self) -> str | None:
+        """Get argument with thinnest evidence."""
+        if not self.arguments:
+            return None
+        return min(self.arguments.keys(), key=lambda k: self.arguments[k].evidence_depth)
+
+    def get_strongest_argument(self) -> str | None:
+        """Get argument with most evidence."""
+        if not self.arguments:
+            return None
+        return max(self.arguments.keys(), key=lambda k: self.arguments[k].evidence_depth)
+
+    def update_argument(self, claim: str, cards_found: int, evidence_types: set[EvidenceType]) -> None:
+        """Update argument state after research."""
+        if claim not in self.arguments:
+            self.arguments[claim] = ArgumentState(claim=claim)
+
+        state = self.arguments[claim]
+        state.times_researched += 1
+        state.last_research_yield = cards_found
+        state.evidence_depth += cards_found
+        state.evidence_types.update(evidence_types)
+
+
+class PrepAction(BaseModel):
+    """Suggested next action based on explore/exploit analysis."""
+
+    mode: ExploreExploitMode
+    reason: str = Field(description="Why this mode is suggested")
+    suggestion: str = Field(description="Specific action to take")
+    priority: float = Field(default=0.5, description="0-1 priority score")

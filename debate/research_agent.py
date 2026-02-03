@@ -14,7 +14,17 @@ import requests
 
 from debate.config import Config
 from debate.evidence_storage import get_or_create_debate_file, save_debate_file
-from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
+from debate.models import (
+    Card,
+    DebateFile,
+    EvidenceBucket,
+    EvidenceType,
+    FlatDebateFile,
+    PrepState,
+    QueryStrategy,
+    SectionType,
+    Side,
+)
 
 
 def load_prompt_template(name: str) -> str:
@@ -131,6 +141,227 @@ def _parse_section_type(section_str: str) -> SectionType:
     return section_map.get(section_str.lower(), SectionType.SUPPORT)
 
 
+def _parse_evidence_type(type_str: str | None) -> EvidenceType | None:
+    """Parse evidence type string to EvidenceType enum."""
+    if not type_str:
+        return None
+    type_map = {
+        "statistical": EvidenceType.STATISTICAL,
+        "analytical": EvidenceType.ANALYTICAL,
+        "consensus": EvidenceType.CONSENSUS,
+        "empirical": EvidenceType.EMPIRICAL,
+        "predictive": EvidenceType.PREDICTIVE,
+    }
+    return type_map.get(type_str.lower())
+
+
+# ========== Multi-Strategy Query Generation ==========
+
+# Known credible sources for different evidence types
+CREDIBLE_SOURCES = {
+    "think_tanks": ["brookings.edu", "cfr.org", "rand.org", "cato.org", "heritage.org", "aei.org"],
+    "academic": ["nature.com", "science.org", "jstor.org", "scholar.google.com"],
+    "news": ["nytimes.com", "wsj.com", "washingtonpost.com", "economist.com", "reuters.com"],
+    "government": ["gao.gov", "cbo.gov", "state.gov", "whitehouse.gov"],
+}
+
+
+def generate_research_queries(
+    resolution: str,
+    topic: str,
+    side: Side,
+    existing_cards: list[Card] | None = None,
+) -> list[dict]:
+    """Generate diverse query strategies for comprehensive research.
+
+    Combines:
+    - Exploratory: broad topic discovery
+    - Spearfish: specific claim targeting
+    - Source-targeted: known credible sources
+    - Expert: find authoritative voices
+    - Verbatim: exact phrase matching from existing cards
+
+    Args:
+        resolution: The debate resolution
+        topic: The argument/topic to research
+        side: Which side (PRO/CON)
+        existing_cards: Cards we already have (for verbatim queries)
+
+    Returns:
+        List of query dicts with 'strategy', 'query', 'purpose'
+    """
+    queries = []
+    side_term = "benefits" if side == Side.PRO else "concerns"
+
+    # 1. Exploratory - broad discovery
+    queries.append({
+        "strategy": QueryStrategy.EXPLORATORY,
+        "query": f"{topic} research analysis {side_term}",
+        "purpose": "Discover broad landscape of evidence",
+    })
+
+    # 2. Spearfish - specific claim with year
+    queries.append({
+        "strategy": QueryStrategy.SPEARFISH,
+        "query": f'"{topic}" study findings 2024 OR 2025',
+        "purpose": "Find recent specific studies",
+    })
+
+    # 3. Source-targeted - credible institutions
+    think_tanks = " OR ".join(f"site:{s}" for s in CREDIBLE_SOURCES["think_tanks"][:3])
+    queries.append({
+        "strategy": QueryStrategy.SOURCE_TARGETED,
+        "query": f"{topic} ({think_tanks})",
+        "purpose": "Find think tank/policy analysis",
+    })
+
+    # 4. Expert - find authorities
+    queries.append({
+        "strategy": QueryStrategy.EXPERT,
+        "query": f"{topic} professor expert analysis opinion",
+        "purpose": "Find expert voices with credentials",
+    })
+
+    # 5. Verbatim - if we have existing cards, find related evidence
+    if existing_cards:
+        # Extract a key phrase from an existing card
+        for card in existing_cards[:2]:
+            # Find a quotable phrase from the bolded text
+            import re
+            bolded = re.findall(r"\*\*(.+?)\*\*", card.text)
+            if bolded:
+                phrase = bolded[0][:50]  # First 50 chars of first bold
+                queries.append({
+                    "strategy": QueryStrategy.VERBATIM,
+                    "query": f'"{phrase}"',
+                    "purpose": f"Find sources citing similar evidence to {card.tag[:30]}",
+                })
+                break
+
+    # 6. Statistical focus
+    queries.append({
+        "strategy": QueryStrategy.SPEARFISH,
+        "query": f"{topic} statistics data numbers percent",
+        "purpose": "Find quantitative evidence",
+    })
+
+    return queries
+
+
+def analyze_existing_coverage(
+    debate_file: DebateFile | FlatDebateFile | None,
+    topic: str,
+    side: Side,
+) -> dict:
+    """Analyze what evidence already exists for a topic.
+
+    Returns coverage report with:
+    - claims_covered: list of existing claims/tags
+    - evidence_types: set of evidence types present
+    - gaps: identified gaps in coverage
+    - suggestion: research guidance
+
+    Args:
+        debate_file: Existing debate file (old or new format)
+        topic: Topic to analyze
+        side: Which side
+
+    Returns:
+        Coverage report dict
+    """
+    if not debate_file:
+        return {
+            "claims_covered": [],
+            "evidence_types": set(),
+            "card_count": 0,
+            "gaps": ["No existing evidence - explore broadly"],
+            "suggestion": "Start with exploratory research to discover the landscape",
+        }
+
+    # Find existing cards matching topic
+    existing_cards: list[Card] = []
+
+    if isinstance(debate_file, FlatDebateFile):
+        # New flat structure
+        args = debate_file.get_arguments_for_side(side)
+        for arg in args:
+            if topic.lower() in arg.title.lower():
+                existing_cards.extend(arg.get_all_cards())
+    else:
+        # Old structure
+        existing_cards = debate_file.find_cards_by_tag(topic)
+
+    if not existing_cards:
+        return {
+            "claims_covered": [],
+            "evidence_types": set(),
+            "card_count": 0,
+            "gaps": [f"No evidence yet for '{topic}'"],
+            "suggestion": "Start with exploratory research",
+        }
+
+    # Analyze what we have
+    claims = [card.tag for card in existing_cards]
+    evidence_types = {card.evidence_type for card in existing_cards if card.evidence_type}
+
+    # Identify gaps
+    gaps = []
+    all_types = set(EvidenceType)
+    missing_types = all_types - evidence_types
+
+    if EvidenceType.STATISTICAL not in evidence_types:
+        gaps.append("Missing statistical evidence (numbers, data)")
+    if EvidenceType.ANALYTICAL not in evidence_types:
+        gaps.append("Missing analytical evidence (expert reasoning)")
+    if EvidenceType.CONSENSUS not in evidence_types:
+        gaps.append("Missing consensus evidence (institutional agreement)")
+
+    # Generate suggestion
+    if len(existing_cards) >= 5:
+        suggestion = "Good coverage. Focus on filling evidence type gaps."
+    elif len(existing_cards) >= 3:
+        suggestion = "Moderate coverage. Consider different angles or evidence types."
+    else:
+        suggestion = "Thin coverage. Research more sources for this topic."
+
+    return {
+        "claims_covered": claims,
+        "evidence_types": evidence_types,
+        "card_count": len(existing_cards),
+        "gaps": gaps,
+        "missing_types": list(missing_types),
+        "suggestion": suggestion,
+    }
+
+
+def format_coverage_for_prompt(coverage: dict) -> str:
+    """Format coverage analysis for inclusion in research prompt."""
+    lines = ["## Existing Coverage (avoid duplication)", ""]
+
+    if coverage["card_count"] == 0:
+        lines.append("No existing evidence on this topic. Research freely.")
+        return "\n".join(lines)
+
+    lines.append(f"You already have **{coverage['card_count']} cards** on this topic:")
+    for claim in coverage["claims_covered"][:5]:  # Limit to 5
+        lines.append(f"- {claim}")
+
+    if coverage.get("evidence_types"):
+        type_names = [t.value for t in coverage["evidence_types"]]
+        lines.append(f"\n**Evidence types present:** {', '.join(type_names)}")
+
+    if coverage.get("gaps"):
+        lines.append("\n**Gaps identified:**")
+        for gap in coverage["gaps"]:
+            lines.append(f"- {gap}")
+
+    lines.append(f"\n**Suggestion:** {coverage['suggestion']}")
+    lines.append("\n**Low value:** Cards that repeat existing claims")
+    lines.append("**High value:** Cards that fill identified gaps or add new perspectives")
+
+    return "\n".join(lines)
+
+
 def research_evidence(
     resolution: str,
     side: Side,
@@ -138,6 +369,7 @@ def research_evidence(
     num_cards: int = 3,
     search_query: str | None = None,
     stream: bool = True,
+    use_multi_strategy: bool = True,
 ) -> DebateFile:
     """Research and cut evidence cards for a specific argument.
 
@@ -148,6 +380,7 @@ def research_evidence(
         num_cards: How many cards to cut (default 3, max 5 for cost control)
         search_query: Optional custom search query (auto-generated if not provided)
         stream: Whether to stream tokens as they're generated (default True)
+        use_multi_strategy: Whether to use multi-strategy query generation (default True)
 
     Returns:
         DebateFile with researched evidence cards organized by strategic value
@@ -156,6 +389,11 @@ def research_evidence(
         - Uses Haiku (cheapest model) for card cutting
         - Limits to 5 cards max per research session
         - Uses efficient prompts to minimize token usage
+
+    Research improvements:
+        - Multi-strategy queries (exploratory, spearfish, source-targeted, expert, verbatim)
+        - Duplication detection to avoid redundant research
+        - Evidence type diversity tracking
     """
     if num_cards > 5:
         raise ValueError("Maximum 5 cards per research session to control costs")
@@ -167,19 +405,51 @@ def research_evidence(
     else:
         print(f"Adding to existing debate file ({len(debate_file.cards)} cards)")
 
-    # Generate search query if not provided
-    if not search_query:
-        search_query = f"{resolution} {topic} {side.value}"
+    # Analyze existing coverage to avoid duplication
+    coverage = analyze_existing_coverage(debate_file if not is_new else None, topic, side)
+    coverage_prompt = format_coverage_for_prompt(coverage)
 
-    # Perform Brave Search
-    print("Searching Brave for relevant sources...")
-    search_results = _brave_search(search_query, num_results=5)
+    if coverage["card_count"] > 0:
+        print(f"ℹ Existing coverage: {coverage['card_count']} cards on this topic")
+        if coverage.get("gaps"):
+            print(f"  Gaps: {', '.join(coverage['gaps'][:2])}")
 
-    if search_results:
-        print("✓ Found search results from Brave")
+    # Generate search queries
+    if use_multi_strategy and not search_query:
+        # Get existing cards for verbatim queries
+        existing_cards = debate_file.find_cards_by_tag(topic) if not is_new else []
+
+        # Generate diverse queries
+        queries = generate_research_queries(resolution, topic, side, existing_cards)
+        print(f"Executing {len(queries)} search strategies...")
+
+        # Run multiple searches and combine results
+        all_results = []
+        for q in queries[:4]:  # Limit to 4 queries to control API usage
+            print(f"  [{q['strategy'].value}] {q['query'][:50]}...")
+            result = _brave_search(q["query"], num_results=3)
+            if result:
+                all_results.append(f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}")
+
+        if all_results:
+            search_results = "\n\n".join(all_results)
+            print(f"✓ Found results from {len(all_results)} search strategies")
+        else:
+            print("⚠ No search results, using Claude's knowledge base")
+            search_results = "(No search results available - use your knowledge base)"
     else:
-        print("⚠ Brave Search unavailable, using Claude's knowledge base")
-        search_results = "(No search results available - use your knowledge base)"
+        # Single query mode (legacy)
+        if not search_query:
+            search_query = f"{resolution} {topic} {side.value}"
+
+        print("Searching Brave for relevant sources...")
+        search_results = _brave_search(search_query, num_results=5)
+
+        if search_results:
+            print("✓ Found search results from Brave")
+        else:
+            print("⚠ Brave Search unavailable, using Claude's knowledge base")
+            search_results = "(No search results available - use your knowledge base)"
 
     # Load lessons for the research agent
     lessons = load_lessons("research", "organization")
@@ -189,6 +459,9 @@ def research_evidence(
     # Load the research prompt template
     template = load_prompt_template("card_research")
 
+    # Format the prompt with search_query fallback for template
+    query_display = search_query if search_query else "(Multi-strategy queries)"
+
     # Format the prompt
     side_info = "affirming" if side == Side.PRO else "negating"
     prompt = template.format(
@@ -197,9 +470,12 @@ def research_evidence(
         side_value=side.value.upper(),
         topic=topic,
         num_cards=num_cards,
-        search_query=search_query,
+        search_query=query_display,
         search_results=search_results,
     )
+
+    # Prepend coverage analysis to help avoid duplication
+    prompt = f"{coverage_prompt}\n\n---\n\n{prompt}"
 
     # Prepend lessons to the prompt
     if lessons:
@@ -244,8 +520,16 @@ def research_evidence(
         data = _extract_json_from_text(response_text)
         cards_data = data.get("cards", [])
 
+        # Track evidence types found for reporting
+        evidence_types_found: set[EvidenceType] = set()
+
         # Create Card objects and add to debate file
         for card_data in cards_data:
+            # Parse evidence type
+            evidence_type = _parse_evidence_type(card_data.get("evidence_type"))
+            if evidence_type:
+                evidence_types_found.add(evidence_type)
+
             card = Card(
                 tag=card_data["tag"],
                 author=card_data["author"],
@@ -255,6 +539,7 @@ def research_evidence(
                 url=card_data.get("url"),
                 text=card_data["text"],
                 purpose=card_data.get("purpose", ""),
+                evidence_type=evidence_type,
             )
 
             # Add card to master list
@@ -270,6 +555,11 @@ def research_evidence(
                 argument=argument,
                 card_id=card_id,
             )
+
+        # Report evidence diversity
+        if evidence_types_found:
+            type_names = [t.value for t in evidence_types_found]
+            print(f"✓ Evidence types found: {', '.join(type_names)}")
 
         # Save the updated debate file
         dir_path = save_debate_file(debate_file)
@@ -355,3 +645,142 @@ def research_case_evidence(
         buckets[title] = bucket
 
     return buckets
+
+
+# ========== Explore/Exploit Analysis ==========
+
+
+def suggest_next_action(
+    prep_state: PrepState,
+    turn_budget_remaining: int,
+) -> dict:
+    """Suggest whether to explore or exploit based on prep state.
+
+    Applies RL-inspired explore/exploit logic:
+    - Early prep: favor exploration (discover argument space)
+    - Thin coverage: exploit (deepen evidence)
+    - Diminishing returns: switch to explore elsewhere
+    - Low opponent coverage: explore adversarially
+
+    Args:
+        prep_state: Current state of prep
+        turn_budget_remaining: How many turns left
+
+    Returns:
+        Action dict with mode, reason, suggestion, priority
+    """
+    from debate.models import ExploreExploitMode, PrepAction
+
+    # Early prep: explore the argument space first
+    if prep_state.argument_space_coverage < 0.3:
+        return PrepAction(
+            mode=ExploreExploitMode.EXPLORE,
+            reason="Argument space under-explored (<30% coverage)",
+            suggestion="Run enumerate_arguments or adversarial_brainstorm to discover arguments",
+            priority=0.9,
+        ).model_dump()
+
+    # Have arguments but thin evidence: exploit
+    weakest = prep_state.get_weakest_argument()
+    if prep_state.avg_evidence_depth < 2 and prep_state.argument_space_coverage > 0.5:
+        return PrepAction(
+            mode=ExploreExploitMode.EXPLOIT,
+            reason=f"Arguments identified but evidence thin (avg {prep_state.avg_evidence_depth:.1f} cards)",
+            suggestion=f"Research more cards for: {weakest}" if weakest else "Deepen evidence on core arguments",
+            priority=0.8,
+        ).model_dump()
+
+    # Check for diminishing returns on strongest argument
+    strongest = prep_state.get_strongest_argument()
+    if strongest and prep_state.arguments.get(strongest):
+        arg_state = prep_state.arguments[strongest]
+        if arg_state.last_research_yield == 0 and arg_state.times_researched >= 2:
+            return PrepAction(
+                mode=ExploreExploitMode.EXPLORE,
+                reason=f"Diminishing returns on '{strongest}' (0 cards in last research)",
+                suggestion="Explore new arguments or opponent weaknesses",
+                priority=0.7,
+            ).model_dump()
+
+    # Low opponent coverage: explore adversarially
+    if prep_state.opponent_coverage < 0.4 and prep_state.opponent_arguments_identified > 0:
+        return PrepAction(
+            mode=ExploreExploitMode.EXPLORE,
+            reason=f"Few answers to opponent args ({prep_state.opponent_coverage:.0%} coverage)",
+            suggestion="Brainstorm opponent's best arguments, then research AT cards",
+            priority=0.85,
+        ).model_dump()
+
+    # Late prep with budget: exploit weakest links
+    if turn_budget_remaining <= 3:
+        return PrepAction(
+            mode=ExploreExploitMode.EXPLOIT,
+            reason=f"Limited budget remaining ({turn_budget_remaining} turns)",
+            suggestion=f"Shore up weakest argument: {weakest}" if weakest else "Finalize strongest arguments",
+            priority=0.75,
+        ).model_dump()
+
+    # Default: balanced exploration
+    return PrepAction(
+        mode=ExploreExploitMode.EXPLORE,
+        reason="Balanced prep state - continue building",
+        suggestion="Research next priority argument or explore new angles",
+        priority=0.5,
+    ).model_dump()
+
+
+def build_prep_state_from_debate_file(
+    debate_file: DebateFile | FlatDebateFile | None,
+    side: Side,
+) -> PrepState:
+    """Build PrepState from an existing debate file.
+
+    Analyzes the debate file to track:
+    - Arguments and their evidence depth
+    - Evidence types per argument
+    - Opponent argument coverage (for AT files)
+
+    Args:
+        debate_file: Existing debate file
+        side: Side we're prepping for
+
+    Returns:
+        PrepState with current coverage analysis
+    """
+    state = PrepState()
+
+    if not debate_file:
+        return state
+
+    if isinstance(debate_file, FlatDebateFile):
+        # New flat structure
+        args = debate_file.get_arguments_for_side(side)
+        opponent_args = debate_file.get_arguments_for_side(side.opposite)
+
+        for arg in args:
+            cards = arg.get_all_cards()
+            evidence_types = set()
+            for card in cards:
+                if card.evidence_type:
+                    evidence_types.add(card.evidence_type)
+
+            state.update_argument(arg.title, len(cards), evidence_types)
+
+            if arg.is_answer:
+                state.opponent_arguments_answered += 1
+
+        # Count opponent arguments we might need to answer
+        state.opponent_arguments_identified = len([a for a in opponent_args if not a.is_answer])
+    else:
+        # Old structure
+        sections = debate_file.get_sections_for_side(side)
+        for section in sections:
+            cards = [debate_file.get_card(cid) for cid in section.card_ids if debate_file.get_card(cid)]
+            evidence_types = {c.evidence_type for c in cards if c and c.evidence_type}
+
+            state.update_argument(section.argument, len(cards), evidence_types)
+
+            if section.section_type == SectionType.ANSWER:
+                state.opponent_arguments_answered += 1
+
+    return state

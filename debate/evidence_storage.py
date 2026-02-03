@@ -31,7 +31,17 @@ This structure allows:
 import json
 from pathlib import Path
 
-from debate.models import Card, DebateFile, EvidenceBucket, SectionType, Side
+from debate.models import (
+    ArgumentFile,
+    Card,
+    ClaimCards,
+    DebateFile,
+    EvidenceBucket,
+    EvidenceType,
+    FlatDebateFile,
+    SectionType,
+    Side,
+)
 
 
 def get_evidence_dir() -> Path:
@@ -417,3 +427,279 @@ def get_or_create_evidence_bucket(
     )
 
     return new_bucket, True
+
+
+# ========== Flat Evidence Structure ==========
+
+
+def render_argument_file_markdown(argument: ArgumentFile) -> str:
+    """Render an argument file as markdown.
+
+    Format:
+        # Argument Title
+        Strategic purpose...
+
+        ## Claim 1
+        ### 1. Author 2024 - Source
+        **Purpose:** ...
+        [card content]
+
+        ### 2. Author 2025 - Source
+        ...
+    """
+    lines = []
+
+    # Header
+    if argument.is_answer and argument.answers_to:
+        lines.append(f"# AT: {argument.answers_to}")
+    else:
+        lines.append(f"# {argument.title}")
+    lines.append("")
+    lines.append(argument.purpose)
+    lines.append("")
+
+    # Claims with numbered cards
+    for claim_cards in argument.claims:
+        lines.append(f"## {claim_cards.claim}")
+        lines.append("")
+
+        for i, card in enumerate(claim_cards.cards, 1):
+            last_name = card.author.split()[-1]
+            lines.append(f"### {i}. {last_name} {card.year} - {card.source}")
+            lines.append("")
+
+            if card.purpose:
+                lines.append(f"**Purpose:** {card.purpose}")
+                lines.append("")
+
+            if card.evidence_type:
+                lines.append(f"**Type:** {card.evidence_type.value}")
+                lines.append("")
+
+            lines.append(f"**{card.author}**, {card.credentials}")
+            lines.append(f"*{card.source}*, {card.year}")
+            if card.url:
+                lines.append(f"[Source]({card.url})")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+            lines.append(card.text)
+            lines.append("")
+            lines.append("---")
+            lines.append(f"*Card ID: {card.id}*")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def save_flat_debate_file(debate_file: FlatDebateFile) -> str:
+    """Save a flat debate file structure.
+
+    Creates:
+        evidence/{resolution}/
+            pro/
+                {argument}.md
+                at_{argument}.md
+            con/
+                {argument}.md
+                at_{argument}.md
+            .flat_meta.json
+    """
+    resolution_dir = get_resolution_dir(debate_file.resolution)
+
+    # Create side directories (flat - no subdirs)
+    for side in ["pro", "con"]:
+        side_dir = resolution_dir / side
+        side_dir.mkdir(exist_ok=True)
+
+    # Save pro arguments
+    for arg in debate_file.pro_arguments:
+        filepath = resolution_dir / "pro" / arg.get_filename()
+        with open(filepath, "w") as f:
+            f.write(render_argument_file_markdown(arg))
+
+    # Save con arguments
+    for arg in debate_file.con_arguments:
+        filepath = resolution_dir / "con" / arg.get_filename()
+        with open(filepath, "w") as f:
+            f.write(render_argument_file_markdown(arg))
+
+    # Save metadata for programmatic loading
+    meta_path = resolution_dir / ".flat_meta.json"
+    meta = {
+        "resolution": debate_file.resolution,
+        "pro_arguments": [_serialize_argument_file(arg) for arg in debate_file.pro_arguments],
+        "con_arguments": [_serialize_argument_file(arg) for arg in debate_file.con_arguments],
+    }
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+
+    # Generate flat INDEX.md
+    index_content = generate_flat_index_markdown(debate_file, resolution_dir)
+    index_path = resolution_dir / "INDEX.md"
+    with open(index_path, "w") as f:
+        f.write(index_content)
+
+    return str(resolution_dir)
+
+
+def _serialize_argument_file(arg: ArgumentFile) -> dict:
+    """Serialize ArgumentFile for JSON storage."""
+    return {
+        "title": arg.title,
+        "is_answer": arg.is_answer,
+        "answers_to": arg.answers_to,
+        "purpose": arg.purpose,
+        "claims": [
+            {
+                "claim": claim.claim,
+                "cards": [card.model_dump() for card in claim.cards],
+            }
+            for claim in arg.claims
+        ],
+    }
+
+
+def _deserialize_argument_file(data: dict) -> ArgumentFile:
+    """Deserialize ArgumentFile from JSON."""
+    claims = []
+    for claim_data in data.get("claims", []):
+        cards = []
+        for card_data in claim_data.get("cards", []):
+            # Handle evidence_type enum
+            if card_data.get("evidence_type"):
+                card_data["evidence_type"] = EvidenceType(card_data["evidence_type"])
+            cards.append(Card(**card_data))
+        claims.append(ClaimCards(claim=claim_data["claim"], cards=cards))
+
+    return ArgumentFile(
+        title=data["title"],
+        is_answer=data.get("is_answer", False),
+        answers_to=data.get("answers_to"),
+        purpose=data.get("purpose", ""),
+        claims=claims,
+    )
+
+
+def generate_flat_index_markdown(debate_file: FlatDebateFile, resolution_dir: Path) -> str:
+    """Generate INDEX.md for flat structure."""
+    lines = [
+        f"# {debate_file.resolution}",
+        "",
+        "## Quick Navigation",
+        "",
+        "```bash",
+        f"ls {resolution_dir}/pro/      # List PRO arguments",
+        f"ls {resolution_dir}/con/      # List CON arguments",
+        f'grep -r "keyword" {resolution_dir}/pro/   # Search PRO evidence',
+        "```",
+        "",
+    ]
+
+    def render_side(arguments: list[ArgumentFile], side_name: str, side_label: str):
+        if not arguments:
+            return
+
+        lines.append(f"## {side_label}")
+        lines.append(f"*`{side_name}/`*")
+        lines.append("")
+
+        # Separate arguments and AT files
+        main_args = [a for a in arguments if not a.is_answer]
+        at_args = [a for a in arguments if a.is_answer]
+
+        if main_args:
+            lines.append("### Arguments")
+            lines.append("")
+            for arg in main_args:
+                filename = arg.get_filename()
+                card_count = sum(len(c.cards) for c in arg.claims)
+                lines.append(f"- [{arg.title}]({side_name}/{filename}) ({card_count} cards)")
+                for claim in arg.claims:
+                    lines.append(f"  - {claim.claim} ({len(claim.cards)} cards)")
+            lines.append("")
+
+        if at_args:
+            lines.append("### Answers (AT)")
+            lines.append("")
+            for arg in at_args:
+                filename = arg.get_filename()
+                card_count = sum(len(c.cards) for c in arg.claims)
+                lines.append(f"- [AT: {arg.answers_to}]({side_name}/{filename}) ({card_count} cards)")
+            lines.append("")
+
+    render_side(debate_file.pro_arguments, "pro", "PRO")
+    render_side(debate_file.con_arguments, "con", "CON")
+
+    return "\n".join(lines)
+
+
+def load_flat_debate_file(resolution: str) -> FlatDebateFile | None:
+    """Load a flat debate file from its directory."""
+    resolution_dir = get_resolution_dir(resolution)
+    meta_path = resolution_dir / ".flat_meta.json"
+
+    if not meta_path.exists():
+        return None
+
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    return FlatDebateFile(
+        resolution=meta["resolution"],
+        pro_arguments=[_deserialize_argument_file(a) for a in meta.get("pro_arguments", [])],
+        con_arguments=[_deserialize_argument_file(a) for a in meta.get("con_arguments", [])],
+    )
+
+
+def get_or_create_flat_debate_file(resolution: str) -> tuple[FlatDebateFile, bool]:
+    """Get existing flat debate file or create a new empty one."""
+    existing = load_flat_debate_file(resolution)
+
+    if existing:
+        return existing, False
+
+    new_file = FlatDebateFile(resolution=resolution)
+    return new_file, True
+
+
+def convert_to_flat_structure(old_file: DebateFile) -> FlatDebateFile:
+    """Convert old DebateFile to new FlatDebateFile structure.
+
+    Groups cards by argument, then by claim within each argument.
+    """
+    flat = FlatDebateFile(resolution=old_file.resolution)
+
+    def convert_sections(sections: list, side: Side):
+        # Group sections by argument
+        arg_map: dict[str, ArgumentFile] = {}
+
+        for section in sections:
+            arg_key = section.argument.lower()
+            is_answer = section.section_type == SectionType.ANSWER
+
+            if arg_key not in arg_map:
+                arg_map[arg_key] = ArgumentFile(
+                    title=section.argument,
+                    is_answer=is_answer,
+                    answers_to=section.argument if is_answer else None,
+                    purpose=section.notes or f"Evidence for: {section.argument}",
+                )
+
+            arg_file = arg_map[arg_key]
+
+            # Add cards to claims
+            for card_id in section.card_ids:
+                card = old_file.get_card(card_id)
+                if card:
+                    # Use card tag as claim
+                    claim = arg_file.find_or_create_claim(card.tag)
+                    claim.add_card(card)
+
+        for arg_file in arg_map.values():
+            flat.add_argument(side, arg_file)
+
+    convert_sections(old_file.pro_sections, Side.PRO)
+    convert_sections(old_file.con_sections, Side.CON)
+
+    return flat
