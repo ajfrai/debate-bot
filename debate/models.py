@@ -416,14 +416,30 @@ class JudgeDecision(BaseModel):
 
 
 class AnalysisType(str, Enum):
-    """Types of systematic analysis processes available during prep."""
+    """Types of systematic analysis processes available during prep.
 
+    Organized by explore/exploit mode:
+    - Exploration: discover new arguments and angles
+    - Exploitation: deepen evidence on known arguments
+    - Strategic: planning and synthesis
+    """
+
+    # Exploration (discover new territory)
     ENUMERATE_ARGUMENTS = "enumerate_arguments"  # List all possible PRO and CON arguments
+    ADVERSARIAL_BRAINSTORM = "adversarial_brainstorm"  # What's opponent's best case?
+    FIND_NOVEL_ANGLES = "find_novel_angles"  # Unusual frameworks, edge cases
+    IDENTIFY_UNCERTAINTY = "identify_uncertainty"  # Where are our gaps?
+
+    # Exploitation (deepen known territory)
     BRAINSTORM_REBUTTALS = "brainstorm_rebuttals"  # Generate multiple answers to a claim
     ANALYZE_SOURCE = "analyze_source"  # Line-by-line breakdown of evidence
+    EXTEND_ARGUMENT = "extend_argument"  # Find more warrants for existing claim
+    BUILD_BLOCK = "build_block"  # Comprehensive answer to one opponent argument
+    SYNTHESIZE_EVIDENCE = "synthesize_evidence"  # Connect cards into narrative
+
+    # Strategic (planning)
     MAP_CLASH = "map_clash"  # Identify debate clash points
     IDENTIFY_FRAMEWORK = "identify_framework"  # Determine weighing criteria
-    SYNTHESIZE_EVIDENCE = "synthesize_evidence"  # Connect cards into narrative
 
 
 class AnalysisResult(BaseModel):
