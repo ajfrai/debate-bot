@@ -43,7 +43,8 @@ Develop prep by:
 
 **Analysis Types:**
 
-- `breadcrumb_initial`: Map argument landscape at start - produces CONCISE bullet points showing argument links, evidence needs, blockers
+These are stricly the only types of analysis you can call:
+ `breadcrumb_initial`: Map argument landscape at start - produces CONCISE bullet points showing argument links, evidence needs, blockers
 - `breadcrumb_followup`: After new evidence, identify next research targets - produces CONCISE follow-up research targets
 
 **Think of arguments as a TREE:**
