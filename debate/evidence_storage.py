@@ -466,9 +466,17 @@ def render_argument_file_markdown(argument: ArgumentFile) -> str:
         Strategic purpose...
 
         ## Semantic Category 1
-        1. Author 2024 - Source
-        **Purpose:** ...
-        [card content]
+
+        **Tag:** What this card proves
+
+        **Author**, Credentials
+        *Source*, Year
+        [URL]
+
+        Card text with **bolded warrants**
+
+        ---
+        *Card ID: abc123*
 
         2. Author 2025 - Source
         ...
@@ -490,27 +498,28 @@ def render_argument_file_markdown(argument: ArgumentFile) -> str:
         lines.append("")
 
         for i, card in enumerate(semantic_group.cards, 1):
+            # Card header (e.g., "1. Smith '24")
             last_name = card.author.split()[-1]
-            lines.append(f"{i}. {last_name} {card.year} - {card.source}")
+            year_short = card.year[-2:] if len(card.year) >= 2 else card.year
+            lines.append(f"{i}. {last_name} '{year_short}")
             lines.append("")
 
-            if card.purpose:
-                lines.append(f"**Purpose:** {card.purpose}")
-                lines.append("")
+            # Card tag (what it proves)
+            lines.append(f"**{card.tag}**")
+            lines.append("")
 
-            if card.evidence_type:
-                lines.append(f"**Type:** {card.evidence_type.value}")
-                lines.append("")
-
+            # Citation
             lines.append(f"**{card.author}**, {card.credentials}")
             lines.append(f"*{card.source}*, {card.year}")
             if card.url:
                 lines.append(f"[Source]({card.url})")
             lines.append("")
-            lines.append("---")
-            lines.append("")
+
+            # Card text (the evidence with bolded warrants)
             lines.append(card.text)
             lines.append("")
+
+            # Footer
             lines.append("---")
             lines.append(f"*Card ID: {card.id}*")
             lines.append("")

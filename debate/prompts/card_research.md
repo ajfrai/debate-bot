@@ -34,55 +34,80 @@ Each card must be organized for its **strategic value**. Cards fall into these c
 
 ## CRITICAL: Semantic Grouping by Claim
 
-When cutting multiple cards, **group semantically similar cards together**. Cards that prove the SAME POINT should share the same `argument` value.
+When cutting multiple cards, **use the two-level structure** to organize them:
+
+1. **All cards go into a FILE** (determined by `file_category` - BROAD)
+2. **Within the file, cards are grouped by semantic category** (determined by `semantic_category` - MEDIUM)
 
 **Semantic grouping examples:**
-- Cards 1, 2, 3 all prove: "TikTok ban eliminates 100k+ creator jobs" → use this as `argument`
-- Cards 4, 5 both prove: "Creator economy loses $2B+ annual revenue" → use this as `argument`
-- NOT: "economic impact", "job losses", "revenue" (too vague)
+- Cards 1, 2, 3 all prove job losses → `semantic_category`: "TikTok Ban Eliminates Creator Jobs"
+- Cards 4, 5 both prove revenue loss → `semantic_category`: "Creator Economy Loses Revenue"
+- All 5 cards share the same `file_category`: "Economic Impacts"
 
-**How to group when cutting multiple cards:**
+**How to organize when cutting multiple cards:**
 1. Cut all cards first
-2. Analyze what each card actually PROVES (the specific warrant)
-3. Cards that prove the same point get the same `argument` value
-4. These will be grouped together under one heading-2 in the final markdown
+2. Identify the BROAD topic → `file_category` (e.g., "Economic Impacts", "Human Rights Violations")
+3. For each card, identify what warrant it proves → `semantic_category` (medium-specific)
+4. Cards proving the same warrant get the same `semantic_category`
 
 **Example:**
 ```
-If researching "creator economy impact" and you cut 5 cards:
-- Cards from Smith, Jones, Brown all show job losses → argument: "TikTok ban eliminates 100k+ creator jobs"
-- Cards from Davis, Wilson show revenue loss → argument: "Creator economy loses $2B+ annual revenue"
+Researching "creator economy impact" and you cut 5 cards:
 
-In markdown output, these will appear as:
-## TikTok ban eliminates 100k+ creator jobs
-1. Smith '24
-2. Jones '25
-3. Brown '24
+All cards → file_category: "Economic Impacts"
 
-## Creator economy loses $2B+ annual revenue
-1. Davis '24
-2. Wilson '25
+Cards from Smith, Jones, Brown show job losses:
+  → semantic_category: "TikTok Ban Eliminates Creator Jobs"
+
+Cards from Davis, Wilson show revenue loss:
+  → semantic_category: "Creator Economy Loses Revenue"
+
+In markdown output:
+# Economic Impacts   (file heading from file_category)
+
+## TikTok Ban Eliminates Creator Jobs   (semantic_category)
+1. Smith '24 - [specific tag about job losses]
+2. Jones '25 - [specific tag about unemployment]
+3. Brown '24 - [specific tag about creator economy]
+
+## Creator Economy Loses Revenue   (semantic_category)
+1. Davis '24 - [specific tag about $2B loss]
+2. Wilson '25 - [specific tag about advertising revenue]
 ```
 
-## CRITICAL: Specific Argument Headers
+## CRITICAL: Two-Level Organization Structure
 
-**DO NOT use vague topic headers.** The `argument` field must state the SPECIFIC CLAIM, not a general topic.
+Cards are organized into FILES (broad category) containing SEMANTIC GROUPS (medium-specific claims).
 
-BAD (too vague):
-- "economic impacts"
-- "national security"
-- "privacy concerns"
+**FILE CATEGORY (broad)** - The `file_category` field determines which file the card goes in:
+- Use BROAD topical categories (e.g., "Human Rights Violations", "Economic Impacts", "National Security")
+- All cards on related topics go in the same file
 
-GOOD (specific claims):
-- "TikTok ban eliminates 100k creator jobs"
-- "Chinese government can access TikTok user data"
-- "TikTok's algorithm promotes harmful content to teens"
-- "Ban sets precedent for government censorship"
+**SEMANTIC CATEGORY (medium-specific)** - The `semantic_category` field groups cards within the file:
+- More specific than file category, less specific than individual card tags
+- States the warrant that multiple cards prove together
 
-For ANSWER cards, state what you're answering:
-- "Opponent claim: TikTok is a national security threat"
-- "Opponent claim: Ban protects American data"
-- "Opponent claim: Economic costs are minimal"
+**Examples:**
+
+Topic: "Iran executions"
+- `file_category`: "Human Rights Violations" (BROAD - file name)
+- `semantic_category`: "Iran Executes Citizens" (MEDIUM - heading within file)
+- `tag`: "Iran executed 975 people in 2024" (SPECIFIC - individual card)
+
+Topic: "creator economy job losses"
+- `file_category`: "Economic Impacts" (BROAD)
+- `semantic_category`: "TikTok Ban Eliminates Creator Jobs" (MEDIUM)
+- `tag`: "Ban would eliminate 100,000 creator economy jobs" (SPECIFIC)
+
+Topic: "Chinese data access"
+- `file_category`: "National Security" (BROAD)
+- `semantic_category`: "Chinese Government Can Access TikTok Data" (MEDIUM)
+- `tag`: "TikTok's parent company legally required to share data with China" (SPECIFIC)
+
+For ANSWER cards:
+- `file_category`: "Answers to [Opponent Side]" (e.g., "Answers to PRO")
+- `semantic_category`: "Answer to: [Specific opponent claim]" (e.g., "Answer to: TikTok is a national security threat")
+- `tag`: What your answer proves (e.g., "No verified evidence of Chinese data access")
 
 ## Card Cutting Guidelines
 
@@ -97,31 +122,37 @@ Each evidence card should have:
 
 3. **section_type**: One of: "support", "answer", "extension", "impact"
 
-4. **argument**: The SPECIFIC claim this card relates to (see above for examples)
-   - For support/extension/impact: The specific claim you're proving
-   - For answer: "Opponent claim: [specific claim being answered]"
+4. **file_category**: BROAD topical category for the file (e.g., "Human Rights Violations", "Economic Impacts")
+   - Use general, broad categories
+   - All related cards on similar topics share the same file_category
 
-5. **author**: Full name of the author
+5. **semantic_category**: MEDIUM-SPECIFIC claim that this card supports (see two-level structure above)
+   - More specific than file_category, but not as specific as the tag
+   - Cards proving the same warrant share the same semantic_category
+   - Example: "Iran Executes Citizens" or "TikTok Ban Eliminates Creator Jobs"
 
-6. **credentials**: Author's qualifications (e.g., "Professor of Economics at Stanford")
+6. **author**: Full name of the author
 
-7. **year**: Publication year
+7. **credentials**: Author's qualifications (e.g., "Professor of Economics at Stanford")
 
-8. **source**: Publication name (e.g., "Foreign Affairs", "Nature")
+8. **year**: Publication year
 
-9. **url**: Direct link to the source (if available)
+9. **source**: Publication name (e.g., "Foreign Affairs", "Nature")
 
-10. **evidence_type**: Classify the type of evidence (REQUIRED):
+10. **url**: Direct link to the source (if available)
+
+11. **evidence_type**: Classify the type of evidence (REQUIRED):
     - **statistical**: Numbers, data, quantified claims (e.g., "costs $4 billion", "affects 100,000 jobs")
     - **analytical**: Expert reasoning, causal analysis (e.g., "this leads to X because Y")
     - **consensus**: Multiple sources agreeing, institutional positions (e.g., "experts agree", "agencies report")
     - **empirical**: Case studies, real-world examples (e.g., "in 2023, when X happened...")
     - **predictive**: Forecasts, projections (e.g., "will likely result in", "projected to")
 
-11. **text**: The actual quote with **bolded sections** marking what should be read aloud
-    - Bold the KEY WARRANTS (the most important claims)
+12. **text**: The actual quote with **bolded sections** marking what should be read aloud
+    - Bold the KEY WARRANTS (the most important claims and numbers)
     - Bold should be 20-40% of total text
     - Use markdown format: `**bolded text**`
+    - **Include specific numbers and data** in the text (e.g., if researching executions, include "975 executions")
 
 ## Text Bolding Examples
 
@@ -137,7 +168,7 @@ Bad bolding (too much):
 
 ## Output Format
 
-Return a JSON object:
+Return a JSON object with the two-level structure:
 
 ```json
 {{
@@ -146,7 +177,8 @@ Return a JSON object:
       "tag": "TikTok ban eliminates 100,000 creator jobs",
       "purpose": "Concrete job loss number to outweigh vague security benefits",
       "section_type": "support",
-      "argument": "TikTok ban eliminates 100k+ creator jobs",
+      "file_category": "Economic Impacts",
+      "semantic_category": "TikTok Ban Eliminates Creator Jobs",
       "author": "Jane Smith",
       "credentials": "Professor of Economics at MIT",
       "year": "2024",
@@ -159,7 +191,8 @@ Return a JSON object:
       "tag": "Creator economy generates $4 billion in annual economic value",
       "purpose": "Quantify economic magnitude of what would be lost",
       "section_type": "support",
-      "argument": "TikTok ban eliminates 100k+ creator jobs",
+      "file_category": "Economic Impacts",
+      "semantic_category": "TikTok Ban Eliminates Creator Jobs",
       "author": "Mary Johnson",
       "credentials": "Economist at Stanford",
       "year": "2024",
@@ -172,7 +205,8 @@ Return a JSON object:
       "tag": "No verified evidence of Chinese data access",
       "purpose": "Directly denies the warrant of opponent's security argument",
       "section_type": "answer",
-      "argument": "Opponent claim: Chinese government accesses TikTok user data",
+      "file_category": "Answers to PRO",
+      "semantic_category": "Answer to: Chinese Government Accesses TikTok Data",
       "author": "John Doe",
       "credentials": "Cybersecurity Analyst at Brookings",
       "year": "2024",
@@ -185,22 +219,26 @@ Return a JSON object:
 }}
 ```
 
-**Note:** The `argument` field becomes the **semantic grouping heading** in the final markdown. Cards with the same `argument` value will be grouped together under one heading-2, so semantic grouping happens automatically when cards are saved.
+**Note:** The `file_category` becomes the file name (heading-1), and `semantic_category` becomes the heading-2. Cards with the same `file_category` and `semantic_category` are grouped together.
 
 ## Important Notes
 
 - Cut {num_cards} cards total
 - Each card should support the {side_value} side
-- **EVERY argument field must be SPECIFIC, not a general topic**
+- **USE TWO-LEVEL STRUCTURE**:
+  - `file_category`: BROAD topic (e.g., "Economic Impacts", "Human Rights Violations")
+  - `semantic_category`: MEDIUM-SPECIFIC claim (e.g., "TikTok Ban Eliminates Creator Jobs")
+  - `tag`: SPECIFIC what this individual card proves
 - **Tags must state what the card PROVES, not just a topic**
 - **Purpose must explain strategic use in one sentence**
 - **evidence_type is REQUIRED** - classify each card accurately
-- **GROUP CARDS SEMANTICALLY**: Cards proving the same point must share the same `argument` value
+- **GROUP CARDS SEMANTICALLY**: Cards proving the same point must share the same `semantic_category`
   - This ensures cards are grouped under the same heading-2 in the markdown output
-  - Analyze each card's actual warrant before assigning `argument` values
-- Bold 20-40% of each quote (the key warrants)
+  - All cards on related topics share the same `file_category`
+- **Include specific numbers in card text** - don't just reference numbers in tags, include them in the text with bolding
+- Bold 20-40% of each quote (the key warrants and numbers)
 - Include full author credentials for verification
 - **Seek evidence diversity**: aim for mix of statistical, analytical, and other types
 - **Avoid duplication**: check existing coverage section above for what's already researched
 
-Now research and cut {num_cards} evidence cards with SPECIFIC argument headers, semantic grouping, and evidence types.
+Now research and cut {num_cards} evidence cards with TWO-LEVEL structure (file_category + semantic_category), semantic grouping, and evidence types.

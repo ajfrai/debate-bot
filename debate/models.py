@@ -734,6 +734,71 @@ class FlatDebateFile(BaseModel):
 
         return "\n".join(lines)
 
+    # ========== Backwards Compatibility Methods ==========
+
+    @property
+    def cards(self) -> dict[str, Card]:
+        """Get all cards as a dict (backwards compatibility).
+
+        Returns a dict mapping card IDs to Card objects.
+        """
+        card_dict = {}
+        for card in self.get_all_cards():
+            card_dict[card.id] = card
+        return card_dict
+
+    def get_card(self, card_id: str) -> Card | None:
+        """Get a card by ID (backwards compatibility)."""
+        for card in self.get_all_cards():
+            if card.id == card_id:
+                return card
+        return None
+
+    def get_sections_for_side(self, side: Side) -> list["ArgumentSection"]:
+        """Get sections for a side (backwards compatibility).
+
+        Converts ArgumentFiles to ArgumentSections for old code.
+        Note: This is a simplified conversion that may not preserve all semantics.
+        """
+        from debate.models import ArgumentSection
+
+        sections = []
+        args = self.get_arguments_for_side(side)
+
+        for arg in args:
+            # Create a section for each semantic group within the argument
+            for group in arg.semantic_groups:
+                section = ArgumentSection(
+                    argument=group.semantic_category,
+                    section_type=SectionType.ANSWER if arg.is_answer else SectionType.SUPPORT,
+                    card_ids=[card.id for card in group.cards],
+                    notes=arg.purpose,
+                )
+                sections.append(section)
+
+        return sections
+
+    def get_table_of_contents(self) -> str:
+        """Get table of contents (backwards compatibility)."""
+        lines = [f"# {self.resolution}", "", "## Table of Contents", ""]
+
+        def render_toc(arguments: list[ArgumentFile], side_label: str):
+            if not arguments:
+                return
+            lines.append(f"### {side_label}")
+            lines.append("")
+            for arg in arguments:
+                total_cards = sum(len(group.cards) for group in arg.semantic_groups)
+                lines.append(f"- **{arg.title}** ({total_cards} cards)")
+                for group in arg.semantic_groups:
+                    lines.append(f"  - {group.semantic_category} ({len(group.cards)} cards)")
+            lines.append("")
+
+        render_toc(self.pro_arguments, "PRO")
+        render_toc(self.con_arguments, "CON")
+
+        return "\n".join(lines)
+
 
 # ========== Explore/Exploit Framework ==========
 
