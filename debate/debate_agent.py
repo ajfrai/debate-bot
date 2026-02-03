@@ -401,27 +401,74 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 },
             },
             {
-                "name": "research",
-                "description": "Research evidence (searches backfiles first, then web if needed). Automatically organizes findings into prep. Returns sources and citations that you can follow up on.",
+                "name": "search",
+                "description": "Search for sources on a topic. Returns search results that you can then use to cut cards with the cut_card tool. Use this first, then call cut_card for each card you want to extract.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "topic": {
+                        "query": {
                             "type": "string",
-                            "description": "What to research (can be based on analysis, previous findings, or citations)",
+                            "description": "Search query to find sources",
+                        },
+                        "num_results": {
+                            "type": "integer",
+                            "default": 5,
+                            "description": "Number of search results to return (default 5)",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "cut_card",
+                "description": "Cut an evidence card from source material. Call this after searching to extract specific cards from sources. The card will be automatically saved to the debate file.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "tag": {
+                            "type": "string",
+                            "description": "Brief label (5-10 words) stating what the card PROVES",
+                        },
+                        "argument": {
+                            "type": "string",
+                            "description": "The SPECIFIC claim this card relates to (NOT a vague topic)",
                         },
                         "purpose": {
                             "type": "string",
                             "enum": ["support", "answer", "extension", "impact"],
-                            "description": "Strategic purpose of this evidence",
+                            "description": "Strategic purpose of this card",
                         },
-                        "num_cards": {
-                            "type": "integer",
-                            "default": 3,
-                            "description": "Number of cards to find/cut (default 3)",
+                        "author": {
+                            "type": "string",
+                            "description": "Author's full name",
+                        },
+                        "credentials": {
+                            "type": "string",
+                            "description": "Author's qualifications (e.g., 'Professor of Economics at MIT')",
+                        },
+                        "year": {
+                            "type": "string",
+                            "description": "Publication year",
+                        },
+                        "source": {
+                            "type": "string",
+                            "description": "Publication name (e.g., 'New York Times')",
+                        },
+                        "url": {
+                            "type": "string",
+                            "description": "URL to source",
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "The quoted text with **key warrants bolded**. Bold 20-40% of text.",
+                        },
+                        "evidence_type": {
+                            "type": "string",
+                            "enum": ["statistical", "analytical", "consensus", "empirical", "predictive"],
+                            "description": "Type of evidence",
                         },
                     },
-                    "required": ["topic", "purpose"],
+                    "required": ["tag", "argument", "purpose", "author", "credentials", "year", "source", "text"],
                 },
             },
             {
@@ -491,12 +538,23 @@ Generate a strategic crossfire question (1-2 sentences) that:
                                 analysis_type=tool_input["analysis_type"],
                                 subject=tool_input.get("subject"),
                             )
-                        elif tool_name == "research":
-                            result = self._research_skill(
-                                topic=tool_input["topic"],
+                        elif tool_name == "search":
+                            result = self._search_skill(
+                                query=tool_input["query"],
+                                num_results=tool_input.get("num_results", 5),
+                            )
+                        elif tool_name == "cut_card":
+                            result = self._cut_card_skill(
+                                tag=tool_input["tag"],
+                                argument=tool_input["argument"],
                                 purpose=tool_input["purpose"],
-                                num_cards=tool_input.get("num_cards", 3),
-                                stream=stream,
+                                author=tool_input["author"],
+                                credentials=tool_input["credentials"],
+                                year=tool_input["year"],
+                                source=tool_input["source"],
+                                url=tool_input.get("url"),
+                                text=tool_input["text"],
+                                evidence_type=tool_input.get("evidence_type"),
                             )
                         elif tool_name == "read_prep":
                             result = self._read_prep_skill()
@@ -708,3 +766,167 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
         if self.prep_file:
             return self.prep_file.get_summary()
         return {"error": "No prep file available"}
+
+    def _search_skill(self, query: str, num_results: int = 5) -> dict:
+        """Execute web search and return formatted results."""
+        import time
+        from debate.research_agent import _brave_search
+
+        print(f"  Searching for: {query[:70]}...")
+
+        # Add 3-second pause to avoid rate limiting
+        time.sleep(3)
+
+        search_results = _brave_search(query, num_results=num_results)
+
+        if search_results:
+            print("  ✓ Found search results")
+            return {
+                "status": "success",
+                "query": query,
+                "results": search_results,
+                "message": "Search completed. Use cut_card tool to extract evidence from these sources.",
+            }
+        else:
+            print("  ⚠ No search results")
+            return {
+                "status": "no_results",
+                "query": query,
+                "message": "No search results found. Try a different query or use your knowledge base.",
+            }
+
+    def _cut_card_skill(
+        self,
+        tag: str,
+        argument: str,
+        purpose: str,
+        author: str,
+        credentials: str,
+        year: str,
+        source: str,
+        text: str,
+        url: str | None = None,
+        evidence_type: str | None = None,
+    ) -> dict:
+        """Cut a card and add it to the flat debate file structure."""
+        from debate.evidence_storage import get_or_create_flat_debate_file, save_flat_debate_file
+        from debate.models import EvidenceType
+
+        # Parse evidence type
+        evidence_type_enum = None
+        if evidence_type:
+            type_map = {
+                "statistical": EvidenceType.STATISTICAL,
+                "analytical": EvidenceType.ANALYTICAL,
+                "consensus": EvidenceType.CONSENSUS,
+                "empirical": EvidenceType.EMPIRICAL,
+                "predictive": EvidenceType.PREDICTIVE,
+            }
+            evidence_type_enum = type_map.get(evidence_type.lower())
+
+        # Create card
+        card = Card(
+            tag=tag,
+            author=author,
+            credentials=credentials,
+            year=year,
+            source=source,
+            url=url,
+            text=text,
+            purpose=f"{purpose} - {argument}",
+            evidence_type=evidence_type_enum,
+        )
+
+        # Get or create flat debate file
+        flat_file, is_new = get_or_create_flat_debate_file(self.resolution)
+
+        # Determine if this is an answer based on purpose or argument name
+        is_answer = purpose.lower() == "answer" or argument.lower().startswith("at:") or argument.lower().startswith("opponent claim:")
+        answers_to = None
+        argument_title = argument
+
+        if is_answer:
+            # Extract what we're answering
+            if argument.lower().startswith("at:"):
+                answers_to = argument[3:].strip()
+                argument_title = f"AT: {answers_to}"
+            elif argument.lower().startswith("opponent claim:"):
+                answers_to = argument[15:].strip()
+                argument_title = f"AT: {answers_to}"
+            else:
+                answers_to = argument
+                argument_title = f"AT: {argument}"
+
+        # Find or create the argument file
+        arguments = flat_file.get_arguments_for_side(self.side)
+        arg_file = None
+
+        # Look for existing argument file
+        for existing_arg in arguments:
+            # Match by title or answers_to
+            if is_answer and existing_arg.is_answer:
+                if existing_arg.answers_to and answers_to and existing_arg.answers_to.lower() == answers_to.lower():
+                    arg_file = existing_arg
+                    break
+            elif not is_answer and not existing_arg.is_answer:
+                if existing_arg.title.lower() == argument_title.lower():
+                    arg_file = existing_arg
+                    break
+
+        # Create new argument file if not found
+        if not arg_file:
+            from debate.models import ArgumentFile
+
+            arg_file = ArgumentFile(
+                title=argument_title,
+                is_answer=is_answer,
+                answers_to=answers_to,
+                purpose=f"Evidence for {purpose}: {argument}",
+            )
+            if self.side == Side.PRO:
+                flat_file.pro_arguments.append(arg_file)
+            else:
+                flat_file.con_arguments.append(arg_file)
+
+        # Find or create claim within the argument file
+        # For now, use the card tag as the claim
+        claim_cards = arg_file.find_or_create_claim(tag)
+        claim_cards.cards.append(card)
+
+        # Save the flat debate file
+        save_flat_debate_file(flat_file)
+
+        # Add to prep file if available
+        if self.prep_file:
+            # Check if argument already exists in prep
+            existing_arg = None
+            for arg in self.prep_file.arguments:
+                if arg.claim == argument:
+                    existing_arg = arg
+                    break
+
+            if existing_arg:
+                # Add card ID reference (note: flat structure doesn't use IDs the same way)
+                # Just track that we added a card
+                existing_arg.source_summary += f", {source} ({year})"
+            else:
+                # Create new argument in prep
+                new_arg = ArgumentPrep(
+                    claim=argument,
+                    purpose=SectionType(purpose.lower()),
+                    card_ids=[card.id],
+                    source_summary=f"{source} ({year})",
+                    strategic_notes=f"Card: {tag}",
+                )
+                self.prep_file.add_argument(new_arg)
+
+        print(f"  ✓ Cut card: {tag[:50]}...")
+
+        return {
+            "status": "success",
+            "tag": tag,
+            "argument": argument_title,
+            "claim": claim_cards.claim,
+            "card_number": len(claim_cards.cards),
+            "message": f"Card cut and saved to {arg_file.get_filename()}",
+        }
