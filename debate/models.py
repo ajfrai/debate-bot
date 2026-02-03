@@ -693,9 +693,7 @@ class ArgumentState(BaseModel):
 class PrepState(BaseModel):
     """Overall prep state for explore/exploit decisions."""
 
-    arguments: dict[str, ArgumentState] = Field(
-        default_factory=dict, description="Argument states keyed by claim"
-    )
+    arguments: dict[str, ArgumentState] = Field(default_factory=dict, description="Argument states keyed by claim")
     opponent_arguments_identified: int = Field(default=0, description="Known opponent arguments")
     opponent_arguments_answered: int = Field(default=0, description="Arguments with AT evidence")
 

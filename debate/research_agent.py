@@ -6,9 +6,11 @@ This module provides cost-effective evidence research by:
 3. Organizing cards into debate files by strategic value
 """
 
+import datetime
 import json
 import os
 import time
+from pathlib import Path
 
 import anthropic
 import requests
@@ -96,7 +98,7 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
 
             # Handle rate limiting (429)
             if response.status_code == 429 and retry_on_rate_limit and retry_count < max_retries:
-                print(f"  Rate limited (429), waiting 10s before retry...")
+                print("  Rate limited (429), waiting 10s before retry...")
                 time.sleep(10)
                 retry_count += 1
                 continue
@@ -211,33 +213,41 @@ def generate_research_queries(
     side_term = "benefits" if side == Side.PRO else "concerns"
 
     # 1. Exploratory - broad discovery
-    queries.append({
-        "strategy": QueryStrategy.EXPLORATORY,
-        "query": f"{topic} research analysis {side_term}",
-        "purpose": "Discover broad landscape of evidence",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.EXPLORATORY,
+            "query": f"{topic} research analysis {side_term}",
+            "purpose": "Discover broad landscape of evidence",
+        }
+    )
 
     # 2. Spearfish - specific claim with year
-    queries.append({
-        "strategy": QueryStrategy.SPEARFISH,
-        "query": f'"{topic}" study findings 2024 OR 2025',
-        "purpose": "Find recent specific studies",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SPEARFISH,
+            "query": f'"{topic}" study findings 2024 OR 2025',
+            "purpose": "Find recent specific studies",
+        }
+    )
 
     # 3. Source-targeted - credible institutions
     think_tanks = " OR ".join(f"site:{s}" for s in CREDIBLE_SOURCES["think_tanks"][:3])
-    queries.append({
-        "strategy": QueryStrategy.SOURCE_TARGETED,
-        "query": f"{topic} ({think_tanks})",
-        "purpose": "Find think tank/policy analysis",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SOURCE_TARGETED,
+            "query": f"{topic} ({think_tanks})",
+            "purpose": "Find think tank/policy analysis",
+        }
+    )
 
     # 4. Expert - find authorities
-    queries.append({
-        "strategy": QueryStrategy.EXPERT,
-        "query": f"{topic} professor expert analysis opinion",
-        "purpose": "Find expert voices with credentials",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.EXPERT,
+            "query": f"{topic} professor expert analysis opinion",
+            "purpose": "Find expert voices with credentials",
+        }
+    )
 
     # 5. Verbatim - if we have existing cards, find related evidence
     if existing_cards:
@@ -245,22 +255,27 @@ def generate_research_queries(
         for card in existing_cards[:2]:
             # Find a quotable phrase from the bolded text
             import re
+
             bolded = re.findall(r"\*\*(.+?)\*\*", card.text)
             if bolded:
                 phrase = bolded[0][:50]  # First 50 chars of first bold
-                queries.append({
-                    "strategy": QueryStrategy.VERBATIM,
-                    "query": f'"{phrase}"',
-                    "purpose": f"Find sources citing similar evidence to {card.tag[:30]}",
-                })
+                queries.append(
+                    {
+                        "strategy": QueryStrategy.VERBATIM,
+                        "query": f'"{phrase}"',
+                        "purpose": f"Find sources citing similar evidence to {card.tag[:30]}",
+                    }
+                )
                 break
 
     # 6. Statistical focus
-    queries.append({
-        "strategy": QueryStrategy.SPEARFISH,
-        "query": f"{topic} statistics data numbers percent",
-        "purpose": "Find quantitative evidence",
-    })
+    queries.append(
+        {
+            "strategy": QueryStrategy.SPEARFISH,
+            "query": f"{topic} statistics data numbers percent",
+            "purpose": "Find quantitative evidence",
+        }
+    )
 
     return queries
 
@@ -452,7 +467,7 @@ def research_evidence(
             result = _brave_search(q["query"], num_results=5)
             if result:
                 search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
-                print(f"✓ Found results from search")
+                print("✓ Found results from search")
             else:
                 print("⚠ No search results, using Claude's knowledge base")
                 search_results = "(No search results available - use your knowledge base)"
@@ -469,13 +484,14 @@ def research_evidence(
         # Add 3-second pause to avoid rate limiting
         time.sleep(3)
 
-        search_results = _brave_search(search_query, num_results=5)
+        brave_results = _brave_search(search_query, num_results=5)
 
-        if search_results:
+        if brave_results:
+            search_results = brave_results
             print("✓ Found search results from Brave")
         else:
-            print("⚠ Brave Search unavailable, using Claude's knowledge base")
             search_results = "(No search results available - use your knowledge base)"
+            print("⚠ Brave Search unavailable, using Claude's knowledge base")
 
     # Load lessons for the research agent
     lessons = load_lessons("research", "organization")
@@ -628,7 +644,6 @@ def research_evidence_efficient(
     Returns:
         List of file paths where cards were placed
     """
-    import datetime
     from debate.card_import import import_card
 
     # Default argument to topic if not provided
@@ -636,9 +651,7 @@ def research_evidence_efficient(
         argument = topic
 
     # Load existing debate file
-    debate_file = get_or_create_debate_file(resolution)
-    is_new = debate_file[1]
-    debate_file = debate_file[0]
+    debate_file, _is_new = get_or_create_debate_file(resolution)
 
     # Search Brave
     if not search_query:
@@ -650,12 +663,13 @@ def research_evidence_efficient(
     # Add 3-second pause to avoid rate limiting
     time.sleep(3)
 
-    search_results = _brave_search(search_query, num_results=5)
+    brave_results = _brave_search(search_query, num_results=5)
 
-    if not search_results:
+    if not brave_results:
         print("⚠ No search results available")
         return []
 
+    search_results = brave_results
     print("✓ Found search results")
 
     # Create temp directory
@@ -755,7 +769,7 @@ Output ONLY the marked-up card. Do not include explanations."""
         print(f"✗ Failed to import card: {e}")
         print(f"  Marked-up file saved at: {temp_file}")
         print("  You can manually review and fix the format, then run:")
-        print(f"  uv run debate card-import {temp_file} \"{resolution}\" --side {side.value}")
+        print(f'  uv run debate card-import {temp_file} "{resolution}" --side {side.value}')
         return []
 
 
@@ -963,8 +977,8 @@ def build_prep_state_from_debate_file(
         # Old structure
         sections = debate_file.get_sections_for_side(side)
         for section in sections:
-            cards = [debate_file.get_card(cid) for cid in section.card_ids if debate_file.get_card(cid)]
-            evidence_types = {c.evidence_type for c in cards if c and c.evidence_type}
+            cards = [c for cid in section.card_ids if (c := debate_file.get_card(cid)) is not None]
+            evidence_types = {c.evidence_type for c in cards if c.evidence_type}
 
             state.update_argument(section.argument, len(cards), evidence_types)
 

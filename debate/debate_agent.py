@@ -22,7 +22,6 @@ from debate.models import (
     Side,
 )
 from debate.research_agent import research_evidence as _research_evidence
-from debate.research_agent import research_evidence_efficient as _research_evidence_efficient
 
 
 def load_prompt_template(name: str) -> str:
@@ -490,7 +489,18 @@ Generate a strategic crossfire question (1-2 sentences) that:
                             "description": "Type of evidence",
                         },
                     },
-                    "required": ["fetch_id", "start_phrase", "end_phrase", "tag", "argument", "purpose", "author", "credentials", "year", "source"],
+                    "required": [
+                        "fetch_id",
+                        "start_phrase",
+                        "end_phrase",
+                        "tag",
+                        "argument",
+                        "purpose",
+                        "author",
+                        "credentials",
+                        "year",
+                        "source",
+                    ],
                 },
             },
             {
@@ -675,8 +685,7 @@ Example:
 Need: warrants for each link, strong impact evidence
 
 Keep it SHORT (max 10 lines). Map the tree, then identify evidence needs.""",
-
-            "breadcrumb_followup": f"""Based on new evidence{f' about {subject}' if subject else ''}, identify NEW BRANCHES on the argument tree:
+            "breadcrumb_followup": f"""Based on new evidence{f" about {subject}" if subject else ""}, identify NEW BRANCHES on the argument tree:
 
 Format as brief bullet points:
 - What evidence mentions (citations, related cases, follow-up targets)
@@ -799,6 +808,7 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
     def _search_skill(self, query: str, num_results: int = 5) -> dict:
         """Execute web search and return formatted results."""
         import time
+
         from debate.research_agent import _brave_search
 
         print(f"  Searching for: {query[:70]}...")
@@ -829,8 +839,9 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
 
         Stores the text internally and returns a fetch_id for reference.
         """
-        import trafilatura
         import uuid
+
+        import trafilatura
 
         print(f"  Fetching: {url[:60]}...")
 
@@ -971,7 +982,11 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
         flat_file, is_new = get_or_create_flat_debate_file(self.resolution)
 
         # Determine if this is an answer based on purpose or argument name
-        is_answer = purpose.lower() == "answer" or argument.lower().startswith("at:") or argument.lower().startswith("opponent claim:")
+        is_answer = (
+            purpose.lower() == "answer"
+            or argument.lower().startswith("at:")
+            or argument.lower().startswith("opponent claim:")
+        )
         answers_to = None
         argument_title = argument
 
@@ -1029,16 +1044,16 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
         # Add to prep file if available
         if self.prep_file:
             # Check if argument already exists in prep
-            existing_arg = None
+            existing_prep_arg: ArgumentPrep | None = None
             for arg in self.prep_file.arguments:
                 if arg.claim == argument:
-                    existing_arg = arg
+                    existing_prep_arg = arg
                     break
 
-            if existing_arg:
+            if existing_prep_arg:
                 # Add card ID reference (note: flat structure doesn't use IDs the same way)
                 # Just track that we added a card
-                existing_arg.source_summary += f", {source} ({year})"
+                existing_prep_arg.source_summary += f", {source} ({year})"
             else:
                 # Create new argument in prep
                 new_arg = ArgumentPrep(

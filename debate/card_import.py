@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     try:
         paths = import_card(temp_file, resolution, side, copy_to)
-        print(f"\n✓ Card imported successfully:")
+        print("\n✓ Card imported successfully:")
         for path in paths:
             print(f"  - {path}")
     except Exception as e:
