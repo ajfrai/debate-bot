@@ -32,6 +32,38 @@ Each card must be organized for its **strategic value**. Cards fall into these c
 3. **extension** - Additional warrants to STRENGTHEN an existing argument
 4. **impact** - Evidence showing WHY something matters (magnitude, timeframe, probability)
 
+## CRITICAL: Semantic Grouping by Claim
+
+When cutting multiple cards, **group semantically similar cards together**. Cards that prove the SAME POINT should share the same `argument` value.
+
+**Semantic grouping examples:**
+- Cards 1, 2, 3 all prove: "TikTok ban eliminates 100k+ creator jobs" → use this as `argument`
+- Cards 4, 5 both prove: "Creator economy loses $2B+ annual revenue" → use this as `argument`
+- NOT: "economic impact", "job losses", "revenue" (too vague)
+
+**How to group when cutting multiple cards:**
+1. Cut all cards first
+2. Analyze what each card actually PROVES (the specific warrant)
+3. Cards that prove the same point get the same `argument` value
+4. These will be grouped together under one heading-2 in the final markdown
+
+**Example:**
+```
+If researching "creator economy impact" and you cut 5 cards:
+- Cards from Smith, Jones, Brown all show job losses → argument: "TikTok ban eliminates 100k+ creator jobs"
+- Cards from Davis, Wilson show revenue loss → argument: "Creator economy loses $2B+ annual revenue"
+
+In markdown output, these will appear as:
+## TikTok ban eliminates 100k+ creator jobs
+1. Smith '24
+2. Jones '25
+3. Brown '24
+
+## Creator economy loses $2B+ annual revenue
+1. Davis '24
+2. Wilson '25
+```
+
 ## CRITICAL: Specific Argument Headers
 
 **DO NOT use vague topic headers.** The `argument` field must state the SPECIFIC CLAIM, not a general topic.
@@ -114,7 +146,7 @@ Return a JSON object:
       "tag": "TikTok ban eliminates 100,000 creator jobs",
       "purpose": "Concrete job loss number to outweigh vague security benefits",
       "section_type": "support",
-      "argument": "TikTok ban destroys creator economy livelihoods",
+      "argument": "TikTok ban eliminates 100k+ creator jobs",
       "author": "Jane Smith",
       "credentials": "Professor of Economics at MIT",
       "year": "2024",
@@ -122,6 +154,19 @@ Return a JSON object:
       "url": "https://example.com/article",
       "evidence_type": "statistical",
       "text": "The proposed TikTok ban would **eliminate over 100,000 jobs in the creator economy** and disrupt supply chains. Analysis shows **direct GDP impact of $2-4 billion annually**, with cascading effects on digital advertising markets."
+    }},
+    {{
+      "tag": "Creator economy generates $4 billion in annual economic value",
+      "purpose": "Quantify economic magnitude of what would be lost",
+      "section_type": "support",
+      "argument": "TikTok ban eliminates 100k+ creator jobs",
+      "author": "Mary Johnson",
+      "credentials": "Economist at Stanford",
+      "year": "2024",
+      "source": "Economic Impact Study",
+      "url": "https://example.com/report",
+      "evidence_type": "statistical",
+      "text": "The creator economy supported by TikTok **generates over $4 billion annually** and supports diverse creators across all demographics. **Eliminating this economic activity** would reduce opportunities for hundreds of thousands of workers."
     }},
     {{
       "tag": "No verified evidence of Chinese data access",
@@ -140,6 +185,8 @@ Return a JSON object:
 }}
 ```
 
+**Note:** The `argument` field becomes the **semantic grouping heading** in the final markdown. Cards with the same `argument` value will be grouped together under one heading-2, so semantic grouping happens automatically when cards are saved.
+
 ## Important Notes
 
 - Cut {num_cards} cards total
@@ -148,9 +195,12 @@ Return a JSON object:
 - **Tags must state what the card PROVES, not just a topic**
 - **Purpose must explain strategic use in one sentence**
 - **evidence_type is REQUIRED** - classify each card accurately
+- **GROUP CARDS SEMANTICALLY**: Cards proving the same point must share the same `argument` value
+  - This ensures cards are grouped under the same heading-2 in the markdown output
+  - Analyze each card's actual warrant before assigning `argument` values
 - Bold 20-40% of each quote (the key warrants)
 - Include full author credentials for verification
 - **Seek evidence diversity**: aim for mix of statistical, analytical, and other types
 - **Avoid duplication**: check existing coverage section above for what's already researched
 
-Now research and cut {num_cards} evidence cards with SPECIFIC argument headers and evidence types.
+Now research and cut {num_cards} evidence cards with SPECIFIC argument headers, semantic grouping, and evidence types.

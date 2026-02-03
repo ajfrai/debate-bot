@@ -721,13 +721,14 @@ def convert_to_flat_structure(old_file: DebateFile) -> FlatDebateFile:
 
             arg_file = arg_map[arg_key]
 
-            # Add cards to claims
+            # Add cards to semantic groups
             for card_id in section.card_ids:
                 card = old_file.get_card(card_id)
                 if card:
-                    # Use card tag as claim
-                    claim = arg_file.find_or_create_claim(card.tag)
-                    claim.add_card(card)
+                    # Use card's semantic_category if available, otherwise fall back to tag
+                    category = card.semantic_category if card.semantic_category else card.tag
+                    semantic_group = arg_file.find_or_create_semantic_group(category)
+                    semantic_group.add_card(card)
 
         for arg_file in arg_map.values():
             flat.add_argument(side, arg_file)
