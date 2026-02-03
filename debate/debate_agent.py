@@ -554,7 +554,7 @@ Generate a strategic crossfire question (1-2 sentences) that:
         }
 
     def _run_analysis(self, analysis_type: str, subject: str | None = None) -> str:
-        """Run a specific analysis type using LLM."""
+        """Run a specific analysis type using LLM with streaming output."""
         # Build prompt based on analysis type
         prompts = {
             "enumerate_arguments": f"""List all possible arguments for both sides of: {self.resolution}
@@ -644,15 +644,20 @@ What's the through-line?""",
 
         prompt = prompts.get(analysis_type, f"Perform {analysis_type} analysis for {self.resolution}")
 
-        # Call LLM
-        response = self.client.messages.create(
+        # Stream the response for user feedback
+        print(f"\n  Analyzing ({analysis_type})...\n")
+        response_text = ""
+        with self.client.messages.stream(
             model="claude-sonnet-4-5",
-            max_tokens=2048,
+            max_tokens=1024,  # Strict limit for cost control
             messages=[{"role": "user", "content": prompt}],
-        )
+        ) as stream:
+            for text in stream.text_stream:
+                print(text, end="", flush=True)
+                response_text += text
+        print("\n")
 
-        first_block = response.content[0]
-        return first_block.text if hasattr(first_block, "text") else str(first_block)
+        return response_text
 
     def _research_skill(self, topic: str, purpose: str, num_cards: int = 3, stream: bool = True) -> dict:
         """Execute research skill: backfiles first, then web search, organize immediately."""
