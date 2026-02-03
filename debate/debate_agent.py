@@ -374,12 +374,20 @@ Generate a strategic crossfire question (1-2 sentences) that:
                         "analysis_type": {
                             "type": "string",
                             "enum": [
+                                # Exploration
                                 "enumerate_arguments",
+                                "adversarial_brainstorm",
+                                "find_novel_angles",
+                                "identify_uncertainty",
+                                # Exploitation
                                 "brainstorm_rebuttals",
                                 "analyze_source",
+                                "extend_argument",
+                                "build_block",
+                                "synthesize_evidence",
+                                # Strategic
                                 "map_clash",
                                 "identify_framework",
-                                "synthesize_evidence",
                             ],
                             "description": "Type of systematic analysis to perform",
                         },
@@ -526,13 +534,8 @@ Generate a strategic crossfire question (1-2 sentences) that:
         """Execute an analysis skill."""
         analysis_enum = AnalysisType(analysis_type)
 
-        # TODO: Implement each analysis type with specific prompts
-        # For now, return placeholder
-        output = f"[Analysis of type {analysis_type} would be performed here]"
-
-        if analysis_type == "enumerate_arguments":
-            output = self._enumerate_arguments()
-        # Add other analysis types...
+        # Route to specific analysis implementation
+        output = self._run_analysis(analysis_type, subject)
 
         result = AnalysisResult(
             analysis_type=analysis_enum,
@@ -550,11 +553,106 @@ Generate a strategic crossfire question (1-2 sentences) that:
             "status": "completed",
         }
 
-    def _enumerate_arguments(self) -> str:
-        """Systematically enumerate all possible arguments."""
-        # TODO: Load prompt template and call LLM
-        # For now, return placeholder
-        return "PRO arguments: 1. Security, 2. Privacy, 3. Democracy\nCON arguments: 1. Economy, 2. Free speech, 3. Innovation"
+    def _run_analysis(self, analysis_type: str, subject: str | None = None) -> str:
+        """Run a specific analysis type using LLM."""
+        # Build prompt based on analysis type
+        prompts = {
+            "enumerate_arguments": f"""List all possible arguments for both sides of: {self.resolution}
+
+For each side (PRO and CON), identify:
+- 3-5 main contentions
+- Key warrants for each
+- Potential weaknesses
+
+Format as a structured list.""",
+
+            "adversarial_brainstorm": f"""You are prepping {self.side.opposite.value.upper()} against: {self.resolution}
+
+What is the STRONGEST case the opponent could run?
+- What are their best 2-3 arguments?
+- What evidence would they likely have?
+- What are the hardest attacks you'd face?
+
+Think like a skilled opponent.""",
+
+            "find_novel_angles": f"""Find unusual or creative angles for {self.side.value.upper()} on: {self.resolution}
+
+Consider:
+- Alternative frameworks (rights, util, precedent, etc.)
+- Edge cases or unusual applications
+- Counterintuitive arguments
+- Novel impact scenarios
+
+What arguments might opponents NOT expect?""",
+
+            "identify_uncertainty": f"""Analyze gaps in current prep for {self.side.value.upper()} on: {self.resolution}
+
+What claims lack evidence?
+What arguments are under-developed?
+Where are we vulnerable to attack?
+What do we need to research next?""",
+
+            "brainstorm_rebuttals": f"""Generate 3-5 different ways to answer: {subject or 'opponent argument'}
+
+For each rebuttal strategy:
+- State the response approach
+- Identify what evidence would support it
+- Note strengths and weaknesses""",
+
+            "extend_argument": f"""Find additional warrants and angles for: {subject or 'the argument'}
+
+What other reasons support this claim?
+What different types of evidence could back it?
+How can we make this argument stronger?""",
+
+            "build_block": f"""Build a comprehensive block against: {subject or 'opponent argument'}
+
+Include:
+1. Initial response (deny/mitigate/turn)
+2. 2-3 independent answers
+3. Evidence needs for each
+4. Strategic notes on when to deploy""",
+
+            "map_clash": f"""Map where {self.side.value.upper()} clashes with opponent on: {self.resolution}
+
+For each clash point:
+- What's our argument?
+- What's their likely response?
+- Who wins and why?
+- What evidence decides it?""",
+
+            "identify_framework": f"""Determine the best weighing framework for {self.side.value.upper()} on: {self.resolution}
+
+What values/criteria should the judge prioritize?
+Why does our framework favor our side?
+How do we win the framework debate?""",
+
+            "analyze_source": f"""Analyze the evidence: {subject or 'the card'}
+
+Line-by-line:
+- What warrants does it provide?
+- What are its strengths?
+- What are its limitations?
+- How should it be deployed?""",
+
+            "synthesize_evidence": f"""Connect these cards into a coherent narrative: {subject or 'the evidence'}
+
+How do they work together?
+What story do they tell?
+What's the through-line?""",
+        }
+
+        prompt = prompts.get(analysis_type, f"Perform {analysis_type} analysis for {self.resolution}")
+
+        # Call LLM
+        response = self.client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        first_block = response.content[0]
+        return first_block.text if hasattr(first_block, "text") else str(first_block)
 
     def _research_skill(self, topic: str, purpose: str, num_cards: int = 3, stream: bool = True) -> dict:
         """Execute research skill: backfiles first, then web search, organize immediately."""
