@@ -167,6 +167,79 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
    - Only reads bolded portions in speeches (like real debate cards)
    - **Streams tokens in real-time** for immediate feedback
 
+### Two Card-Cutting Workflows
+
+#### 1. Autonomous Prep (Fully Automated)
+
+**Use when:** Running `debate prep` for agent-driven research
+
+The `research()` tool automatically:
+- Checks existing debate files for relevant evidence
+- Searches Brave API for new sources (3s pause between searches)
+- Extracts and formats evidence cards with proper citations
+- Organizes cards by strategic purpose (support/answer/extension/impact)
+- Tracks everything in PrepFile
+
+**No manual intervention needed.** The agent manages the entire research workflow during autonomous prep.
+
+#### 2. Manual Card-Cutting (Token-Efficient)
+
+**Use when:** You want manual oversight and token efficiency
+
+**Problem**: Having LLM regenerate full card text during extraction is expensive.
+
+**Solution - Token-Efficient Manual Workflow**:
+
+1. **Capture raw source** (Bash)
+   ```bash
+   cat > evidence/temp/raw_source_001.txt <<'EOF'
+   [paste full text from Brave search result]
+   EOF
+   ```
+
+2. **Mark up the card** (Edit tool or text editor)
+   - Bold key warrants: `**like this**`
+   - Add metadata at top:
+     ```
+     TAG: India TikTok ban removed 100M users effectively
+     CITE: Kumar & Thussu '23, Media scholars at Amsterdam/Westminster
+     AUTHOR: Anilesh Kumar and Daya Thussu
+     YEAR: 2023
+     SECTION: answer,support
+     ARGUMENT: TikTok bans are effective at removing platform access
+     URL: https://journals.sagepub.com/...
+     ```
+   - Mark extract region:
+     ```
+     >>> START
+     India's 2020 ban on **TikTok** and 58 other Chinese apps **successfully removed the platform from access for over 100 million active users within weeks**. The ban **demonstrated effective enforcement through ISP-level blocking and app store removal**, setting a precedent for how democratic nations can successfully execute platform bans.
+     <<< END
+     ```
+
+3. **Import card** (CLI command)
+   ```bash
+   uv run debate card-import evidence/temp/raw_source_001.txt "Resolved: The US should ban TikTok" --side pro
+   ```
+   - Script reads metadata from marked-up file
+   - Extracts text between `>>> START` and `<<< END` markers
+   - Generates proper card markdown format
+   - Places in correct evidence directory based on SECTION/ARGUMENT metadata
+
+**Multiple Destinations:**
+
+Cards can be placed in multiple sections by:
+- **Comma-separated SECTION field**: `SECTION: answer,support,extension`
+- **--copy-to flag**: `--copy-to impact,extension`
+
+This allows cards to serve multiple purposes (e.g., rebuts opponent AND supports your claim).
+
+**Benefits**:
+- LLM doesn't regenerate text (saves tokens)
+- Edit tool is precise (no hallucination risk)
+- Bash commands are cheap
+- Script handles file organization (no LLM JSON generation)
+- Can reuse same source for multiple cards by editing different sections
+
 ### Cost Optimization
 
 - Research agent uses **Claude Haiku** (cheapest model) for card cutting

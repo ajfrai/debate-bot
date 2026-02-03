@@ -8,6 +8,7 @@ This module provides cost-effective evidence research by:
 
 import json
 import os
+import time
 
 import anthropic
 import requests
@@ -62,12 +63,13 @@ def load_lessons(*lesson_names: str) -> str:
     return "\n\n---\n\n".join(lessons)
 
 
-def _brave_search(query: str, num_results: int = 5) -> str | None:
-    """Search Brave for relevant sources.
+def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = True) -> str | None:
+    """Search Brave for relevant sources with rate limiting support.
 
     Args:
         query: Search query
         num_results: Number of results to fetch (default 5)
+        retry_on_rate_limit: Whether to retry on 429 rate limit (default True)
 
     Returns:
         Formatted search results as a string, or None if search fails
@@ -77,40 +79,55 @@ def _brave_search(query: str, num_results: int = 5) -> str | None:
     if not api_key:
         return None
 
-    try:
-        headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
-        params = {"q": query, "count": num_results}
+    max_retries = 2  # Retry up to 2 times on rate limit
+    retry_count = 0
 
-        response = requests.get(
-            "https://api.search.brave.com/res/v1/web/search",
-            headers=headers,
-            params=params,
-            timeout=10,
-        )
+    while retry_count <= max_retries:
+        try:
+            headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
+            params = {"q": query, "count": num_results}
 
-        if response.status_code != 200:
-            print(f"Warning: Brave Search returned status {response.status_code}")
+            response = requests.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+
+            # Handle rate limiting (429)
+            if response.status_code == 429 and retry_on_rate_limit and retry_count < max_retries:
+                print(f"  Rate limited (429), waiting 10s before retry...")
+                time.sleep(10)
+                retry_count += 1
+                continue
+
+            if response.status_code != 200:
+                print(f"Warning: Brave Search returned status {response.status_code}")
+                return None
+
+            data = response.json()
+            results = data.get("web", {}).get("results", [])
+
+            if not results:
+                return None
+
+            # Format results for the prompt
+            formatted = ["## Search Results\n"]
+            for i, result in enumerate(results, 1):
+                formatted.append(f"{i}. **{result.get('title', 'No title')}**")
+                formatted.append(f"   URL: {result.get('url', 'No URL')}")
+                formatted.append(f"   Description: {result.get('description', 'No description')}")
+                formatted.append("")
+
+            return "\n".join(formatted)
+
+        except Exception as e:
+            print(f"Warning: Brave Search failed: {e}")
             return None
 
-        data = response.json()
-        results = data.get("web", {}).get("results", [])
-
-        if not results:
-            return None
-
-        # Format results for the prompt
-        formatted = ["## Search Results\n"]
-        for i, result in enumerate(results, 1):
-            formatted.append(f"{i}. **{result.get('title', 'No title')}**")
-            formatted.append(f"   URL: {result.get('url', 'No URL')}")
-            formatted.append(f"   Description: {result.get('description', 'No description')}")
-            formatted.append("")
-
-        return "\n".join(formatted)
-
-    except Exception as e:
-        print(f"Warning: Brave Search failed: {e}")
-        return None
+    # If we exhausted retries
+    print("  Rate limit retries exhausted")
+    return None
 
 
 def _extract_json_from_text(text: str) -> dict:
@@ -421,21 +438,26 @@ def research_evidence(
 
         # Generate diverse queries
         queries = generate_research_queries(resolution, topic, side, existing_cards)
-        print(f"Executing {len(queries)} search strategies...")
 
-        # Run multiple searches and combine results
-        all_results = []
-        for q in queries[:4]:  # Limit to 4 queries to control API usage
-            print(f"  [{q['strategy'].value}] {q['query'][:50]}...")
-            result = _brave_search(q["query"], num_results=3)
+        # USE SINGLE SEARCH STRATEGY to avoid rate limiting
+        # Pick the most relevant strategy for the purpose
+        if queries:
+            q = queries[0]  # Use first (most relevant) strategy only
+            print(f"Executing search strategy: [{q['strategy'].value}]")
+            print(f"  Query: {q['query'][:70]}...")
+
+            # Add 3-second pause to avoid rate limiting
+            time.sleep(3)
+
+            result = _brave_search(q["query"], num_results=5)
             if result:
-                all_results.append(f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}")
-
-        if all_results:
-            search_results = "\n\n".join(all_results)
-            print(f"✓ Found results from {len(all_results)} search strategies")
+                search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
+                print(f"✓ Found results from search")
+            else:
+                print("⚠ No search results, using Claude's knowledge base")
+                search_results = "(No search results available - use your knowledge base)"
         else:
-            print("⚠ No search results, using Claude's knowledge base")
+            print("⚠ No search queries generated, using Claude's knowledge base")
             search_results = "(No search results available - use your knowledge base)"
     else:
         # Single query mode (legacy)
@@ -443,6 +465,10 @@ def research_evidence(
             search_query = f"{resolution} {topic} {side.value}"
 
         print("Searching Brave for relevant sources...")
+
+        # Add 3-second pause to avoid rate limiting
+        time.sleep(3)
+
         search_results = _brave_search(search_query, num_results=5)
 
         if search_results:
@@ -569,6 +595,168 @@ def research_evidence(
 
     except (json.JSONDecodeError, KeyError) as e:
         raise ValueError(f"Failed to parse research response: {e}\n\nResponse:\n{response_text}") from e
+
+
+def research_evidence_efficient(
+    resolution: str,
+    side: Side,
+    topic: str,
+    purpose: SectionType,
+    argument: str | None = None,
+    num_cards: int = 1,
+    search_query: str | None = None,
+) -> list[str]:
+    """Token-efficient research using card_import workflow.
+
+    This workflow:
+    1. Searches Brave for sources
+    2. Saves raw results to temp file
+    3. Asks LLM to mark up (add metadata + bold key warrants)
+    4. Uses card_import to place card
+
+    More token-efficient than full card extraction.
+
+    Args:
+        resolution: Debate resolution
+        side: Which side (PRO/CON)
+        topic: Research topic
+        purpose: Section type (support, answer, extension, impact)
+        argument: Specific argument this card addresses (defaults to topic if not provided)
+        num_cards: Number of cards to cut (default 1)
+        search_query: Optional custom search query
+
+    Returns:
+        List of file paths where cards were placed
+    """
+    import datetime
+    from debate.card_import import import_card
+
+    # Default argument to topic if not provided
+    if not argument:
+        argument = topic
+
+    # Load existing debate file
+    debate_file = get_or_create_debate_file(resolution)
+    is_new = debate_file[1]
+    debate_file = debate_file[0]
+
+    # Search Brave
+    if not search_query:
+        search_query = f"{resolution} {topic} {side.value}"
+
+    print(f"Searching for: {topic}")
+    print(f"  Query: {search_query[:70]}...")
+
+    # Add 3-second pause to avoid rate limiting
+    time.sleep(3)
+
+    search_results = _brave_search(search_query, num_results=5)
+
+    if not search_results:
+        print("⚠ No search results available")
+        return []
+
+    print("✓ Found search results")
+
+    # Create temp directory
+    temp_dir = Path("evidence/temp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save raw results to temp file
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    temp_file = temp_dir / f"raw_{side.value}_{timestamp}.txt"
+    temp_file.write_text(search_results)
+
+    # Ask LLM to mark up the text (smaller task than full extraction)
+    print("Marking up evidence...")
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    config = Config()
+    model = config.get_agent_model("research")
+
+    markup_prompt = f"""You are marking up a source document for debate evidence.
+
+**Task**: Add metadata and bold key warrants in the text below.
+
+**Resolution**: {resolution}
+**Side**: {side.value.upper()}
+**Topic**: {topic}
+**Purpose**: {purpose.value}
+**Argument**: {argument}
+
+**Source Text**:
+{search_results}
+
+**Instructions**:
+1. Choose the BEST 1-2 paragraph excerpt that supports "{argument}"
+2. Add metadata header:
+   TAG: [what the card proves, 5-10 words]
+   CITE: [author last name year, credentials]
+   AUTHOR: [full author name]
+   YEAR: [publication year]
+   SECTION: {purpose.value}
+   ARGUMENT: {argument}
+   URL: [source URL]
+
+3. Add >>> START before the excerpt
+4. Bold key warrants using **text**
+5. Add <<< END after the excerpt
+
+**Output Format**:
+TAG: Card tag line
+CITE: Author '24, Credentials
+AUTHOR: Full Author Name
+YEAR: 2024
+SECTION: {purpose.value}
+ARGUMENT: {argument}
+URL: https://...
+
+>>> START
+Excerpt text with **key warrants bolded** like this. The **most important claims** should be **bolded** for emphasis.
+<<< END
+
+Output ONLY the marked-up card. Do not include explanations."""
+
+    # Get markup from LLM (streaming)
+    print("  Extracting and marking up...")
+    response_text = ""
+    with client.messages.stream(
+        model=model,
+        max_tokens=1024,  # Smaller than full extraction
+        messages=[{"role": "user", "content": markup_prompt}],
+    ) as stream:
+        for text in stream.text_stream:
+            response_text += text
+
+    # Save marked-up text
+    temp_file.write_text(response_text)
+    print(f"  Saved to {temp_file}")
+
+    # Import using card_import
+    try:
+        paths = import_card(
+            temp_file_path=str(temp_file),
+            resolution=resolution,
+            side=side,
+        )
+
+        print(f"✓ Imported {len(paths)} card(s):")
+        for path in paths:
+            print(f"  - {Path(path).relative_to('evidence')}")
+
+        return paths
+
+    except Exception as e:
+        print(f"✗ Failed to import card: {e}")
+        print(f"  Marked-up file saved at: {temp_file}")
+        print("  You can manually review and fix the format, then run:")
+        print(f"  uv run debate card-import {temp_file} \"{resolution}\" --side {side.value}")
+        return []
 
 
 def research_evidence_legacy(

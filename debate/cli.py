@@ -5,6 +5,7 @@ import sys
 
 from rich.console import Console
 
+from debate.card_import import import_card
 from debate.case_generator import generate_case
 from debate.debate_agent import DebateAgent
 from debate.evidence_storage import (
@@ -366,6 +367,54 @@ def cmd_validate(args) -> None:
     sys.exit(0 if validation_result.is_valid else 1)
 
 
+def cmd_card_import(args) -> None:
+    """Import a marked-up temp file as an evidence card."""
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    # Parse copy-to sections
+    copy_to = None
+    if args.copy_to:
+        copy_to = [s.strip() for s in args.copy_to.split(",")]
+
+    try:
+        paths = import_card(
+            temp_file_path=args.temp_file,
+            resolution=args.resolution,
+            side=side,
+            copy_to=copy_to,
+        )
+
+        print("\n✓ Card imported successfully:")
+        for path in paths:
+            print(f"  - {path}")
+        print()
+
+    except FileNotFoundError as e:
+        print(f"\n✗ Error: {e}\n", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"\n✗ Invalid card format: {e}\n", file=sys.stderr)
+        print("Expected format:")
+        print("  TAG: Card tag line")
+        print("  CITE: Short citation")
+        print("  AUTHOR: Full author name")
+        print("  YEAR: Publication year")
+        print("  SECTION: support/answer/extension/impact (comma-separated for multiple)")
+        print("  ARGUMENT: Specific argument this addresses")
+        print("  URL: Source URL")
+        print("  >>> START")
+        print("  Card text with **bold** warrants")
+        print("  <<< END")
+        print()
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n✗ Unexpected error: {e}\n", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_prep(args) -> None:
     """Run autonomous debate prep."""
     side = Side.PRO if args.side == "pro" else Side.CON
@@ -566,6 +615,36 @@ def main() -> None:
         help="File containing speech text (reads from stdin if not provided)",
     )
     validate_parser.set_defaults(func=cmd_validate)
+
+    # Card import command
+    card_import_parser = subparsers.add_parser(
+        "card-import",
+        help="Import a marked-up temp file as an evidence card",
+        aliases=["import"],
+    )
+    card_import_parser.add_argument(
+        "temp_file",
+        type=str,
+        help="Path to marked-up temp file",
+    )
+    card_import_parser.add_argument(
+        "resolution",
+        type=str,
+        help="The debate resolution",
+    )
+    card_import_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side the evidence supports",
+    )
+    card_import_parser.add_argument(
+        "--copy-to",
+        type=str,
+        help="Comma-separated list of additional sections to copy card to (e.g., 'answer,extension')",
+    )
+    card_import_parser.set_defaults(func=cmd_card_import)
 
     # Parse args
     args = parser.parse_args()
