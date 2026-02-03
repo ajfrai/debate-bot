@@ -74,6 +74,7 @@ uv run debate evidence tiktok
 - `debate/judge_agent.py` - AI judge that evaluates rounds and provides decisions with feedback
 - `debate/round_controller.py` - Manages debate flow, speech order, and user interaction
 - `debate/research_agent.py` - Research agent for cutting evidence cards (uses Haiku for cost efficiency)
+- `debate/article_fetcher.py` - Article fetching with paywall detection, PDF support, and retry logic
 - `debate/evidence_storage.py` - Save/load debate files as directories per resolution
 - `debate/prompts/` - Prompt templates (Markdown files)
 - `lessons/` - Accumulated lessons for agent improvement (research, strategy, organization)
@@ -161,22 +162,64 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
 
 ### Workflow
 
-1. **Autonomous prep**: Use `debate prep` to run agent-driven research
+1. **Research with full text**: Use `debate research` to cut evidence cards
+   - Searches Brave API for relevant sources
+   - **Automatically fetches full article text** from top 2 URLs
+   - Supports both web articles (via trafilatura) and PDFs (via pypdf)
+   - **Paywall detection and retry**: If paywalled, searches for free alternatives
+   - Claude receives full article text for accurate card cutting
+   - **Streams tokens in real-time** so you can see progress
+
+2. **Autonomous prep**: Use `debate prep` to run agent-driven research (future)
    - Agent uses **Edit-style workflow** (no text regeneration)
    - Searches Brave API, fetches articles, marks warrants programmatically
    - Saves cards to argument-based files
    - **Streams tokens in real-time** so you can see progress
 
-2. **Store in debate files**: Evidence is saved to resolution directories in `evidence/`
+3. **Store in debate files**: Evidence is saved to resolution directories in `evidence/`
    - One directory per resolution containing all PRO and CON evidence
    - Each argument in its own file with numbered cards
    - Markdown INDEX.md provides navigable table of contents
 
-3. **Generate with evidence**: Use `debate generate --with-evidence` to create cases
+4. **Generate with evidence**: Use `debate generate --with-evidence` to create cases
    - Case generator loads the debate file for the resolution
    - Debate agent cites real evidence with credentials and direct quotes
    - Only reads bolded portions in speeches (like real debate cards)
    - **Streams tokens in real-time** for immediate feedback
+
+### Article Fetching Features
+
+The research agent now includes robust article fetching:
+
+**Web Articles:**
+- Uses trafilatura to extract clean text from HTML
+- Handles various article formats and layouts
+- Extracts article titles and metadata
+
+**PDF Support:**
+- Downloads and extracts text from PDF documents
+- Handles multi-page PDFs
+- Extracts PDF metadata (titles, authors)
+
+**Paywall Detection & Retry:**
+- Detects paywalls using heuristics (short text, paywall indicators, known domains)
+- Automatically searches Brave for free alternatives
+- Retries once with alternative URL if found
+- Skips source if no free version available
+
+**Rate Limiting:**
+- 3-second pause between searches to avoid rate limits
+- 2-second pause between article fetches
+- HTTP 429 retry logic with 10-second wait
+- Caches fetched articles to avoid re-fetching
+
+**Example flow:**
+```
+Search → Find 5 URLs → Fetch top 2 articles →
+  If paywalled → Search for free version → Retry fetch →
+    If still paywalled → Skip source
+Claude receives full text → Cuts cards with direct quotes
+```
 
 ### Edit-Style Card Cutting (Token Efficient)
 

@@ -9,12 +9,14 @@ This module provides cost-effective evidence research by:
 import datetime
 import json
 import os
+import re
 import time
 from pathlib import Path
 
 import anthropic
 import requests
 
+from debate.article_fetcher import FetchedArticle, fetch_source
 from debate.config import Config
 from debate.evidence_storage import get_or_create_debate_file, save_debate_file
 from debate.models import (
@@ -130,6 +132,81 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
     # If we exhausted retries
     print("  Rate limit retries exhausted")
     return None
+
+
+def _extract_urls_from_search_results(search_results: str) -> list[str]:
+    """Extract URLs from formatted search results.
+
+    Args:
+        search_results: Formatted markdown search results from _brave_search
+
+    Returns:
+        List of URLs found in the search results
+    """
+    urls = []
+    # Match lines like "   URL: https://example.com"
+    pattern = r"URL:\s*(https?://[^\s]+)"
+    matches = re.finditer(pattern, search_results)
+    for match in matches:
+        urls.append(match.group(1))
+    return urls
+
+
+def _fetch_articles_from_search(
+    search_results: str,
+    max_articles: int = 2,
+    brave_api_key: str | None = None,
+) -> list[FetchedArticle]:
+    """Fetch full article text from search result URLs.
+
+    Args:
+        search_results: Formatted search results from _brave_search
+        max_articles: Maximum number of articles to fetch
+        brave_api_key: Brave API key for paywall retry
+
+    Returns:
+        List of successfully fetched articles
+    """
+    urls = _extract_urls_from_search_results(search_results)
+    fetched_articles = []
+
+    for url in urls[:max_articles]:
+        article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key)
+        if article:
+            fetched_articles.append(article)
+            # Brief pause between fetches
+            time.sleep(2)
+
+        # Stop if we have enough articles
+        if len(fetched_articles) >= max_articles:
+            break
+
+    return fetched_articles
+
+
+def _format_fetched_articles_for_prompt(articles: list[FetchedArticle]) -> str:
+    """Format fetched articles for inclusion in Claude prompt.
+
+    Args:
+        articles: List of fetched articles
+
+    Returns:
+        Formatted markdown string with article contents
+    """
+    if not articles:
+        return ""
+
+    sections = ["## Full Article Text\n"]
+    for i, article in enumerate(articles, 1):
+        sections.append(f"### Article {i}: {article.title or 'Untitled'}")
+        sections.append(f"**Source:** {article.url}")
+        sections.append(f"**Type:** {article.content_type.upper()}")
+        sections.append(f"**Word Count:** {article.word_count}")
+        sections.append("")
+        sections.append(article.full_text)
+        sections.append("\n---\n")
+
+    return "\n".join(sections)
 
 
 def _extract_json_from_text(text: str) -> dict:
@@ -468,6 +545,18 @@ def research_evidence(
             if result:
                 search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
                 print("✓ Found results from search")
+
+                # Fetch full article text from top results
+                brave_api_key = os.environ.get("BRAVE_API_KEY")
+                print("Fetching full article text from top sources...")
+                fetched_articles = _fetch_articles_from_search(result, max_articles=2, brave_api_key=brave_api_key)
+
+                if fetched_articles:
+                    print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
+                    article_text = _format_fetched_articles_for_prompt(fetched_articles)
+                    search_results = f"{search_results}\n\n{article_text}"
+                else:
+                    print("⚠ Could not fetch full article text")
             else:
                 print("⚠ No search results, using Claude's knowledge base")
                 search_results = "(No search results available - use your knowledge base)"
@@ -489,6 +578,18 @@ def research_evidence(
         if brave_results:
             search_results = brave_results
             print("✓ Found search results from Brave")
+
+            # Fetch full article text from top results
+            brave_api_key = os.environ.get("BRAVE_API_KEY")
+            print("Fetching full article text from top sources...")
+            fetched_articles = _fetch_articles_from_search(brave_results, max_articles=2, brave_api_key=brave_api_key)
+
+            if fetched_articles:
+                print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
+                article_text = _format_fetched_articles_for_prompt(fetched_articles)
+                search_results = f"{search_results}\n\n{article_text}"
+            else:
+                print("⚠ Could not fetch full article text")
         else:
             search_results = "(No search results available - use your knowledge base)"
             print("⚠ Brave Search unavailable, using Claude's knowledge base")
