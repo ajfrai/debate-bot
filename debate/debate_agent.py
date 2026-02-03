@@ -402,7 +402,7 @@ Generate a strategic crossfire question (1-2 sentences) that:
             },
             {
                 "name": "search",
-                "description": "Search for sources on a topic. Returns search results that you can then use to cut cards with the cut_card tool. Use this first, then call cut_card for each card you want to extract.",
+                "description": "Search for sources on a topic. Returns search results with descriptions. Use fetch_source to get full article text.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -420,8 +420,41 @@ Generate a strategic crossfire question (1-2 sentences) that:
                 },
             },
             {
+                "name": "fetch_source",
+                "description": "Fetch full article text from a URL. Returns the raw text that you can then mark up.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "URL of the article to fetch",
+                        },
+                    },
+                    "required": ["url"],
+                },
+            },
+            {
+                "name": "mark_warrants",
+                "description": "Mark key warrants in text by bolding specific phrases. Like using Edit tool on code - you specify which phrases to bold, and the tool adds ** markers programmatically. NEVER rewrite the text, just specify which exact phrases to bold.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The raw text to mark up (from fetch_source)",
+                        },
+                        "warrant_phrases": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of exact phrases to bold (will add **phrase** markers). Each phrase should be 3-15 words. Aim for 3-6 phrases covering 20-40% of text.",
+                        },
+                    },
+                    "required": ["text", "warrant_phrases"],
+                },
+            },
+            {
                 "name": "cut_card",
-                "description": "Cut an evidence card from source material. Call this after searching to extract specific cards from sources. The card will be automatically saved to the debate file.",
+                "description": "Save a cut card with marked-up text to the debate file. Call this after mark_warrants.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -460,7 +493,7 @@ Generate a strategic crossfire question (1-2 sentences) that:
                         },
                         "text": {
                             "type": "string",
-                            "description": "The quoted text with **key warrants bolded**. Bold 20-40% of text.",
+                            "description": "The marked-up text from mark_warrants (already has **bold** markers)",
                         },
                         "evidence_type": {
                             "type": "string",
@@ -542,6 +575,15 @@ Generate a strategic crossfire question (1-2 sentences) that:
                             result = self._search_skill(
                                 query=tool_input["query"],
                                 num_results=tool_input.get("num_results", 5),
+                            )
+                        elif tool_name == "fetch_source":
+                            result = self._fetch_source_skill(
+                                url=tool_input["url"],
+                            )
+                        elif tool_name == "mark_warrants":
+                            result = self._mark_warrants_skill(
+                                text=tool_input["text"],
+                                warrant_phrases=tool_input["warrant_phrases"],
                             )
                         elif tool_name == "cut_card":
                             result = self._cut_card_skill(
@@ -785,7 +827,7 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
                 "status": "success",
                 "query": query,
                 "results": search_results,
-                "message": "Search completed. Use cut_card tool to extract evidence from these sources.",
+                "message": "Search completed. Use fetch_source to get full article text from a URL.",
             }
         else:
             print("  ⚠ No search results")
@@ -794,6 +836,99 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
                 "query": query,
                 "message": "No search results found. Try a different query or use your knowledge base.",
             }
+
+    def _fetch_source_skill(self, url: str) -> dict:
+        """Fetch full article text from a URL using trafilatura."""
+        import trafilatura
+
+        print(f"  Fetching: {url[:60]}...")
+
+        try:
+            # Download and extract text
+            downloaded = trafilatura.fetch_url(url)
+            if not downloaded:
+                return {
+                    "status": "error",
+                    "message": f"Failed to download content from {url}",
+                }
+
+            # Extract main text content
+            text = trafilatura.extract(
+                downloaded,
+                include_comments=False,
+                include_tables=False,
+                no_fallback=False,
+            )
+
+            if not text:
+                return {
+                    "status": "error",
+                    "message": f"Could not extract text from {url}",
+                }
+
+            # Truncate if too long (keep first 3000 chars for token efficiency)
+            if len(text) > 3000:
+                text = text[:3000] + "\n\n[... truncated for length ...]"
+
+            print(f"  ✓ Fetched {len(text)} characters")
+
+            return {
+                "status": "success",
+                "url": url,
+                "text": text,
+                "message": "Article text fetched. Use mark_warrants to bold key phrases.",
+            }
+
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            return {
+                "status": "error",
+                "message": f"Error fetching {url}: {str(e)}",
+            }
+
+    def _mark_warrants_skill(self, text: str, warrant_phrases: list[str]) -> dict:
+        """Mark key warrants by bolding specific phrases in the text.
+
+        This is like using the Edit tool - we find exact phrases and add ** markers.
+        Never regenerate the text, just mark it up programmatically.
+        """
+        print(f"  Marking {len(warrant_phrases)} warrant phrases...")
+
+        marked_text = text
+        marked_count = 0
+
+        # Bold each phrase (in order, to avoid position shifts)
+        # We need to be careful about already-bolded text
+        for phrase in warrant_phrases:
+            if phrase in marked_text:
+                # Only bold if not already bolded
+                if f"**{phrase}**" not in marked_text:
+                    marked_text = marked_text.replace(phrase, f"**{phrase}**", 1)
+                    marked_count += 1
+                    print(f"    ✓ Bolded: {phrase[:50]}...")
+            else:
+                print(f"    ⚠ Phrase not found: {phrase[:50]}...")
+
+        if marked_count == 0:
+            return {
+                "status": "error",
+                "message": "No phrases were found in the text. Make sure phrases are exact matches.",
+            }
+
+        # Calculate how much is bolded
+        bold_chars = sum(len(p) for p in warrant_phrases if p in text)
+        total_chars = len(text)
+        bold_pct = (bold_chars / total_chars * 100) if total_chars > 0 else 0
+
+        print(f"  ✓ Marked {marked_count}/{len(warrant_phrases)} phrases (~{bold_pct:.0f}% of text)")
+
+        return {
+            "status": "success",
+            "marked_text": marked_text,
+            "phrases_marked": marked_count,
+            "bold_percentage": bold_pct,
+            "message": f"Marked {marked_count} phrases. Use cut_card to save this card.",
+        }
 
     def _cut_card_skill(
         self,
