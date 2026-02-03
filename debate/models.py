@@ -647,6 +647,64 @@ class FlatDebateFile(BaseModel):
             cards.extend(arg.get_all_cards())
         return cards
 
+    def render_full_file(self) -> str:
+        """Render the complete flat debate file as markdown."""
+        lines = [f"# {self.resolution}", "", ""]
+
+        def render_arguments(arguments: list[ArgumentFile], side_label: str):
+            if not arguments:
+                return
+            lines.append(f"## {side_label}")
+            lines.append("")
+
+            # Separate regular arguments and answers
+            regular_args = [a for a in arguments if not a.is_answer]
+            answer_args = [a for a in arguments if a.is_answer]
+
+            if regular_args:
+                lines.append("### Arguments")
+                lines.append("")
+                for arg in regular_args:
+                    total_cards = sum(len(claim.cards) for claim in arg.claims)
+                    lines.append(f"**{arg.title}** ({total_cards} cards)")
+                    lines.append("")
+                    if arg.purpose:
+                        lines.append(f"*{arg.purpose}*")
+                        lines.append("")
+                    for claim in arg.claims:
+                        lines.append(f"#### {claim.claim}")
+                        lines.append("")
+                        for i, card in enumerate(claim.cards, 1):
+                            lines.append(f"**Card {i}:** {card.tag}")
+                            lines.append("")
+                            lines.append(card.format_full())
+                            lines.append("")
+                    lines.append("---")
+                    lines.append("")
+
+            if answer_args:
+                lines.append("### Answers (AT)")
+                lines.append("")
+                for arg in answer_args:
+                    total_cards = sum(len(claim.cards) for claim in arg.claims)
+                    lines.append(f"**AT: {arg.answers_to}** ({total_cards} cards)")
+                    lines.append("")
+                    for claim in arg.claims:
+                        lines.append(f"#### {claim.claim}")
+                        lines.append("")
+                        for i, card in enumerate(claim.cards, 1):
+                            lines.append(f"**Card {i}:** {card.tag}")
+                            lines.append("")
+                            lines.append(card.format_full())
+                            lines.append("")
+                    lines.append("---")
+                    lines.append("")
+
+        render_arguments(self.pro_arguments, "PRO")
+        render_arguments(self.con_arguments, "CON")
+
+        return "\n".join(lines)
+
 
 # ========== Explore/Exploit Framework ==========
 
