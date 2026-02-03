@@ -1127,7 +1127,7 @@ Keep it SHORT (max 8 lines). Just new branches and next research targets.""",
             "status": "success",
             "tag": tag,
             "argument": argument_title,
-            "claim": claim_cards.claim,
+            "claim": claim_cards.semantic_category,
             "card_number": len(claim_cards.cards),
             "message": f"Card cut and saved to {arg_file.get_filename()}",
         }

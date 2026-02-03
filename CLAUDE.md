@@ -407,6 +407,25 @@ This `config.yaml` file is designed to grow beyond model settings to include:
 - Output formatting preferences
 - Caching and storage settings
 
+## Development & Validation
+
+**CRITICAL: Always run checks before committing**
+
+The project includes a comprehensive validation script that checks code quality, types, formatting, and runs tests. Always run this before committing changes:
+
+```bash
+bash check.sh
+```
+
+This runs:
+1. **Type checking** with mypy - catches type errors
+2. **Linting** with ruff - checks code style issues
+3. **Formatting check** with ruff - ensures consistent formatting (can auto-fix with `uv run ruff format debate/`)
+4. **Syntax check** - validates Python syntax
+5. **Tests** with pytest - runs test suite
+
+All checks must pass before committing. The script will tell you exactly what failed and how to fix it.
+
 ## Environment
 
 Required environment variables:

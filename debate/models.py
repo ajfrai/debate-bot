@@ -578,7 +578,9 @@ class ArgumentFile(BaseModel):
     is_answer: bool = Field(default=False, description="True if this is an AT (answer to) file")
     answers_to: str | None = Field(default=None, description="If is_answer, what opponent argument this answers")
     purpose: str = Field(description="Strategic purpose of this argument")
-    semantic_groups: list[SemanticGroup] = Field(default_factory=list, description="Semantic groups with their supporting cards")
+    semantic_groups: list[SemanticGroup] = Field(
+        default_factory=list, description="Semantic groups with their supporting cards"
+    )
 
     # Keep claims as deprecated alias for backwards compatibility
     @property
@@ -601,7 +603,10 @@ class ArgumentFile(BaseModel):
         # Check for similar categories (case-insensitive, partial match)
         category_lower = semantic_category.lower()
         for existing in self.semantic_groups:
-            if category_lower in existing.semantic_category.lower() or existing.semantic_category.lower() in category_lower:
+            if (
+                category_lower in existing.semantic_category.lower()
+                or existing.semantic_category.lower() in category_lower
+            ):
                 return existing
         return self.add_semantic_group(semantic_category)
 
