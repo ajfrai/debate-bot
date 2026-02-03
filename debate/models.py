@@ -416,30 +416,20 @@ class JudgeDecision(BaseModel):
 
 
 class AnalysisType(str, Enum):
-    """Types of systematic analysis processes available during prep.
+    """Types of concise breadcrumb analysis during prep.
 
-    Organized by explore/exploit mode:
-    - Exploration: discover new arguments and angles
-    - Exploitation: deepen evidence on known arguments
-    - Strategic: planning and synthesis
+    Analysis should be BRIEF bullet points showing:
+    - Argument links (X -> Y -> Z)
+    - Evidence needs
+    - Blockers
+    - Next research targets
     """
 
-    # Exploration (discover new territory)
-    ENUMERATE_ARGUMENTS = "enumerate_arguments"  # List all possible PRO and CON arguments
-    ADVERSARIAL_BRAINSTORM = "adversarial_brainstorm"  # What's opponent's best case?
-    FIND_NOVEL_ANGLES = "find_novel_angles"  # Unusual frameworks, edge cases
-    IDENTIFY_UNCERTAINTY = "identify_uncertainty"  # Where are our gaps?
+    # Initial topic analysis - starting prep or exploring new angle
+    BREADCRUMB_INITIAL = "breadcrumb_initial"  # Map argument landscape at start
 
-    # Exploitation (deepen known territory)
-    BRAINSTORM_REBUTTALS = "brainstorm_rebuttals"  # Generate multiple answers to a claim
-    ANALYZE_SOURCE = "analyze_source"  # Line-by-line breakdown of evidence
-    EXTEND_ARGUMENT = "extend_argument"  # Find more warrants for existing claim
-    BUILD_BLOCK = "build_block"  # Comprehensive answer to one opponent argument
-    SYNTHESIZE_EVIDENCE = "synthesize_evidence"  # Connect cards into narrative
-
-    # Strategic (planning)
-    MAP_CLASH = "map_clash"  # Identify debate clash points
-    IDENTIFY_FRAMEWORK = "identify_framework"  # Determine weighing criteria
+    # Follow-up analysis - after getting new evidence
+    BREADCRUMB_FOLLOWUP = "breadcrumb_followup"  # Identify new research targets from evidence
 
 
 class AnalysisResult(BaseModel):

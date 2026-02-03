@@ -8,6 +8,7 @@ This module provides cost-effective evidence research by:
 
 import json
 import os
+import time
 
 import anthropic
 import requests
@@ -62,12 +63,13 @@ def load_lessons(*lesson_names: str) -> str:
     return "\n\n---\n\n".join(lessons)
 
 
-def _brave_search(query: str, num_results: int = 5) -> str | None:
-    """Search Brave for relevant sources.
+def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = True) -> str | None:
+    """Search Brave for relevant sources with rate limiting support.
 
     Args:
         query: Search query
         num_results: Number of results to fetch (default 5)
+        retry_on_rate_limit: Whether to retry on 429 rate limit (default True)
 
     Returns:
         Formatted search results as a string, or None if search fails
@@ -77,40 +79,55 @@ def _brave_search(query: str, num_results: int = 5) -> str | None:
     if not api_key:
         return None
 
-    try:
-        headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
-        params = {"q": query, "count": num_results}
+    max_retries = 2  # Retry up to 2 times on rate limit
+    retry_count = 0
 
-        response = requests.get(
-            "https://api.search.brave.com/res/v1/web/search",
-            headers=headers,
-            params=params,
-            timeout=10,
-        )
+    while retry_count <= max_retries:
+        try:
+            headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
+            params = {"q": query, "count": num_results}
 
-        if response.status_code != 200:
-            print(f"Warning: Brave Search returned status {response.status_code}")
+            response = requests.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+
+            # Handle rate limiting (429)
+            if response.status_code == 429 and retry_on_rate_limit and retry_count < max_retries:
+                print(f"  Rate limited (429), waiting 10s before retry...")
+                time.sleep(10)
+                retry_count += 1
+                continue
+
+            if response.status_code != 200:
+                print(f"Warning: Brave Search returned status {response.status_code}")
+                return None
+
+            data = response.json()
+            results = data.get("web", {}).get("results", [])
+
+            if not results:
+                return None
+
+            # Format results for the prompt
+            formatted = ["## Search Results\n"]
+            for i, result in enumerate(results, 1):
+                formatted.append(f"{i}. **{result.get('title', 'No title')}**")
+                formatted.append(f"   URL: {result.get('url', 'No URL')}")
+                formatted.append(f"   Description: {result.get('description', 'No description')}")
+                formatted.append("")
+
+            return "\n".join(formatted)
+
+        except Exception as e:
+            print(f"Warning: Brave Search failed: {e}")
             return None
 
-        data = response.json()
-        results = data.get("web", {}).get("results", [])
-
-        if not results:
-            return None
-
-        # Format results for the prompt
-        formatted = ["## Search Results\n"]
-        for i, result in enumerate(results, 1):
-            formatted.append(f"{i}. **{result.get('title', 'No title')}**")
-            formatted.append(f"   URL: {result.get('url', 'No URL')}")
-            formatted.append(f"   Description: {result.get('description', 'No description')}")
-            formatted.append("")
-
-        return "\n".join(formatted)
-
-    except Exception as e:
-        print(f"Warning: Brave Search failed: {e}")
-        return None
+    # If we exhausted retries
+    print("  Rate limit retries exhausted")
+    return None
 
 
 def _extract_json_from_text(text: str) -> dict:
@@ -421,21 +438,26 @@ def research_evidence(
 
         # Generate diverse queries
         queries = generate_research_queries(resolution, topic, side, existing_cards)
-        print(f"Executing {len(queries)} search strategies...")
 
-        # Run multiple searches and combine results
-        all_results = []
-        for q in queries[:4]:  # Limit to 4 queries to control API usage
-            print(f"  [{q['strategy'].value}] {q['query'][:50]}...")
-            result = _brave_search(q["query"], num_results=3)
+        # USE SINGLE SEARCH STRATEGY to avoid rate limiting
+        # Pick the most relevant strategy for the purpose
+        if queries:
+            q = queries[0]  # Use first (most relevant) strategy only
+            print(f"Executing search strategy: [{q['strategy'].value}]")
+            print(f"  Query: {q['query'][:70]}...")
+
+            # Add 3-second pause to avoid rate limiting
+            time.sleep(3)
+
+            result = _brave_search(q["query"], num_results=5)
             if result:
-                all_results.append(f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}")
-
-        if all_results:
-            search_results = "\n\n".join(all_results)
-            print(f"✓ Found results from {len(all_results)} search strategies")
+                search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
+                print(f"✓ Found results from search")
+            else:
+                print("⚠ No search results, using Claude's knowledge base")
+                search_results = "(No search results available - use your knowledge base)"
         else:
-            print("⚠ No search results, using Claude's knowledge base")
+            print("⚠ No search queries generated, using Claude's knowledge base")
             search_results = "(No search results available - use your knowledge base)"
     else:
         # Single query mode (legacy)
@@ -443,6 +465,10 @@ def research_evidence(
             search_query = f"{resolution} {topic} {side.value}"
 
         print("Searching Brave for relevant sources...")
+
+        # Add 3-second pause to avoid rate limiting
+        time.sleep(3)
+
         search_results = _brave_search(search_query, num_results=5)
 
         if search_results:
