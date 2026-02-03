@@ -88,52 +88,75 @@ Need: warrants for each link, strong impact evidence
 
 ### 2. `search(query, num_results?)`
 
-**Use this to find sources on a topic.** Returns search results that you can then extract cards from.
+**Use this to find sources on a topic.** Returns search results with URLs.
 
 **How it works:**
 1. Searches web for sources matching your query (with 3s pause to avoid rate limiting)
-2. Returns formatted search results with titles, URLs, and descriptions
-3. You then use `cut_card` to extract specific evidence from these sources
+2. Returns formatted results with titles, URLs, and descriptions
+3. Use `fetch_source` to get full article text from a URL
 
-**When to use:**
-- Before cutting cards - you need sources first
-- When researching new topics
-- To find authoritative sources
+### 3. `fetch_source(url)`
 
-### 3. `cut_card(tag, argument, purpose, author, credentials, year, source, url, text, evidence_type?)`
-
-**THIS IS YOUR PRIMARY CARD-CUTTING TOOL.** After searching, call this multiple times to extract cards.
+**Fetch full article text from a URL.** Returns a `fetch_id` that references the stored text.
 
 **How it works:**
-1. Takes card parameters (you extract these from search results)
-2. Creates a card with proper citation
-3. Saves it to the debate file automatically
-4. Organizes it by purpose and argument in your PrepFile
+1. Downloads and extracts article text from the URL
+2. Stores the text internally with a unique fetch_id
+3. Returns the fetch_id and a preview (first 500 chars)
+4. You can cut multiple cards from the same fetch_id
+
+**Important:**
+- Text is stored so you don't need to copy it
+- Returns a preview so you can see what's available
+- Use the fetch_id when calling cut_card
+
+**When to use:**
+- After `search` gives you URLs
+- Before cutting cards from a source
+
+### 4. `cut_card(fetch_id, start_phrase, end_phrase, tag, argument, purpose, author, credentials, year, source, evidence_type?)`
+
+**Cut a card from a fetched source.** Like editing code - specify WHERE to cut (start/end phrases), and the tool extracts that section programmatically.
+
+**How it works:**
+1. Takes fetch_id from fetch_source
+2. Takes start_phrase and end_phrase (exact text where to start/stop cutting)
+3. Tool finds those phrases and extracts text between them programmatically
+4. No need to copy the text yourself - tool does it automatically
+5. Saves card to the debate file with NO bolding (agent decides what to read during round)
+
+**Parameters:**
+- `fetch_id`: The ID from fetch_source
+- `start_phrase`: Exact phrase where card should START (3-10 words)
+- `end_phrase`: Exact phrase where card should END (3-10 words, after start)
+- Standard metadata: tag, argument, purpose, author, credentials, year, source
+- `evidence_type` (optional): statistical, analytical, consensus, empirical, predictive
 
 **Purpose types:**
 - `support`: Evidence that proves your claims
 - `answer`: Evidence that responds to opponent arguments
 - `extension`: Additional warrants to strengthen existing arguments
-- `impact`: Evidence showing why something matters (magnitude, timeframe, probability)
-
-**Evidence types** (optional but recommended):
-- `statistical`: Numbers, data, quantified claims
-- `analytical`: Expert reasoning, causal analysis
-- `consensus`: Multiple sources agreeing
-- `empirical`: Case studies, real-world examples
-- `predictive`: Forecasts, projections
+- `impact`: Evidence showing why something matters
 
 **Important:**
-- The `argument` field must be SPECIFIC (e.g., "TikTok ban eliminates 100k jobs"), NOT vague (e.g., "economic impacts")
-- The `text` field should have **key warrants bolded** using **text** syntax
-- Bold 20-40% of the text
+- Start and end phrases must be EXACT matches from the fetched text
+- Agent decides what to read during rounds (no pre-bolding needed)
+- You can cut multiple cards from the same fetch_id
+- The `argument` field must be SPECIFIC (e.g., "TikTok ban eliminates 100k jobs")
 
-**When to use:**
-- After calling `search` - extract cards from the results
-- Call this multiple times to cut multiple cards from search results
-- MOST OF YOUR TIME should be cutting cards
+**Example:**
+```
+fetch_source returns ID "a7f3" with text about TikTok bans
+cut_card(
+  fetch_id="a7f3",
+  start_phrase="India's 2020 ban on TikTok",
+  end_phrase="democratic nations can successfully execute platform bans",
+  ...
+)
+→ Tool extracts text between those phrases automatically
+```
 
-### 4. `read_prep()`
+### 6. `read_prep()`
 
 View current prep state to see what you've built and identify gaps.
 
@@ -156,26 +179,38 @@ View current prep state to see what you've built and identify gaps.
    - Identify evidence needs
 
 2. **Search for sources** (call `search` with a focused query)
-   - Search returns formatted results with titles, URLs, descriptions
-   - Review what sources are available
+   - Search returns URLs and descriptions
+   - Review what sources look promising
 
-3. **Cut cards** (call `cut_card` multiple times to extract evidence)
-   - Extract author, credentials, year, source from search results
-   - Copy relevant excerpts and bold key warrants (20-40% of text)
-   - Specify the SPECIFIC argument each card addresses
-   - Cards are automatically saved and organized
+3. **Fetch article text** (call `fetch_source` with a URL)
+   - Gets full article text (up to 5000 chars)
+   - Returns fetch_id and preview (first 500 chars)
+   - Text is stored internally, no need to copy
 
-4. **Brief follow-up analysis** (only if evidence reveals new angles)
-   - NOT after every search/cut cycle
+4. **Cut cards** (call `cut_card` with fetch_id and start/end phrases)
+   - Specify start_phrase (where to start cutting)
+   - Specify end_phrase (where to stop cutting)
+   - Tool extracts text between those phrases programmatically
+   - Add metadata (author, credentials, year, etc.)
+   - Card saved to debate file with NO bolding
+
+5. **Repeat step 4 for more cards from the same fetch_id**
+   - Cut multiple cards from the same source
+   - Just specify different start/end phrases
+
+6. **Brief follow-up analysis** (only if evidence reveals new angles)
+   - NOT after every card
    - Only when new evidence suggests unexplored research directions
 
-5. **Repeat search + cut cycle** (this is 80% of your work)
+7. **Repeat search + fetch + cut cycle** (this is 80% of your work)
 
-**Tool workflow:**
-- `search`: Finds sources (3s pause automatically to avoid rate limiting)
-- `cut_card`: Extracts evidence from sources (call multiple times per search)
-- Cards automatically organized by purpose and argument
-- PrepFile tracks your progress
+**Tool workflow (True Edit-style):**
+- `search`: Finds sources → URLs
+- `fetch_source`: Downloads text → fetch_id + stored text
+- `cut_card`: Specify WHERE to cut (start/end phrases) → tool extracts programmatically
+- **Key point**: Agent NEVER copies text, only specifies WHERE to cut
+- **No bolding**: Cards saved as-is, agent decides what to read during rounds
+- **Multiple cuts**: Can cut many cards from same fetch_id
 
 **Know when you're done:**
 - Core arguments have evidence
@@ -185,4 +220,4 @@ View current prep state to see what you've built and identify gaps.
 
 ---
 
-**Begin your autonomous prep. CUT CARDS, not strategic frameworks. Use `search` to find sources, then `cut_card` to extract evidence. Cut cards 3x more than you analyze.**
+**Begin your autonomous prep. CUT CARDS, not strategic frameworks. Use `search` → `fetch_source` → `cut_card` workflow. Like editing code: specify WHERE to cut (start/end phrases), tool extracts programmatically. NEVER copy text. Cut cards 3x more than you analyze.**
