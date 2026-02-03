@@ -673,6 +673,10 @@ def research_evidence(
             if evidence_type:
                 evidence_types_found.add(evidence_type)
 
+            # Determine semantic category (what this card proves)
+            argument = card_data.get("argument", topic)
+            section_type = _parse_section_type(card_data.get("section_type", "support"))
+
             card = Card(
                 tag=card_data["tag"],
                 author=card_data["author"],
@@ -683,14 +687,11 @@ def research_evidence(
                 text=card_data["text"],
                 purpose=card_data.get("purpose", ""),
                 evidence_type=evidence_type,
+                semantic_category=argument,  # Store semantic grouping on the card
             )
 
             # Add card to master list
             card_id = debate_file.add_card(card)
-
-            # Add card to appropriate section
-            section_type = _parse_section_type(card_data.get("section_type", "support"))
-            argument = card_data.get("argument", topic)
 
             debate_file.add_to_section(
                 side=side,

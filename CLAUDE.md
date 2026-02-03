@@ -113,25 +113,56 @@ evidence/
       at_economic_harm.md                 # Answer file
 ```
 
-**Each file contains an argument with multiple claims and numbered cards:**
+**Each file contains an argument with semantic groups and numbered cards:**
 
 ```markdown
-# TikTok ban eliminates creator jobs
-Evidence that the TikTok ban would destroy the creator economy.
+# Economic Harm from TikTok Ban
+Evidence that banning TikTok would cause significant economic damage to the US.
 
-## Supporting claim: Ban eliminates 100k jobs
-### 1. Smith '24 - Journal of Economics
+## TikTok ban eliminates 100k+ creator jobs
+
+1. Smith '24 - Journal of Economics
 **Purpose:** Quantify job losses
+
+**Smith**, Professor of Economics at MIT
+*Journal of Economics*, 2024
+[Source](https://example.com)
 
 The TikTok ban would **eliminate over 100,000 jobs** in the creator economy...
 
-### 2. Jones '25 - Tech Policy Report
-...
+---
+*Card ID: a1b2c3*
 
-## Supporting claim: Creator economy contributes $4B annually
-### 1. Brown '24 - Economic Analysis
-...
+2. Jones '25 - Tech Policy Report
+
+**Jones**, Tech Policy Research Director
+*Tech Policy Report*, 2025
+[Source](https://example.com)
+
+Creator economy platforms generate **$4B+ in annual economic value**...
+
+---
+*Card ID: d4e5f6*
+
+## TikTok represents critical infrastructure for SMB marketing
+
+1. Brown '24 - Small Business Association Report
+
+**Brown**, Economic Analyst
+*Small Business Data Center*, 2024
+[Source](https://example.com)
+
+Over 60% of small businesses **use TikTok for marketing** with average ROI of 300%...
+
+---
+*Card ID: g7h8i9*
 ```
+
+**Key features:**
+- Heading-1 (#): Argument title (e.g., "Economic Harm from TikTok Ban")
+- Heading-2 (##): Semantic categories - each groups semantically similar cards
+- Numbered list: Cards within each semantic group
+- No heading-3 (###) - cards are just numbered
 
 **Quick search during rounds:**
 ```bash
@@ -168,17 +199,20 @@ Headers must be SPECIFIC CLAIMS, not vague topics:
    - Supports both web articles (via trafilatura) and PDFs (via pypdf)
    - **Paywall detection and retry**: If paywalled, searches for free alternatives
    - Claude receives full article text for accurate card cutting
+   - **Research agent assigns semantic categories to each card** - grouping cards that prove similar points
    - **Streams tokens in real-time** so you can see progress
 
 2. **Autonomous prep**: Use `debate prep` to run agent-driven research (future)
    - Agent uses **Edit-style workflow** (no text regeneration)
    - Searches Brave API, fetches articles, marks warrants programmatically
-   - Saves cards to argument-based files
+   - **Analyzes and groups cards by semantic category** (e.g., "TikTok ban eliminates jobs", "Economic impact studies")
+   - Saves cards to argument-based files under semantic heading-2s
    - **Streams tokens in real-time** so you can see progress
 
 3. **Store in debate files**: Evidence is saved to resolution directories in `evidence/`
    - One directory per resolution containing all PRO and CON evidence
-   - Each argument in its own file with numbered cards
+   - Each argument in its own file with semantic groups as heading-2s
+   - Cards grouped under semantic categories - all cards proving the same point together
    - Markdown INDEX.md provides navigable table of contents
 
 4. **Generate with evidence**: Use `debate generate --with-evidence` to create cases
@@ -277,6 +311,31 @@ Tool automatically extracts text between those phrases and saves card.
 - Case generation can use stored evidence without additional research costs
 - **Token streaming** provides immediate feedback without waiting
 
+### Semantic Grouping Strategy
+
+The research agent should assign semantic categories to each card based on what the card **proves**:
+
+**Good semantic categories:**
+- "TikTok ban eliminates 100k+ creator jobs"
+- "Chinese government surveillance capabilities"
+- "Creator economy generates $4B+ annually"
+- "User privacy protections already exist"
+
+**How the agent should work:**
+1. When cutting multiple cards from research, analyze what each card proves
+2. Cards that prove the same point go under the same semantic category (heading-2)
+3. Group semantically similar cards together - not just by source or topic, but by the specific claim they support
+4. If cutting 5 cards about job losses, they should go under one semantic category with sub-claims if needed
+5. The research agent should be explicit: "These 3 cards prove that TikTok ban eliminates jobs because..."
+
+**Example flow:**
+- Research "creator economy impact"
+- Cut 5 cards from 3 different sources
+- Analyze: Cards 1, 2, 3 all prove "jobs eliminated", Cards 4, 5 prove "revenue lost"
+- Create two semantic groups:
+  - "TikTok ban eliminates 100k+ creator jobs" (Cards 1, 2, 3)
+  - "Creator economy loses $2B+ annual revenue" (Cards 4, 5)
+
 ## Key Design Decisions
 
 1. **Separation of concerns**: The debater module should NOT know about CLI concerns
@@ -285,9 +344,10 @@ Tool automatically extracts text between those phrases and saves card.
 4. **Models are flexible**: Contentions are prose, not structured card lists
 5. **Evidence cards are real**: Research agent finds actual sources with verifiable citations, not fabricated evidence
 6. **Edit-style card cutting**: Agent never regenerates text - only identifies phrases to bold, tool adds markers programmatically
-7. **Argument-based organization**: Each argument is a file with multiple claims and numbered cards (not scattered across folders)
-8. **Token efficiency**: No text regeneration, local caching, minimal API usage
-9. **Tool-based workflow**: Agent uses tools (search, fetch_source, mark_warrants, cut_card) instead of generating full JSON structures
+7. **Argument-based organization**: Each argument is a file with semantic groups as heading-2s, numbered cards underneath (not scattered across folders)
+8. **Semantic grouping**: Cards for semantically similar arguments grouped under the same heading-2, enforced programmatically by code that saves cards
+9. **Token efficiency**: No text regeneration, local caching, minimal API usage
+10. **Tool-based workflow**: Agent uses tools (search, fetch_source, mark_warrants, cut_card) instead of generating full JSON structures
 
 ## PF Speech Order
 
