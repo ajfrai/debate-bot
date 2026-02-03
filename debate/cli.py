@@ -174,10 +174,19 @@ def cmd_evidence(args) -> None:
         match = _find_matching_debate_file(args.query, debate_files)
 
         if match:
-            debate_file = load_debate_file(match["resolution"])
-            if debate_file:
-                print(debate_file.render_full_file())
-                return
+            # Check format and load appropriately
+            if match.get("format") == "flat":
+                from debate.evidence_storage import load_flat_debate_file
+
+                flat_file = load_flat_debate_file(match["resolution"])
+                if flat_file:
+                    print(flat_file.render_full_file())
+                    return
+            else:
+                debate_file = load_debate_file(match["resolution"])
+                if debate_file:
+                    print(debate_file.render_full_file())
+                    return
 
         # Try legacy buckets with exact resolution match
         buckets = list_evidence_buckets(resolution=args.query)

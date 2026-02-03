@@ -299,7 +299,7 @@ def get_or_create_debate_file(resolution: str) -> tuple[DebateFile, bool]:
 
 
 def list_debate_files() -> list[dict]:
-    """List all debate files.
+    """List all debate files (both old and new flat format).
 
     Returns:
         List of dicts with resolution info
@@ -311,24 +311,50 @@ def list_debate_files() -> list[dict]:
         if not dir_path.is_dir():
             continue
 
-        meta_path = dir_path / ".debate_meta.json"
-        if not meta_path.exists():
-            continue
+        # Check for old format (.debate_meta.json)
+        old_meta_path = dir_path / ".debate_meta.json"
+        flat_meta_path = dir_path / ".flat_meta.json"
 
-        try:
-            debate_file = load_debate_file(dir_path.name)
-            if debate_file:
-                files.append(
-                    {
-                        "resolution": debate_file.resolution,
-                        "dir_path": str(dir_path),
-                        "num_cards": len(debate_file.cards),
-                        "num_pro_sections": len(debate_file.pro_sections),
-                        "num_con_sections": len(debate_file.con_sections),
-                    }
-                )
-        except Exception:
-            continue
+        if old_meta_path.exists():
+            # Old format
+            try:
+                debate_file = load_debate_file(dir_path.name)
+                if debate_file:
+                    files.append(
+                        {
+                            "resolution": debate_file.resolution,
+                            "dir_path": str(dir_path),
+                            "num_cards": len(debate_file.cards),
+                            "num_pro_sections": len(debate_file.pro_sections),
+                            "num_con_sections": len(debate_file.con_sections),
+                            "format": "old",
+                        }
+                    )
+            except Exception:
+                continue
+        elif flat_meta_path.exists():
+            # New flat format
+            try:
+                flat_file = load_flat_debate_file(dir_path.name)
+                if flat_file:
+                    # Count total cards across all arguments
+                    total_cards = 0
+                    for arg in flat_file.pro_arguments + flat_file.con_arguments:
+                        for claim in arg.claims:
+                            total_cards += len(claim.cards)
+
+                    files.append(
+                        {
+                            "resolution": flat_file.resolution,
+                            "dir_path": str(dir_path),
+                            "num_cards": total_cards,
+                            "num_pro_sections": len(flat_file.pro_arguments),
+                            "num_con_sections": len(flat_file.con_arguments),
+                            "format": "flat",
+                        }
+                    )
+            except Exception:
+                continue
 
     return files
 
