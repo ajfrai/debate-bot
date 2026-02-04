@@ -78,6 +78,14 @@ class BaseAgent(ABC):
         """Called when agent stops. Override for cleanup."""
         pass
 
+    async def check_dependencies(self) -> tuple[bool, str]:
+        """Check if this agent's dependencies are met.
+
+        Returns:
+            (satisfied, message) - True if dependencies met, False otherwise
+        """
+        return (True, "")  # Default: no dependencies
+
     def log(self, action: str, details: dict[str, Any] | None = None) -> None:
         """Log an action to the session event log."""
         self.session.log_event(self.name, action, details)

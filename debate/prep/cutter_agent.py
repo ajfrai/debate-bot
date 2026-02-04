@@ -43,6 +43,25 @@ class CutterAgent(BaseAgent):
             self._client = anthropic.Anthropic(api_key=api_key)
         return self._client
 
+    async def check_dependencies(self) -> tuple[bool, str]:
+        """Check if SearchAgent has created any results."""
+        results_dir = self.session.staging_dir / "search" / "results"
+
+        if not results_dir.exists():
+            return (
+                False,
+                "No results directory found. Run SearchAgent first to fetch article content.",
+            )
+
+        result_files = list(results_dir.glob("*.json"))
+        if not result_files:
+            return (
+                False,
+                "No search results found. Run SearchAgent first to generate search results.",
+            )
+
+        return (True, "")
+
     async def check_for_work(self) -> list[Any]:
         """Check for pending search results."""
         return self.session.get_pending_results()
