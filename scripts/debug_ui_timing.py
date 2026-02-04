@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Debug script to check when UI actually displays."""
+"""Verify UI appears DURING execution, not just at end."""
 
 import asyncio
 import json
@@ -24,23 +24,41 @@ class MockAnthropicResponse:
 
 def create_mock_anthropic():
     """Create mock that simulates slow API calls."""
+    call_count = [0]
 
     def create_message_mock(*args, **kwargs):
-        # Print when API is called
-        print(f"[DEBUG {time.time():.2f}] API call started", flush=True)
+        call_count[0] += 1
+        call_num = call_count[0]
 
-        # Simulate slow API (2 seconds)
-        time.sleep(2)
+        # Simulate slow API (1.5 seconds per call)
+        # This gives UI time to render before call completes
+        time.sleep(1.5)
 
-        print(f"[DEBUG {time.time():.2f}] API call finished", flush=True)
+        # Return different responses based on call number
+        if call_num == 1:
+            response = json.dumps([
+                {
+                    "argument": "Economic harm from TikTok ban",
+                    "search_intent": "economic impact studies",
+                    "priority": "high",
+                },
+                {
+                    "argument": "National security threat from data access",
+                    "search_intent": "data security surveillance",
+                    "priority": "high",
+                },
+            ])
+        elif call_num == 2:
+            response = json.dumps([
+                {
+                    "argument": "AT: Privacy already protected",
+                    "search_intent": "privacy violations",
+                    "priority": "high",
+                }
+            ])
+        else:
+            response = json.dumps([])
 
-        response = json.dumps([
-            {
-                "argument": "Test argument 1",
-                "search_intent": "test search",
-                "priority": "high",
-            }
-        ])
         return MockAnthropicResponse(response)
 
     mock_client = MagicMock()
@@ -48,26 +66,36 @@ def create_mock_anthropic():
     return mock_client
 
 
-async def test_ui_timing():
-    """Test when UI actually appears."""
+async def test_live_ui():
+    """Test that UI appears and updates during execution."""
     print("\n" + "=" * 70)
-    print("UI TIMING DEBUG TEST")
+    print("LIVE UI VERIFICATION TEST")
     print("=" * 70)
-    print("\nThis test runs for 10 seconds with slow API calls.")
-    print("Watch for:")
-    print("  1. When does the UI first appear?")
-    print("  2. Does it update during execution or only at end?")
-    print("  3. When do DEBUG messages appear?\n")
-
-    print(f"[DEBUG {time.time():.2f}] Starting test", flush=True)
+    print("\nThis test runs for ~10 seconds with slow API calls (1.5s each).")
+    print("\n✅ EXPECTED BEHAVIOR:")
+    print("  1. UI appears within 0.5 seconds")
+    print("  2. Countdown timer updates continuously (10 → 9 → 8...)")
+    print("  3. Agent status changes: starting → checking → working")
+    print("  4. New research directions appear as they're generated")
+    print("  5. UI updates WHILE API calls are running (not frozen)")
+    print("\n❌ BUG SYMPTOMS:")
+    print("  - Blank screen for 10 seconds, then everything appears at once")
+    print("  - UI frozen during API calls")
+    print("  - Only final state shown")
+    print()
 
     os.environ.setdefault("ANTHROPIC_API_KEY", "mock-key")
 
     resolution = "Resolved: The US should ban TikTok"
     side = Side.PRO
 
-    start_time = time.time()
-    print(f"[DEBUG {start_time:.2f}] Calling run_strategy_agent", flush=True)
+    print("Starting in 3 seconds...")
+    await asyncio.sleep(1)
+    print("2...")
+    await asyncio.sleep(1)
+    print("1...")
+    await asyncio.sleep(1)
+    print("\n👀 WATCH FOR IMMEDIATE UI DISPLAY:\n")
 
     with patch("anthropic.Anthropic", return_value=create_mock_anthropic()):
         result = await run_strategy_agent(
@@ -78,21 +106,30 @@ async def test_ui_timing():
             show_ui=True,
         )
 
-    end_time = time.time()
-    print(f"\n[DEBUG {end_time:.2f}] Test completed after {end_time - start_time:.1f}s", flush=True)
-    print(f"Tasks created: {result['tasks_created']}")
+    print(f"\n✓ Test completed: {result['tasks_created']} tasks created")
+
+
+async def main():
+    """Run verification test."""
+    print("\n🔍 Live UI Verification Test")
+    print("=" * 70)
+    print("\nThis test verifies that UI appears DURING execution.")
+    print("Uses mocked API responses - no credits used.")
+
+    await test_live_ui()
+
+    print("\n" + "=" * 70)
+    print("VERIFICATION CHECKLIST:")
+    print("=" * 70)
+    print("\n❓ Did you observe:")
+    print("  [ ] UI appeared immediately (< 1 second)")
+    print("  [ ] Countdown timer updated continuously")
+    print("  [ ] Agent status changed in real-time")
+    print("  [ ] New research directions appeared as generated")
+    print("  [ ] UI kept updating even during slow API calls")
+    print("\n✅ If all checked → BUG IS FIXED!")
+    print("❌ If any unchecked → Still has timing issues\n")
 
 
 if __name__ == "__main__":
-    print("\n🔍 Debugging UI Display Timing")
-    print("\nIf UI appears immediately and updates during execution → WORKING")
-    print("If UI only appears at the end → STILL BUGGY\n")
-
-    input("Press Enter to start 10-second test...")
-
-    asyncio.run(test_ui_timing())
-
-    print("\n" + "=" * 70)
-    print("QUESTION: Did you see the UI updating DURING the test?")
-    print("Or did everything appear only AFTER the test finished?")
-    print("=" * 70 + "\n")
+    asyncio.run(main())
