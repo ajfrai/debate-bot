@@ -33,6 +33,9 @@ class AgentState:
     task_errors: dict[str, str] = field(default_factory=dict)  # task_id -> error reason
     task_retries: dict[str, int] = field(default_factory=dict)  # task_id -> retry count
     task_urls_tried: dict[str, list[str]] = field(default_factory=dict)  # task_id -> URLs already attempted
+    # Strategy agent phase tracking
+    phase_task_counts: dict[str, int] = field(default_factory=dict)  # phase -> task count
+    current_phase: str = ""  # Current strategy phase (initial_arguments, opponent_answers, etc.)
 
     def update(self, action: str, status: str = "working") -> None:
         """Update agent state with a new action."""

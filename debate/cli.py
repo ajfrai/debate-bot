@@ -525,15 +525,26 @@ def cmd_prep_search(args) -> None:
     import asyncio
 
     from debate.prep.runner import run_search_agent
+    from debate.prep.session import PrepSession
+
+    # Auto-detect session if not provided
+    session_id = args.session
+    if session_id is None:
+        session_id = PrepSession.get_most_recent_session()
+        if session_id is None:
+            print("\nError: No sessions found in staging/ directory.", file=sys.stderr)
+            print("Run 'debate prep-strategy' first to create a session.\n", file=sys.stderr)
+            sys.exit(1)
+        print(f"Auto-detected most recent session: {session_id}")
 
     print("\nRunning SearchAgent")
-    print(f"Session ID: {args.session}")
+    print(f"Session ID: {session_id}")
     print(f"Duration: {args.duration} minutes\n")
 
     try:
         result = asyncio.run(
             run_search_agent(
-                session_id=args.session,
+                session_id=session_id,
                 duration_minutes=args.duration,
                 reset=args.reset if hasattr(args, "reset") else False,
             )
@@ -766,8 +777,8 @@ def main() -> None:
     prep_strategy_parser.add_argument(
         "--duration",
         type=float,
-        default=5.0,
-        help="Duration in minutes (default: 5)",
+        default=0.5,
+        help="Duration in minutes (default: 0.5)",
     )
     prep_strategy_parser.set_defaults(func=cmd_prep_strategy)
 
@@ -776,15 +787,16 @@ def main() -> None:
         help="Run only the SearchAgent (requires StrategyAgent tasks)",
     )
     prep_search_parser.add_argument(
-        "session",
+        "--session",
         type=str,
-        help="Session ID from StrategyAgent",
+        default=None,
+        help="Session ID from StrategyAgent (auto-detects most recent if omitted)",
     )
     prep_search_parser.add_argument(
         "--duration",
         type=float,
-        default=5.0,
-        help="Duration in minutes (default: 5)",
+        default=0.5,
+        help="Duration in minutes (default: 0.5)",
     )
     prep_search_parser.add_argument(
         "--reset",
@@ -814,8 +826,8 @@ def main() -> None:
     prep_cutter_parser.add_argument(
         "--duration",
         type=float,
-        default=5.0,
-        help="Duration in minutes (default: 5)",
+        default=0.5,
+        help="Duration in minutes (default: 0.5)",
     )
     prep_cutter_parser.set_defaults(func=cmd_prep_cutter)
 
@@ -840,8 +852,8 @@ def main() -> None:
     prep_organizer_parser.add_argument(
         "--duration",
         type=float,
-        default=5.0,
-        help="Duration in minutes (default: 5)",
+        default=0.5,
+        help="Duration in minutes (default: 0.5)",
     )
     prep_organizer_parser.set_defaults(func=cmd_prep_organizer)
 

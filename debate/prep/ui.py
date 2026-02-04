@@ -169,6 +169,72 @@ def create_agent_panel(
 
         lines.append("")  # Blank line for separation
 
+    # Kanban board for strategy agent
+    if agent.name == "strategy" and hasattr(state, "task_stages") and state.task_stages:
+        # Show current phase info
+        current_phase = getattr(state, "current_phase", "")
+        phase_counts = getattr(state, "phase_task_counts", {})
+        if current_phase:
+            phase_emoji = {"initial_arguments": "📌", "opponent_answers": "🛡️", "impact_chains": "⚡", "deep_dive": "🔎"}
+            emoji = phase_emoji.get(current_phase, "🎯")
+            count = phase_counts.get(current_phase, 0)
+            lines.append(f"{emoji} Phase: {current_phase} ({count} tasks)")
+            lines.append("")
+
+        # Show recent argument snippets (last 3)
+        if state.recent_actions:
+            lines.append("[dim]Recent arguments:[/dim]")
+            for action in state.recent_actions[-3:]:
+                # Only show actions that contain argument snippets (📍, ⚡, 🛡️)
+                if any(emoji in action for emoji in ["📍", "⚡", "🛡️"]):
+                    lines.append(f"  {action}")
+            lines.append("")
+
+        # Group tasks by stage
+        stages = {"generating": [], "created": [], "feedback": []}
+        for task_id, stage in state.task_stages.items():
+            if stage in stages:
+                stages[stage].append(task_id)
+
+        # Build kanban header
+        col_width = 12
+        headers = [
+            ("[cyan]", "Generating", "[/cyan]"),
+            ("[green]", "Created", "[/green]"),
+            ("[magenta]", "Feedback", "[/magenta]"),
+        ]
+        header_parts = []
+        for start_tag, text, end_tag in headers:
+            padded = f"{text:<{col_width}}"
+            header_parts.append(f"{start_tag}{padded}{end_tag}")
+        lines.append(f"  {' | '.join(header_parts)}")
+
+        # Build kanban rows (show up to 3 tasks per column)
+        max_rows = 3
+        for i in range(max_rows):
+            row_parts = []
+            for stage in ["generating", "created", "feedback"]:
+                tasks = stages[stage]
+                if i < len(tasks):
+                    task_id = tasks[i]
+                    task_display = task_id[:col_width]
+                    row_parts.append(f"{task_display:<{col_width}}")
+                else:
+                    row_parts.append(" " * col_width)
+            lines.append(f"  {' | '.join(row_parts)}")
+
+        # Show overflow counts
+        overflow = []
+        for stage, color in [("generating", "cyan"), ("created", "green"), ("feedback", "magenta")]:
+            count = len(stages[stage])
+            if count > max_rows:
+                overflow.append(f"[{color}]+{count - max_rows} {stage}[/{color}]")
+
+        if overflow:
+            lines.append(f"  {', '.join(overflow)}")
+
+        lines.append("")  # Blank line
+
     # Show status if no content
     if not lines:
         lines.append(f"  {status_symbol} {state.status}")

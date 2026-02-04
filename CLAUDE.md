@@ -426,6 +426,19 @@ This runs:
 
 All checks must pass before committing. The script will tell you exactly what failed and how to fix it.
 
+### Testing Guidelines
+
+**Use test fixtures for manual verification tests**
+
+When testing features that involve API calls or agent execution (e.g., `debate prep-strategy`, `debate prep-search`):
+- **Avoid running expensive live tests repeatedly** - these consume API tokens and time
+- **Use test fixtures instead** - create mock data and test with fixture-based unit tests
+- **Manual verification should be minimal** - only run live tests once to verify end-to-end functionality
+- **See `tests/prep/test_ui_display.py`** for examples of testing agent UI without API calls
+- **See `tests/test_search_agent_with_fixtures.py`** for examples of testing agents with mock data
+
+For quick manual smoke tests during development, use very short durations (e.g., `--duration 0.1`) to minimize costs.
+
 ## Environment
 
 Required environment variables:

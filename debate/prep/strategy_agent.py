@@ -33,6 +33,9 @@ class StrategyAgent(BaseAgent):
             "impact_chains",
             "deep_dive",
         ]
+        # Initialize phase tracking for kanban UI
+        self.state.phase_task_counts = {phase: 0 for phase in self._phases}
+        self.state.current_phase = ""
 
     @property
     def name(self) -> str:
@@ -93,9 +96,13 @@ class StrategyAgent(BaseAgent):
                 "priority": "high",
                 "source": f"feedback_{feedback_type}",
             }
-            self.session.write_task(task)
+            task_id = self.session.write_task(task)
+
+            # Track in kanban (feedback stage)
+            self.state.task_stages[task_id] = "feedback"
             self.state.items_created += 1
-            self.log(f"task_from_{feedback_type}", {"argument": task["argument"][:40]})
+
+            self.log(f"task_from_{feedback_type}", {"argument": task["argument"][:40], "task_id": task_id})
         except Exception as e:
             error_msg = f"Error processing feedback: {str(e)[:40]}"
             self.log(error_msg, {"error_type": "feedback_error"})
@@ -183,6 +190,9 @@ Output JSON array:
 
 Only output JSON array."""
 
+        # Show current phase in UI
+        self.state.current_phase = self._phases[self._phase]
+
         try:
             # Run sync API call in thread pool to avoid blocking event loop
             response = await asyncio.to_thread(
@@ -210,13 +220,23 @@ Only output JSON array."""
                     "priority": arg.get("priority", "medium"),
                     "source": f"enumerate_{evidence_type}",
                 }
-                self.session.write_task(task)
+                task_id = self.session.write_task(task)
+
+                # Track in kanban
+                self.state.task_stages[task_id] = "created"
+                phase_name = self._phases[self._phase]
+                self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
 
-                # Log full argument and search intent to UI
-                arg_text = task["argument"]
-                search_text = task["search_intent"]
-                self.log(f"📍 {arg_text} | 🔍 {search_text}", {"type": evidence_type, "priority": task["priority"]})
+                # Log snippets of argument and search intent to UI
+                arg_snippet = task["argument"][:40] + "..." if len(task["argument"]) > 40 else task["argument"]
+                search_snippet = (
+                    task["search_intent"][:40] + "..." if len(task["search_intent"]) > 40 else task["search_intent"]
+                )
+                self.log(
+                    f"📍 {arg_snippet} | 🔍 {search_snippet}",
+                    {"type": evidence_type, "priority": task["priority"], "task_id": task_id},
+                )
 
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse JSON response: {str(e)[:40]}"
@@ -266,6 +286,9 @@ Generate 2 impact research tasks:
 
 Only output JSON array."""
 
+        # Show current phase in UI
+        self.state.current_phase = self._phases[self._phase]
+
         try:
             # Run sync API call in thread pool to avoid blocking event loop
             response = await asyncio.to_thread(
@@ -292,13 +315,23 @@ Only output JSON array."""
                     "priority": impact.get("priority", "medium"),
                     "source": "impact_chain",
                 }
-                self.session.write_task(task)
+                task_id = self.session.write_task(task)
+
+                # Track in kanban
+                self.state.task_stages[task_id] = "created"
+                phase_name = self._phases[self._phase]
+                self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
 
-                # Log full impact and search intent to UI
-                arg_text = task["argument"]
-                search_text = task["search_intent"]
-                self.log(f"⚡ {arg_text} | 🔍 {search_text}", {"type": "impact", "priority": task["priority"]})
+                # Log snippets of impact and search intent to UI
+                arg_snippet = task["argument"][:40] + "..." if len(task["argument"]) > 40 else task["argument"]
+                search_snippet = (
+                    task["search_intent"][:40] + "..." if len(task["search_intent"]) > 40 else task["search_intent"]
+                )
+                self.log(
+                    f"⚡ {arg_snippet} | 🔍 {search_snippet}",
+                    {"type": "impact", "priority": task["priority"], "task_id": task_id},
+                )
 
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse impact chain JSON: {str(e)[:35]}"
@@ -315,6 +348,9 @@ Only output JSON array."""
         direction = "🔎 Deepening existing arguments"
         self.state.current_direction = direction
         self.log(direction, {"phase": "deep_dive"})
+
+        # Show current phase in UI
+        self.state.current_phase = self._phases[self._phase]
 
         brief = self.session.read_brief()
 
@@ -335,11 +371,16 @@ Only output JSON array."""
                     "priority": "medium",
                     "source": "deep_dive",
                 }
-                self.session.write_task(task)
+                task_id = self.session.write_task(task)
+
+                # Track in kanban
+                self.state.task_stages[task_id] = "created"
+                phase_name = self._phases[self._phase]
+                self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
 
                 # Log with brief argument and card count
-                self.log(f"{direction} ({total_cards} cards)", {"cards": total_cards})
+                self.log(f"{direction} ({total_cards} cards)", {"cards": total_cards, "task_id": task_id})
                 return  # One at a time
 
         # If no arguments need deep dive, explore new angles

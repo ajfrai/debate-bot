@@ -344,3 +344,29 @@ class PrepSession:
         session._load_read_log()
 
         return session
+
+    @classmethod
+    def get_most_recent_session(cls) -> str | None:
+        """Get the most recently modified session ID from staging directory.
+
+        Returns:
+            Session ID string, or None if no sessions found
+        """
+        staging_root = Path("staging")
+        if not staging_root.exists():
+            return None
+
+        session_dirs = []
+        for item in staging_root.iterdir():
+            if item.is_dir():
+                # Validate it's a real session by checking for brief.json
+                brief_path = item / "organizer" / "brief.json"
+                if brief_path.exists():
+                    session_dirs.append((item.name, item.stat().st_mtime))
+
+        if not session_dirs:
+            return None
+
+        # Sort by modification time (most recent first)
+        session_dirs.sort(key=lambda x: x[1], reverse=True)
+        return session_dirs[0][0]
