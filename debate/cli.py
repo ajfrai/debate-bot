@@ -478,6 +478,180 @@ def cmd_prep(args) -> None:
         sys.exit(1)
 
 
+def cmd_prep_strategy(args) -> None:
+    """Run only the StrategyAgent."""
+    import asyncio
+
+    from debate.prep.runner import run_strategy_agent
+
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    print(f"\nRunning StrategyAgent for {args.side.upper()}")
+    print(f"Resolution: {args.resolution}")
+    print(f"Duration: {args.duration} minutes")
+    if args.session:
+        print(f"Session ID: {args.session}")
+    print()
+
+    try:
+        result = asyncio.run(
+            run_strategy_agent(
+                resolution=args.resolution,
+                side=side,
+                session_id=args.session,
+                duration_minutes=args.duration,
+            )
+        )
+
+        print("\n" + "=" * 60)
+        print("STRATEGY AGENT SUMMARY")
+        print("=" * 60)
+        print(f"\nSession ID: {result['session_id']}")
+        print(f"Tasks created: {result['tasks_created']}")
+        print(f"Staging directory: {result['staging_dir']}")
+        print("\n✓ Strategy agent complete!")
+        print("=" * 60 + "\n")
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user.\n")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nError: {e}\n", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_prep_search(args) -> None:
+    """Run only the SearchAgent."""
+    import asyncio
+
+    from debate.prep.runner import run_search_agent
+
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    if not args.session:
+        print("\nError: --session required for SearchAgent (run StrategyAgent first)\n", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\nRunning SearchAgent for {args.side.upper()}")
+    print(f"Resolution: {args.resolution}")
+    print(f"Session ID: {args.session}")
+    print(f"Duration: {args.duration} minutes\n")
+
+    try:
+        result = asyncio.run(
+            run_search_agent(
+                resolution=args.resolution,
+                side=side,
+                session_id=args.session,
+                duration_minutes=args.duration,
+            )
+        )
+
+        print("\n" + "=" * 60)
+        print("SEARCH AGENT SUMMARY")
+        print("=" * 60)
+        print(f"\nSession ID: {result['session_id']}")
+        print(f"Results created: {result['results_created']}")
+        print(f"Staging directory: {result['staging_dir']}")
+        print("\n✓ Search agent complete!")
+        print("=" * 60 + "\n")
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user.\n")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nError: {e}\n", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_prep_cutter(args) -> None:
+    """Run only the CutterAgent."""
+    import asyncio
+
+    from debate.prep.runner import run_cutter_agent
+
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    if not args.session:
+        print("\nError: --session required for CutterAgent (run SearchAgent first)\n", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\nRunning CutterAgent for {args.side.upper()}")
+    print(f"Resolution: {args.resolution}")
+    print(f"Session ID: {args.session}")
+    print(f"Duration: {args.duration} minutes\n")
+
+    try:
+        result = asyncio.run(
+            run_cutter_agent(
+                resolution=args.resolution,
+                side=side,
+                session_id=args.session,
+                duration_minutes=args.duration,
+            )
+        )
+
+        print("\n" + "=" * 60)
+        print("CUTTER AGENT SUMMARY")
+        print("=" * 60)
+        print(f"\nSession ID: {result['session_id']}")
+        print(f"Cards created: {result['cards_created']}")
+        print(f"Staging directory: {result['staging_dir']}")
+        print("\n✓ Cutter agent complete!")
+        print("=" * 60 + "\n")
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user.\n")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nError: {e}\n", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_prep_organizer(args) -> None:
+    """Run only the OrganizerAgent."""
+    import asyncio
+
+    from debate.prep.runner import run_organizer_agent
+
+    side = Side.PRO if args.side == "pro" else Side.CON
+
+    if not args.session:
+        print("\nError: --session required for OrganizerAgent (run CutterAgent first)\n", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\nRunning OrganizerAgent for {args.side.upper()}")
+    print(f"Resolution: {args.resolution}")
+    print(f"Session ID: {args.session}")
+    print(f"Duration: {args.duration} minutes\n")
+
+    try:
+        result = asyncio.run(
+            run_organizer_agent(
+                resolution=args.resolution,
+                side=side,
+                session_id=args.session,
+                duration_minutes=args.duration,
+            )
+        )
+
+        print("\n" + "=" * 60)
+        print("ORGANIZER AGENT SUMMARY")
+        print("=" * 60)
+        print(f"\nSession ID: {result['session_id']}")
+        print(f"Cards organized: {result['cards_organized']}")
+        print(f"Staging directory: {result['staging_dir']}")
+        print("\n✓ Organizer agent complete!")
+        print("=" * 60 + "\n")
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user.\n")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nError: {e}\n", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the debate CLI."""
     parser = argparse.ArgumentParser(
@@ -578,6 +752,110 @@ def main() -> None:
         help="Disable the terminal UI (useful for logging/debugging)",
     )
     prep_parser.set_defaults(func=cmd_prep)
+
+    # Individual prep agent commands
+    prep_strategy_parser = subparsers.add_parser(
+        "prep-strategy",
+        help="Run only the StrategyAgent (creates research tasks)",
+    )
+    prep_strategy_parser.add_argument("resolution", type=str, help="The debate resolution")
+    prep_strategy_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side to prep",
+    )
+    prep_strategy_parser.add_argument(
+        "--session",
+        type=str,
+        help="Existing session ID to continue (optional, creates new if not provided)",
+    )
+    prep_strategy_parser.add_argument(
+        "--duration",
+        type=float,
+        default=5.0,
+        help="Duration in minutes (default: 5)",
+    )
+    prep_strategy_parser.set_defaults(func=cmd_prep_strategy)
+
+    prep_search_parser = subparsers.add_parser(
+        "prep-search",
+        help="Run only the SearchAgent (requires StrategyAgent tasks)",
+    )
+    prep_search_parser.add_argument("resolution", type=str, help="The debate resolution")
+    prep_search_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side to prep",
+    )
+    prep_search_parser.add_argument(
+        "--session",
+        type=str,
+        required=True,
+        help="Session ID from StrategyAgent",
+    )
+    prep_search_parser.add_argument(
+        "--duration",
+        type=float,
+        default=5.0,
+        help="Duration in minutes (default: 5)",
+    )
+    prep_search_parser.set_defaults(func=cmd_prep_search)
+
+    prep_cutter_parser = subparsers.add_parser(
+        "prep-cutter",
+        help="Run only the CutterAgent (requires SearchAgent results)",
+    )
+    prep_cutter_parser.add_argument("resolution", type=str, help="The debate resolution")
+    prep_cutter_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side to prep",
+    )
+    prep_cutter_parser.add_argument(
+        "--session",
+        type=str,
+        required=True,
+        help="Session ID from SearchAgent",
+    )
+    prep_cutter_parser.add_argument(
+        "--duration",
+        type=float,
+        default=5.0,
+        help="Duration in minutes (default: 5)",
+    )
+    prep_cutter_parser.set_defaults(func=cmd_prep_cutter)
+
+    prep_organizer_parser = subparsers.add_parser(
+        "prep-organizer",
+        help="Run only the OrganizerAgent (requires CutterAgent cards)",
+    )
+    prep_organizer_parser.add_argument("resolution", type=str, help="The debate resolution")
+    prep_organizer_parser.add_argument(
+        "--side",
+        type=str,
+        choices=["pro", "con"],
+        required=True,
+        help="Which side to prep",
+    )
+    prep_organizer_parser.add_argument(
+        "--session",
+        type=str,
+        required=True,
+        help="Session ID from CutterAgent",
+    )
+    prep_organizer_parser.add_argument(
+        "--duration",
+        type=float,
+        default=5.0,
+        help="Duration in minutes (default: 5)",
+    )
+    prep_organizer_parser.set_defaults(func=cmd_prep_organizer)
 
     # Evidence command
     evidence_parser = subparsers.add_parser(

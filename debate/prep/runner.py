@@ -110,3 +110,177 @@ def run_prep_sync(
         Summary dict with stats and paths
     """
     return asyncio.run(run_prep(resolution, side, duration_minutes, show_ui))
+
+
+async def run_strategy_agent(
+    resolution: str,
+    side: Side,
+    session_id: str | None = None,
+    duration_minutes: float = 5.0,
+) -> dict[str, Any]:
+    """Run only the StrategyAgent independently.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to prep
+        session_id: Existing session ID to continue, or None for new session
+        duration_minutes: How long to run
+
+    Returns:
+        Summary dict with stats and paths
+    """
+    # Create or load session
+    if session_id:
+        from pathlib import Path
+
+        staging_dir = Path("staging") / session_id
+        if not staging_dir.exists():
+            raise ValueError(f"Session {session_id} not found")
+        session = PrepSession(resolution=resolution, side=side)
+        session.session_id = session_id
+        session.staging_dir = staging_dir
+    else:
+        session = PrepSession(resolution=resolution, side=side)
+
+    # Create and run strategy agent
+    strategy = StrategyAgent(session)
+    deadline = time.time() + (duration_minutes * 60)
+
+    await strategy.run(deadline)
+
+    return {
+        "session_id": session.session_id,
+        "staging_dir": str(session.staging_dir),
+        "stats": session.get_stats(),
+        "agent": "strategy",
+        "tasks_created": strategy.state.items_created,
+    }
+
+
+async def run_search_agent(
+    resolution: str,
+    side: Side,
+    session_id: str,
+    duration_minutes: float = 5.0,
+) -> dict[str, Any]:
+    """Run only the SearchAgent independently.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to prep
+        session_id: Existing session ID with tasks to process
+        duration_minutes: How long to run
+
+    Returns:
+        Summary dict with stats and paths
+    """
+    # Load existing session
+    from pathlib import Path
+
+    staging_dir = Path("staging") / session_id
+    if not staging_dir.exists():
+        raise ValueError(f"Session {session_id} not found")
+
+    session = PrepSession(resolution=resolution, side=side)
+    session.session_id = session_id
+    session.staging_dir = staging_dir
+
+    # Create and run search agent
+    search = SearchAgent(session)
+    deadline = time.time() + (duration_minutes * 60)
+
+    await search.run(deadline)
+
+    return {
+        "session_id": session.session_id,
+        "staging_dir": str(session.staging_dir),
+        "stats": session.get_stats(),
+        "agent": "search",
+        "results_created": search.state.items_created,
+    }
+
+
+async def run_cutter_agent(
+    resolution: str,
+    side: Side,
+    session_id: str,
+    duration_minutes: float = 5.0,
+) -> dict[str, Any]:
+    """Run only the CutterAgent independently.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to prep
+        session_id: Existing session ID with search results to process
+        duration_minutes: How long to run
+
+    Returns:
+        Summary dict with stats and paths
+    """
+    # Load existing session
+    from pathlib import Path
+
+    staging_dir = Path("staging") / session_id
+    if not staging_dir.exists():
+        raise ValueError(f"Session {session_id} not found")
+
+    session = PrepSession(resolution=resolution, side=side)
+    session.session_id = session_id
+    session.staging_dir = staging_dir
+
+    # Create and run cutter agent
+    cutter = CutterAgent(session)
+    deadline = time.time() + (duration_minutes * 60)
+
+    await cutter.run(deadline)
+
+    return {
+        "session_id": session.session_id,
+        "staging_dir": str(session.staging_dir),
+        "stats": session.get_stats(),
+        "agent": "cutter",
+        "cards_created": cutter.state.items_created,
+    }
+
+
+async def run_organizer_agent(
+    resolution: str,
+    side: Side,
+    session_id: str,
+    duration_minutes: float = 5.0,
+) -> dict[str, Any]:
+    """Run only the OrganizerAgent independently.
+
+    Args:
+        resolution: The debate resolution
+        side: Which side to prep
+        session_id: Existing session ID with cards to organize
+        duration_minutes: How long to run
+
+    Returns:
+        Summary dict with stats and paths
+    """
+    # Load existing session
+    from pathlib import Path
+
+    staging_dir = Path("staging") / session_id
+    if not staging_dir.exists():
+        raise ValueError(f"Session {session_id} not found")
+
+    session = PrepSession(resolution=resolution, side=side)
+    session.session_id = session_id
+    session.staging_dir = staging_dir
+
+    # Create and run organizer agent
+    organizer = OrganizerAgent(session)
+    deadline = time.time() + (duration_minutes * 60)
+
+    await organizer.run(deadline)
+
+    return {
+        "session_id": session.session_id,
+        "staging_dir": str(session.staging_dir),
+        "stats": session.get_stats(),
+        "agent": "organizer",
+        "cards_organized": organizer.state.items_created,
+    }

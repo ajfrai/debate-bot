@@ -44,6 +44,25 @@ class OrganizerAgent(BaseAgent):
             self._client = anthropic.Anthropic(api_key=api_key)
         return self._client
 
+    async def check_dependencies(self) -> tuple[bool, str]:
+        """Check if CutterAgent has created any cards."""
+        cards_dir = self.session.staging_dir / "cutter" / "cards"
+
+        if not cards_dir.exists():
+            return (
+                False,
+                "No cards directory found. Run CutterAgent first to cut evidence cards.",
+            )
+
+        card_files = list(cards_dir.glob("*.json"))
+        if not card_files:
+            return (
+                False,
+                "No evidence cards found. Run CutterAgent first to cut cards from search results.",
+            )
+
+        return (True, "")
+
     async def check_for_work(self) -> list[Any]:
         """Check for pending cut cards."""
         return self.session.get_pending_cards()

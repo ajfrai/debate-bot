@@ -47,6 +47,25 @@ class SearchAgent(BaseAgent):
             self._client = anthropic.Anthropic(api_key=api_key)
         return self._client
 
+    async def check_dependencies(self) -> tuple[bool, str]:
+        """Check if StrategyAgent has created any tasks."""
+        tasks_dir = self.session.staging_dir / "strategy" / "tasks"
+
+        if not tasks_dir.exists():
+            return (
+                False,
+                "No tasks directory found. Run StrategyAgent first to create research tasks.",
+            )
+
+        task_files = list(tasks_dir.glob("*.json"))
+        if not task_files:
+            return (
+                False,
+                "No research tasks found. Run StrategyAgent first to generate tasks.",
+            )
+
+        return (True, "")
+
     async def check_for_work(self) -> list[Any]:
         """Check for pending research tasks."""
         return self.session.get_pending_tasks()
