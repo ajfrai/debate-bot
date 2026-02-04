@@ -274,3 +274,41 @@ class PrepSession:
                     events.append(json.loads(line))
 
         return events[-limit:]
+
+    @classmethod
+    def load_from_session_id(cls, session_id: str) -> "PrepSession":
+        """Load an existing session from its session ID.
+
+        Args:
+            session_id: The session ID to load
+
+        Returns:
+            PrepSession instance loaded from disk
+
+        Raises:
+            ValueError: If session not found or brief.json is invalid
+        """
+        staging_dir = Path("staging") / session_id
+        if not staging_dir.exists():
+            raise ValueError(f"Session {session_id} not found at {staging_dir}")
+
+        brief_path = staging_dir / "organizer" / "brief.json"
+        if not brief_path.exists():
+            raise ValueError(f"Session {session_id} is missing brief.json")
+
+        brief = json.loads(brief_path.read_text())
+        resolution = brief.get("resolution")
+        side_str = brief.get("side")
+
+        if not resolution or not side_str:
+            raise ValueError(f"Session {session_id} has invalid brief.json (missing resolution or side)")
+
+        side = Side.PRO if side_str.lower() == "pro" else Side.CON
+
+        # Create session with loaded metadata
+        session = cls(resolution=resolution, side=side)
+        session.session_id = session_id
+        session.staging_dir = staging_dir
+        session._load_read_log()
+
+        return session

@@ -175,8 +175,6 @@ async def run_strategy_agent(
 
 
 async def run_search_agent(
-    resolution: str,
-    side: Side,
     session_id: str,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
@@ -184,8 +182,6 @@ async def run_search_agent(
     """Run only the SearchAgent independently.
 
     Args:
-        resolution: The debate resolution
-        side: Which side to prep
         session_id: Existing session ID with tasks to process
         duration_minutes: How long to run
         show_ui: Whether to show the terminal UI
@@ -193,16 +189,8 @@ async def run_search_agent(
     Returns:
         Summary dict with stats and paths
     """
-    # Load existing session
-    from pathlib import Path
-
-    staging_dir = Path("staging") / session_id
-    if not staging_dir.exists():
-        raise ValueError(f"Session {session_id} not found")
-
-    session = PrepSession(resolution=resolution, side=side)
-    session.session_id = session_id
-    session.staging_dir = staging_dir
+    # Load existing session from session_id
+    session = PrepSession.load_from_session_id(session_id)
 
     # Create search agent and check dependencies
     search = SearchAgent(session)
