@@ -1,0 +1,142 @@
+============================================================
+AUTONOMOUS PREP TRANSCRIPT
+============================================================
+
+Command: /home/abraham/debate-bot/.venv/bin/debate prep Resolved: The United States should use military power to force regime change in Iran --side pro --log --max-turns 4
+
+Resolution: Resolved: The United States should use military power to force regime change in Iran
+Side: PRO
+Max Turns: 4
+Started: 2026-02-03T14:33:30.856482
+
+============================================================
+
+
+────────────────────────────────────────────────────────────
+Turn 1/4
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+I'll begin autonomous prep for the PRO side of regime change in Iran. Let me start with a brief breadcrumb analysis to map the argument landscape, then focus heavily on cutting cards.
+
+Tool Call: analyze
+Input: {
+  "analysis_type": "breadcrumb_initial"
+}
+────────────────────────────────────────
+Result:
+{
+  "analysis_type": "breadcrumb_initial",
+  "output": "# PRO Argument Tree: Military Regime Change in Iran\n\n## Causal Chains:\n\u2219 Regime change \u2192 eliminates nuclear weapons program \u2192 prevents nuclear-armed theocracy \u2192 Middle East stability / prevents nuclear terrorism\n\u2219 Regime change \u2192 ends state sponsorship of terrorism (Hezbollah, Hamas, Houthis) \u2192 regional peace / saves civilian lives\n\u2219 Regime change \u2192 removes human rights violator \u2192 liberates oppressed population (women, minorities, dissidents)\n\u2219 Regime change \u2192 democratic government \u2192 long-term US ally \u2192 geopolitical stability\n\u2219 **Blocker**: Military intervention \u2192 mass casualties / destabilization \u2192 worse outcomes than status quo (Iraq/Libya precedent)\n\n## Evidence Needs:\n- Iran's nuclear timeline proximity / capability assessments\n- Quantified terrorism funding/casualties attributable to regime\n- Post-intervention success cases (vs. Iraq/Afghanistan failures)\n- Domestic Iranian support for external intervention data\n- Military feasibility analysis / casualty projections",
+  "status": "completed"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 2/4
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Good! Now I have my research targets. Let me focus on cutting cards. I'll prioritize:
+1. **Nuclear threat** (3 support + 2 answer cards)
+2. **Terrorism sponsorship** (3 support + 2 answer cards)
+3. **Human rights** (3 support + 2 answer cards)
+4. **Feasibility/Success** (3 support + 2 answer cards)
+
+Let me start with nuclear threat evidence:
+
+Tool Call: search
+Input: {
+  "query": "Iran nuclear weapons program timeline threat 2024 2025",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran nuclear weapons program timeline threat 2024 2025",
+  "results": "## Search Results\n\n1. **Iran and Nuclear Weapons Production | Congress.gov | Library of Congress**\n   URL: https://www.congress.gov/crs-product/IF12106\n   Description: <strong>Tehran has not made a decision to develop nuclear weapons</strong>, according to 2024 and 2025 public U.S. intelligence assessments. IAEA Director General Rafael Grossi stated Grossi explained in June 21 CNN interview that the IAEA does &quot;not have \u2026 ...\n\n2. **Iran's Nuclear Timetable: The Weapon Potential | Iran Watch**\n   URL: https://www.iranwatch.org/our-publications/articles-reports/irans-nuclear-timetable-weapon-potential\n   Description: How quickly could Iran get enough fissile material for a small nuclear arsenal? This timetable estimates how quickly Iran could amass enough weapons-grade uranium for at least five bombs. <strong>Once it has the enriched uranium, however, it could take at least several months to turn it into a working</strong> ...\n\n3. **Iran and Nuclear Weapons Production**\n   URL: https://www.congress.gov/crs_external_products/IF/PDF/IF12106/IF12106.18.pdf\n   Description: for Iran\u2019s Shahab-3 ballistic missile. <strong>Tehran has not made a \u00b7 decision to develop nuclear weapons</strong>, according to 2024 \u00b7 and 2025 public U.S. intelligence assessments. The 2025 \u00b7 U.S. Intelligence Community Annual Threat Assessment\n\n4. **Nuclear program of Iran - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/Nuclear_program_of_Iran\n   Description: <strong>In November 2024, Iran announced that it would make new advanced centrifuges after IAEA condemned Iranians&#x27; non-compliance and secrecy</strong>. In January 2025, the exiled opposition group NCRI alleged that Iran is developing long-range missile technology ...\n\n5. **2025 Iran\u2013United States negotiations - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/2025_Iran\u2013United_States_negotiations\n   Description: Iran&#x27;s nuclear program has been a focal point of international scrutiny for decades. Although the country suspended its formal nuclear weapons program in 2003, in <strong>December 2024</strong>, the UN nuclear watchdog IAEA reported enrichment to levels approaching ...\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 3/4
+────────────────────────────────────────────────────────────
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.iranwatch.org/our-publications/articles-reports/irans-nuclear-timetable-weapon-potential"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "error",
+  "message": "Failed to download content from https://www.iranwatch.org/our-publications/articles-reports/irans-nuclear-timetable-weapon-potential"
+}
+
+
+Tool Call: search
+Input: {
+  "query": "Iran state sponsor terrorism Hezbollah Hamas funding casualties",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran state sponsor terrorism Hezbollah Hamas funding casualties",
+  "results": "## Search Results\n\n1. **Hezbollah, Hamas, and More: Iran's Terror Network Around the Globe | AJC**\n   URL: https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe\n   Description: The evidence \u201cfirmly established that the Khobar Towers bombing was planned, funded, and sponsored by senior leadership in the government of the Islamic Republic of Iran,\u201d the court ruled. In 2015, Saudi authorities apprehended in Lebanon the mastermind behind the attack. Arrests are believed to have dissolved the group. Hamas, Hezbollah, Houthis, Iran - What you need to know | Hezbollah\n\n2. **Iran - United States Department of State**\n   URL: https://www.state.gov/reports/country-reports-on-terrorism-2021/iran/\n   Description: Iran has allowed AQ facilitators to operate a core facilitation pipeline through Iran since at least 2009, enabling AQ to move funds and fighters to South Asia and Syria, among other locales. As in past years, the Iranian government continued supporting terrorist plots or associated activities targeting Iranian dissidents.\n\n3. **\u201cState Sponsors of Terrorism: An Examination of Iran\u2019s Global Terrorism Network.\u201d | Congress.gov | Library of Congress**\n   URL: https://www.congress.gov/event/115th-congress/house-event/108155/text\n   Description: Funding terror organizations such ... weapons, has left the Iranian regime&#x27;s hands stained with the blood of <strong>innocent men, women, and children</strong>....\n\n4. **How America and Its Allies Can Stop Hamas, Hezbollah, ...**\n   URL: https://docs.house.gov/meetings/ba/ba10/20231025/116509/hhrg-118-ba10-wstate-noronhag-20231025.pdf\n   Description: The regime massively increased funding to Hamas in the past \u00b7 year \u2013 enabling the terror group to launch the heinous October 7 terror attacks and to sustain its \u00b7 ongoing operations. This attack would not have been possible without funding from the regime in Iran.\n\n5. **Unraveling a Complex Web: A primer on Hamas funding sources, Iranian support, global connections and compliance concerns, considerations**\n   URL: https://www.acfcs.org/unraveling-a-complex-web-a-primer-on-hamas-funding-sources-iranian-support-global-connections-and-compliance-concerns-considerations\n   Description: \u201cNot only did the Hamas attack come straight out of the Hezbollah playbook, but Iran has funded, trained, and armed both Hamas and Hezbollah for decades, investing billions of dollars over time in these groups in support of their terrorist activities,\u201d wrote one speaker at a congressional hearing Thursday on terror funding.\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 4/4
+────────────────────────────────────────────────────────────
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.state.gov/reports/country-reports-on-terrorism-2021/iran/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "b0fe4efa",
+  "url": "https://www.state.gov/reports/country-reports-on-terrorism-2021/iran/",
+  "length": 257,
+  "preview": "We\u2019re sorry, this site is currently experiencing technical difficulties.\nPlease try again in a few moments.\nException: forbidden\nWe\u2019re sorry, this site is currently experiencing technical difficulties.\nPlease try again in a few moments.\nException: forbidden",
+  "message": "Source fetched with ID b0fe4efa. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "b38d7bd7",
+  "url": "https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe",
+  "length": 5032,
+  "preview": "June 13, 2025\nSince the 1979 Islamic Revolution, one of the key priorities of the Iranian regime has been exporting its revolution abroad. Designated a sponsor of terror by the U.S. government in 1984, Iran is considered the \u201cforemost state sponsor of terrorism,\u201d providing \u201ca range of support, including financial, training, and equipment, to [terrorist] groups around the world \u2013 particularly Hezbollah,\u201d according to the U.S. State Department.\nTehran has used its proxy army of more than a dozen m...",
+  "message": "Source fetched with ID b38d7bd7. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+============================================================
+PREP COMPLETE
+============================================================
+
+Turns used: 4/4
+Arguments: 0
+Total cards: 0
+Analyses: 1
+Completed: 2026-02-03T14:34:00.343236

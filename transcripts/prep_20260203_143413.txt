@@ -1,0 +1,129 @@
+============================================================
+AUTONOMOUS PREP TRANSCRIPT
+============================================================
+
+Command: /home/abraham/debate-bot/.venv/bin/debate prep Resolved: The United States should use military power to force regime change in Iran --side pro --log --max-turns 6
+
+Resolution: Resolved: The United States should use military power to force regime change in Iran
+Side: PRO
+Max Turns: 6
+Started: 2026-02-03T14:34:13.775576
+
+============================================================
+
+
+────────────────────────────────────────────────────────────
+Turn 1/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+I'll begin autonomous prep for the PRO side of military regime change in Iran. Let me start with a brief breadcrumb analysis to map the argument landscape, then focus heavily on cutting cards.
+
+Tool Call: analyze
+Input: {
+  "analysis_type": "breadcrumb_initial"
+}
+────────────────────────────────────────
+Result:
+{
+  "analysis_type": "breadcrumb_initial",
+  "output": "# PRO Argument Tree: Military Force for Iran Regime Change\n\n**Causal Chains:**\n\u2219 Regime change \u2192 democratic government \u2192 protection of human rights (end executions, persecution)\n\u2219 Regime change \u2192 end nuclear program \u2192 prevent nuclear proliferation \u2192 regional/global security\n\u2219 Regime change \u2192 remove state sponsor of terrorism \u2192 weaken Hezbollah/Hamas \u2192 Middle East stability\n\u2219 Regime change \u2192 end proxy wars (Yemen, Syria) \u2192 reduce civilian casualties\n\u2219 Military action \u2192 Iranian liberation movement support \u2192 faster transition, less total violence\n\u2219 **Blocker**: Military intervention \u2192 civilian casualties, destabilization \u2192 humanitarian crisis\n\u2219 **Blocker**: Regime change \u2192 power vacuum \u2192 worse actors (ISIS-style groups)\n\n**Evidence Needs:**\n- Iran human rights violations severity/scale\n- Nuclear program imminence threat assessment\n- Historical regime change success rates (Iraq/Libya comparison)\n- Iranian public support for intervention data\n- Alternative diplomatic failure precedents",
+  "status": "completed"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 2/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Good! Now I have my research targets. I'll focus on cutting cards across 6 key topics:
+1. Iran human rights violations (support)
+2. Nuclear threat imminence (support)
+3. State sponsor of terrorism (support)
+4. Regime change feasibility (support + answers to failure)
+5. Diplomatic alternatives fail (support)
+6. Answers to civilian casualties/destabilization
+
+Let me start researching and cutting cards. I'll search for sources on Iran's human rights violations first.
+
+Tool Call: search
+Input: {
+  "query": "Iran human rights violations executions political prisoners 2024",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran human rights violations executions political prisoners 2024",
+  "results": "## Search Results\n\n1. **Scores of Political Prisoners Will Be Executed in Iran Without an International Outcry - Center for Human Rights in Iran**\n   URL: https://iranhumanrights.org/2025/08/scores-of-political-prisoners-will-be-executed-in-iran-without-an-international-outcry/\n   Description: The actions described in Shahbazi\u2019s letter\u2014the <strong>torture, falsified confession, and imposition of a death sentence without trial transparency, access to counsel, or the opportunity for defense</strong>\u2014represent a grave miscarriage of justice, and ...\n\n2. **Annual Report on Human Rights in Iran: 2024 - Iran HRM**\n   URL: https://iran-hrm.com/2025/01/07/annual-report-on-human-rights-in-iran-2024/\n   Description: #StopExecutionsinIranhttps://t.co/WaF9PB8Kp6\u2014 IRAN HRM (@IranHrm) October 27, 2024 \u00b7 <strong>The execution of juvenile offenders in Iran during 2024 represents one of the most egregious violations of international human rights law</strong>.\n\n3. **2024 Country Reports on Human Rights Practices: Iran**\n   URL: https://www.state.gov/reports/2024-country-reports-on-human-rights-practices/iran\n   Description: <strong>The government executed hundreds of prisoners, including many who confessed under torture and faced unfair trials</strong>. There were new cases of violent enforcement of women\u2019s dress code restrictions.\n\n4. **Iran 2024 Human Rights Report**\n   URL: https://www.state.gov/wp-content/uploads/2025/07/624521_IRAN-2024-HUMAN-RIGHTS-REPORT.pdf\n   Description: Iran 2024 Human Rights Report \u00b7 ... in a number of areas during the year. The government executed \u00b7 <strong>hundreds of prisoners, including many who confessed under torture and \u00b7 faced unfair trials</strong>. There were new cases of violent enforcement of \u00b7 women\u2019s dress code ...\n\n5. **Iran Human Rights | Article: Annual Report on the Death Penalty in Iran 2024 |**\n   URL: https://www.iranhr.net/en/reports/42/\n   Description: In 2024, <strong>at least five people including protester Mohammad Ghobadlu were executed</strong>, again in total contradiction with Iran\u2019s international obligations. In the face of this escalating brutality, both domestic and international opposition to ...\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 3/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Excellent sources! Let me fetch the State Department report and the Iran HRM annual report to cut cards.
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.state.gov/reports/2024-country-reports-on-human-rights-practices/iran"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "ec94ff96",
+  "url": "https://www.state.gov/reports/2024-country-reports-on-human-rights-practices/iran",
+  "length": 257,
+  "preview": "We\u2019re sorry, this site is currently experiencing technical difficulties.\nPlease try again in a few moments.\nException: forbidden\nWe\u2019re sorry, this site is currently experiencing technical difficulties.\nPlease try again in a few moments.\nException: forbidden",
+  "message": "Source fetched with ID ec94ff96. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://iran-hrm.com/2025/01/07/annual-report-on-human-rights-in-iran-2024/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "9e0d8057",
+  "url": "https://iran-hrm.com/2025/01/07/annual-report-on-human-rights-in-iran-2024/",
+  "length": 5032,
+  "preview": "Introduction\nThe year 2024 was marked by a significant escalation in human rights violations in Iran, with the regime\u2019s continued reliance on executions, arbitrary detentions, torture, and suppression of dissent. This report provides a comprehensive overview of key human rights abuses documented throughout the year, focusing on the regime\u2019s use of capital punishment, targeting of political dissidents and ethnic minorities, and systemic discrimination against women and juveniles.\nOverview of Exec...",
+  "message": "Source fetched with ID 9e0d8057. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 4/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Great! The Iran HRM source loaded successfully. Let me cut cards from it and search for more sources.
+
+Tool Call: cut_card
+Input: {
+  "fetch_id": "9e0d8057",
+  "start_phrase": "The year 2024 was marked by a significant escalation",
+  "end_phrase": "systemic discrimination against women and juveniles.",
+  "tag": "Iran regime escalated human rights violations in 2024 - executions, torture, suppression",
+  "argument": "Iran's human rights violations justify regime change",
+  "purpose": "support",
+  "author": "Iran Human Rights Monitor",
+  "credentials": "International human rights documentation organization",
+  "year": "2025",
+  "source": "Iran HRM",
+  "evidence_type": "empirical"
+}
+────────────────────────────────────────

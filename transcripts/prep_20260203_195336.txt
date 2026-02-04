@@ -1,0 +1,39 @@
+============================================================
+AUTONOMOUS PREP TRANSCRIPT
+============================================================
+
+Command: /home/abraham/debate-bot/.venv/bin/debate prep Resolved: The United States should use military power to force regime change in Iran --side pro --log --max-turns 6
+
+Resolution: Resolved: The United States should use military power to force regime change in Iran
+Side: PRO
+Max Turns: 6
+Started: 2026-02-03T19:53:36.490259
+
+============================================================
+
+
+────────────────────────────────────────────────────────────
+Turn 1/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+I'll begin autonomous prep for the PRO side of military regime change in Iran. Let me start with a brief breadcrumb analysis to map the argument landscape, then move quickly into cutting cards.
+
+Tool Call: analyze
+Input: {
+  "analysis_type": "breadcrumb_initial"
+}
+────────────────────────────────────────
+Result:
+{
+  "analysis_type": "breadcrumb_initial",
+  "output": "# PRO ARGUMENT TREE: US Military Regime Change in Iran\n\n## Causal Chain Map\n\n\u2219 Regime change \u2192 removes theocratic government \u2192 protects human rights (executions, women's rights, LGBTQ persecution)\n\u2219 Regime change \u2192 eliminates nuclear weapons program \u2192 prevents Middle East nuclear proliferation/arms race\n\u2219 Regime change \u2192 ends state sponsorship of terrorism \u2192 reduces Hezbollah/Hamas funding \u2192 regional stability\n\u2219 Regime change \u2192 establishes democratic government \u2192 long-term US ally \u2192 counterbalances Russia/China influence\n\u2219 Regime change \u2192 opens Iranian economy \u2192 benefits Iranian citizens economically\n\u2219 **Blocker**: Invasion causes massive casualties, regional war (Iraq War parallel)\n\u2219 **Blocker**: No guarantee successor government is stable/democratic (Libya, Afghanistan examples)\n\n## Evidence Needs:\n- Scale of current human rights abuses in Iran\n- Credible evidence of nuclear weapons timeline/capability\n- Historical success rates of forced regime change\n- Military casualty projections and regional escalation risk\n- Post-intervention stability models",
+  "status": "completed"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 2/6
+────────────────────────────────────────────────────────────
+

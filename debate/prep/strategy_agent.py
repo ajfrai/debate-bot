@@ -104,6 +104,8 @@ class StrategyAgent(BaseAgent):
 
     async def _enumerate_arguments(self, evidence_type: str) -> None:
         """Enumerate arguments for the given evidence type."""
+        self.log(f"enumerating_{evidence_type}_arguments", {"phase": "starting"})
+
         config = Config()
         model = config.get_agent_model("prep_strategy")
 
@@ -189,13 +191,20 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log(f"created_{evidence_type}_task", {"argument": task["argument"][:40]})
+
+                # Log with full argument text for UI display
+                arg_text = task["argument"]
+                if len(arg_text) > 50:
+                    arg_text = arg_text[:47] + "..."
+                self.log(f"New: {arg_text}", {"type": evidence_type})
 
         except (json.JSONDecodeError, Exception) as e:
             self.log("enumeration_error", {"error": str(e)[:50]})
 
     async def _generate_impact_chains(self) -> None:
         """Generate research tasks for impact link chains."""
+        self.log("generating_impact_chains", {"phase": "starting"})
+
         config = Config()
         model = config.get_agent_model("prep_strategy")
 
@@ -253,13 +262,20 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log("created_impact_task", {"argument": task["argument"][:40]})
+
+                # Log with full argument text for UI display
+                arg_text = task["argument"]
+                if len(arg_text) > 50:
+                    arg_text = arg_text[:47] + "..."
+                self.log(f"New impact: {arg_text}", {"type": "impact"})
 
         except (json.JSONDecodeError, Exception) as e:
             self.log("impact_chain_error", {"error": str(e)[:50]})
 
     async def _generate_deep_dive(self) -> None:
         """Generate deep-dive tasks for arguments that need more evidence."""
+        self.log("analyzing_brief_gaps", {"phase": "deep_dive"})
+
         brief = self.session.read_brief()
 
         # Find arguments with few cards
@@ -276,11 +292,16 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log("created_deep_dive_task", {"argument": arg_name[:40]})
+
+                # Log with brief argument text
+                arg_text = arg_name
+                if len(arg_text) > 50:
+                    arg_text = arg_text[:47] + "..."
+                self.log(f"Deep dive: {arg_text}", {"cards": total_cards})
                 return  # One at a time
 
         # If no arguments need deep dive, create a generic exploration task
-        self.log("all_args_covered", {"status": "exploring new angles"})
+        self.log("Brief complete, exploring new angles", {})
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from response text."""
