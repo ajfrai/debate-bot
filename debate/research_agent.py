@@ -66,13 +66,16 @@ def load_lessons(*lesson_names: str) -> str:
     return "\n\n---\n\n".join(lessons)
 
 
-def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = True) -> str | None:
+def _brave_search(
+    query: str, num_results: int = 5, retry_on_rate_limit: bool = True, quiet: bool = False
+) -> str | None:
     """Search Brave for relevant sources with rate limiting support.
 
     Args:
         query: Search query
         num_results: Number of results to fetch (default 5)
         retry_on_rate_limit: Whether to retry on 429 rate limit (default True)
+        quiet: If True, suppress print output (useful for parallel UI)
 
     Returns:
         Formatted search results as a string, or None if search fails
@@ -99,13 +102,15 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
 
             # Handle rate limiting (429)
             if response.status_code == 429 and retry_on_rate_limit and retry_count < max_retries:
-                print("  Rate limited (429), waiting 10s before retry...")
+                if not quiet:
+                    print("  Rate limited (429), waiting 10s before retry...")
                 time.sleep(10)
                 retry_count += 1
                 continue
 
             if response.status_code != 200:
-                print(f"Warning: Brave Search returned status {response.status_code}")
+                if not quiet:
+                    print(f"Warning: Brave Search returned status {response.status_code}")
                 return None
 
             data = response.json()
@@ -125,11 +130,13 @@ def _brave_search(query: str, num_results: int = 5, retry_on_rate_limit: bool = 
             return "\n".join(formatted)
 
         except Exception as e:
-            print(f"Warning: Brave Search failed: {e}")
+            if not quiet:
+                print(f"Warning: Brave Search failed: {e}")
             return None
 
     # If we exhausted retries
-    print("  Rate limit retries exhausted")
+    if not quiet:
+        print("  Rate limit retries exhausted")
     return None
 
 
