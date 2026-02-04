@@ -101,14 +101,6 @@ class BaseAgent(ABC):
         self.state.status = "starting"
 
         try:
-            # Check dependencies before starting
-            deps_satisfied, deps_message = await self.check_dependencies()
-            if not deps_satisfied:
-                self.state.status = "blocked"
-                self.log("dependency_check_failed", {"message": deps_message})
-                print(f"\n[{self.name.upper()}] {deps_message}")
-                return
-
             await self.on_start()
 
             while time.time() < deadline and self._running:

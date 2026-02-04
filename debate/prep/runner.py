@@ -185,10 +185,15 @@ async def run_search_agent(
     session.session_id = session_id
     session.staging_dir = staging_dir
 
-    # Create and run search agent
+    # Create search agent and check dependencies
     search = SearchAgent(session)
-    deadline = time.time() + (duration_minutes * 60)
+    deps_satisfied, deps_message = await search.check_dependencies()
+    if not deps_satisfied:
+        print(f"\n[SEARCH] {deps_message}\n")
+        raise ValueError(deps_message)
 
+    # Run the agent
+    deadline = time.time() + (duration_minutes * 60)
     await search.run(deadline)
 
     return {
@@ -228,10 +233,15 @@ async def run_cutter_agent(
     session.session_id = session_id
     session.staging_dir = staging_dir
 
-    # Create and run cutter agent
+    # Create cutter agent and check dependencies
     cutter = CutterAgent(session)
-    deadline = time.time() + (duration_minutes * 60)
+    deps_satisfied, deps_message = await cutter.check_dependencies()
+    if not deps_satisfied:
+        print(f"\n[CUTTER] {deps_message}\n")
+        raise ValueError(deps_message)
 
+    # Run the agent
+    deadline = time.time() + (duration_minutes * 60)
     await cutter.run(deadline)
 
     return {
@@ -271,10 +281,15 @@ async def run_organizer_agent(
     session.session_id = session_id
     session.staging_dir = staging_dir
 
-    # Create and run organizer agent
+    # Create organizer agent and check dependencies
     organizer = OrganizerAgent(session)
-    deadline = time.time() + (duration_minutes * 60)
+    deps_satisfied, deps_message = await organizer.check_dependencies()
+    if not deps_satisfied:
+        print(f"\n[ORGANIZER] {deps_message}\n")
+        raise ValueError(deps_message)
 
+    # Run the agent
+    deadline = time.time() + (duration_minutes * 60)
     await organizer.run(deadline)
 
     return {

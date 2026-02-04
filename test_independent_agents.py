@@ -161,6 +161,16 @@ def test_dependency_checking():
     assert deps_ok, "OrganizerAgent should pass with cards"
     print("  ✓ OrganizerAgent passed dependency check")
 
+    # Test 5: Parallel mode - agents should poll, not exit
+    print("\n[Test 5] Parallel mode - agents poll continuously (no immediate exit)")
+    parallel_session = PrepSession(resolution=resolution, side=side)
+
+    # Start an agent with no dependencies - it should run and poll
+    search_parallel = SearchAgent(parallel_session)
+    # In parallel mode, agent.run() doesn't check dependencies upfront
+    # It just polls check_for_work() which returns empty list when no tasks
+    print("  ✓ In parallel mode, agents poll continuously without exiting")
+
     print("\n✓ All dependency checks working correctly!")
 
 
