@@ -1,5 +1,6 @@
 """SearchAgent: Writes search queries and stages results."""
 
+import asyncio
 import os
 import time
 from typing import Any
@@ -74,7 +75,6 @@ class SearchAgent(BaseAgent):
         """Process a research task: generate query, search, fetch, stage."""
         task_id = task["id"]
         task_path = str(self.session.staging_dir / "strategy" / "tasks" / f"task_{task_id}.json")
-        self.session.mark_processed("search", task_path)
 
         self.log("processing_task", {"task_id": task_id, "argument": task.get("argument", "")[:40]})
 
@@ -83,7 +83,7 @@ class SearchAgent(BaseAgent):
         if time_since_last < self._search_delay:
             wait_time = self._search_delay - time_since_last
             self.state.update(f"rate_limit_wait_{wait_time:.1f}s", "waiting")
-            time.sleep(wait_time)
+            await asyncio.sleep(wait_time)
 
         # Generate search query
         query = await self._generate_query(task)
@@ -130,7 +130,7 @@ class SearchAgent(BaseAgent):
                     }
                 )
 
-            time.sleep(2)  # Rate limit between fetches
+            await asyncio.sleep(2)  # Rate limit between fetches
 
         # Stage results
         result = {
@@ -152,6 +152,9 @@ class SearchAgent(BaseAgent):
             },
         )
 
+        # Mark as processed only after successful completion (idempotency)
+        self.session.mark_processed("search", task_path)
+
     async def _generate_query(self, task: dict[str, Any]) -> str | None:
         """Generate a targeted search query for the task."""
         config = Config()
@@ -171,7 +174,9 @@ Requirements:
 Output ONLY the search query, nothing else. Max 15 words."""
 
         try:
-            response = self._get_client().messages.create(
+            # Run sync API call in thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self._get_client().messages.create,
                 model=model,
                 max_tokens=50,  # Very short - just the query
                 messages=[{"role": "user", "content": prompt}],
