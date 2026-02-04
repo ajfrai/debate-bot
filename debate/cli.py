@@ -526,22 +526,13 @@ def cmd_prep_search(args) -> None:
 
     from debate.prep.runner import run_search_agent
 
-    side = Side.PRO if args.side == "pro" else Side.CON
-
-    if not args.session:
-        print("\nError: --session required for SearchAgent (run StrategyAgent first)\n", file=sys.stderr)
-        sys.exit(1)
-
-    print(f"\nRunning SearchAgent for {args.side.upper()}")
-    print(f"Resolution: {args.resolution}")
+    print("\nRunning SearchAgent")
     print(f"Session ID: {args.session}")
     print(f"Duration: {args.duration} minutes\n")
 
     try:
         result = asyncio.run(
             run_search_agent(
-                resolution=args.resolution,
-                side=side,
                 session_id=args.session,
                 duration_minutes=args.duration,
             )
@@ -783,18 +774,9 @@ def main() -> None:
         "prep-search",
         help="Run only the SearchAgent (requires StrategyAgent tasks)",
     )
-    prep_search_parser.add_argument("resolution", type=str, help="The debate resolution")
     prep_search_parser.add_argument(
-        "--side",
+        "session",
         type=str,
-        choices=["pro", "con"],
-        required=True,
-        help="Which side to prep",
-    )
-    prep_search_parser.add_argument(
-        "--session",
-        type=str,
-        required=True,
         help="Session ID from StrategyAgent",
     )
     prep_search_parser.add_argument(
