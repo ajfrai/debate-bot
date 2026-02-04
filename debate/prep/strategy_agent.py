@@ -1,5 +1,6 @@
 """StrategyAgent: Maintains argument queue and decides what to research."""
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -70,23 +71,35 @@ class StrategyAgent(BaseAgent):
 
     async def _process_feedback(self, feedback: dict[str, Any]) -> None:
         """Process feedback from organizer."""
-        feedback_path = str(self.session.staging_dir / "organizer" / "feedback" / f"feedback_{feedback['id']}.json")
-        self.session.mark_processed("strategy", feedback_path)
+        try:
+            feedback_path = str(self.session.staging_dir / "organizer" / "feedback" / f"feedback_{feedback['id']}.json")
+            self.session.mark_processed("strategy", feedback_path)
 
-        feedback_type = feedback.get("type", "")
-        self.log(f"processing_{feedback_type}_feedback", {"id": feedback["id"]})
+            feedback_type = feedback.get("type", "")
+            message = feedback.get("message", "")
 
-        # Create task based on feedback
-        task = {
-            "argument": feedback.get("message", ""),
-            "search_intent": feedback.get("suggested_intent", feedback.get("message", "")),
-            "evidence_type": "support" if feedback_type != "link_chain" else "impact",
-            "priority": "high",
-            "source": f"feedback_{feedback_type}",
-        }
-        self.session.write_task(task)
-        self.state.items_created += 1
-        self.log(f"task_from_{feedback_type}", {"argument": task["argument"][:40]})
+            # Update UI with current direction
+            display_msg = message[:20] + "..." if len(message) > 20 else message
+            direction = f"📝 Responding: {display_msg}"
+            self.state.current_direction = direction
+
+            self.log(direction, {"type": feedback_type, "id": feedback["id"]})
+
+            # Create task based on feedback
+            task = {
+                "argument": message,
+                "search_intent": feedback.get("suggested_intent", message),
+                "evidence_type": "support" if feedback_type != "link_chain" else "impact",
+                "priority": "high",
+                "source": f"feedback_{feedback_type}",
+            }
+            self.session.write_task(task)
+            self.state.items_created += 1
+            self.log(f"task_from_{feedback_type}", {"argument": task["argument"][:40]})
+        except Exception as e:
+            error_msg = f"Error processing feedback: {str(e)[:40]}"
+            self.log(error_msg, {"error_type": "feedback_error"})
+            self.state.current_direction = f"❌ {error_msg}"
 
     async def _generate_tasks_for_phase(self, phase_idx: int) -> None:
         """Generate tasks for the current strategy phase."""
@@ -104,6 +117,14 @@ class StrategyAgent(BaseAgent):
 
     async def _enumerate_arguments(self, evidence_type: str) -> None:
         """Enumerate arguments for the given evidence type."""
+        # Update UI with current research direction
+        if evidence_type == "support":
+            direction = "📌 Generating PRO arguments"
+        else:
+            direction = "🛡️ Generating ANSWER arguments"
+        self.state.current_direction = direction
+        self.log(direction, {"phase": "starting"})
+
         config = Config()
         model = config.get_agent_model("prep_strategy")
 
@@ -121,16 +142,16 @@ Side: {self.session.side.value.upper()}
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
 Generate 2-3 NEW arguments to research (not duplicates of existing).
-For each argument:
-- State a specific, provable claim
-- Describe what evidence would prove it
-- Prioritize based on strength and availability
+For each argument, be CONCISE (3-10 words max):
+- argument: A specific, provable claim (3-10 words)
+- search_intent: What evidence to find (3-10 words)
+- priority: high/medium/low
 
 Output JSON array:
 [
   {{
-    "argument": "Specific claim to prove",
-    "search_intent": "What evidence to search for",
+    "argument": "Concise specific claim",
+    "search_intent": "What evidence to find",
     "priority": "high"
   }}
 ]
@@ -146,16 +167,16 @@ Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
 Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
 
 Generate 2-3 ANSWER arguments (responding to likely opponent claims).
-For each:
-- State what opponent argument you're answering
-- Describe what evidence would refute/mitigate it
-- Prioritize based on how likely opponent will run it
+Be CONCISE (3-10 words max) for each:
+- argument: AT: [Opponent claim] (3-10 words)
+- search_intent: Evidence that refutes/mitigates (3-10 words)
+- priority: high/medium/low
 
 Output JSON array:
 [
   {{
-    "argument": "AT: [Opponent claim to answer]",
-    "search_intent": "Evidence that refutes or mitigates this",
+    "argument": "AT: Concise opponent claim",
+    "search_intent": "Evidence that refutes this",
     "priority": "high"
   }}
 ]
@@ -163,7 +184,9 @@ Output JSON array:
 Only output JSON array."""
 
         try:
-            response = self._get_client().messages.create(
+            # Run sync API call in thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self._get_client().messages.create,
                 model=model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],
@@ -189,13 +212,28 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log(f"created_{evidence_type}_task", {"argument": task["argument"][:40]})
 
-        except (json.JSONDecodeError, Exception) as e:
-            self.log("enumeration_error", {"error": str(e)[:50]})
+                # Log full argument and search intent to UI
+                arg_text = task["argument"]
+                search_text = task["search_intent"]
+                self.log(f"📍 {arg_text} | 🔍 {search_text}", {"type": evidence_type, "priority": task["priority"]})
+
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse JSON response: {str(e)[:40]}"
+            self.log(error_msg, {"error_type": "json_decode"})
+            self.state.current_direction = f"❌ {error_msg}"
+        except Exception as e:
+            error_msg = f"Error enumerating arguments: {str(e)[:40]}"
+            self.log(error_msg, {"error_type": "exception"})
+            self.state.current_direction = f"❌ {error_msg}"
 
     async def _generate_impact_chains(self) -> None:
         """Generate research tasks for impact link chains."""
+        # Update UI with current research direction
+        direction = "⚡ Building impact link chains"
+        self.state.current_direction = direction
+        self.log(direction, {"phase": "starting"})
+
         config = Config()
         model = config.get_agent_model("prep_strategy")
 
@@ -209,18 +247,19 @@ Side: {self.session.side.value.upper()}
 
 Current arguments: {existing_args if existing_args else "(none yet)"}
 
-For each existing argument, identify what TERMINAL IMPACT evidence is needed.
-Impact chains follow: [Internal Link] -> [Impact]
+For each existing argument, identify TERMINAL IMPACT evidence needed.
+Impact chains: [Internal Link] -> [Impact]
 
-Examples:
-- "Economic harm" -> needs "economic decline causes poverty/unemployment"
-- "National security" -> needs "security breaches cause XYZ harm"
+Be CONCISE (3-10 words max):
+- argument: Impact: [Terminal impact] (3-10 words)
+- search_intent: Evidence that [X] leads to [Y] (3-10 words)
+- priority: high/medium
 
 Generate 2 impact research tasks:
 [
   {{
-    "argument": "Impact: [Terminal impact to prove]",
-    "search_intent": "Evidence that [X] leads to [terminal harm/benefit]",
+    "argument": "Impact: Concise terminal impact",
+    "search_intent": "Evidence linking to terminal harm",
     "priority": "medium"
   }}
 ]
@@ -228,7 +267,9 @@ Generate 2 impact research tasks:
 Only output JSON array."""
 
         try:
-            response = self._get_client().messages.create(
+            # Run sync API call in thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self._get_client().messages.create,
                 model=model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],
@@ -253,13 +294,28 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log("created_impact_task", {"argument": task["argument"][:40]})
 
-        except (json.JSONDecodeError, Exception) as e:
-            self.log("impact_chain_error", {"error": str(e)[:50]})
+                # Log full impact and search intent to UI
+                arg_text = task["argument"]
+                search_text = task["search_intent"]
+                self.log(f"⚡ {arg_text} | 🔍 {search_text}", {"type": "impact", "priority": task["priority"]})
+
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse impact chain JSON: {str(e)[:35]}"
+            self.log(error_msg, {"error_type": "json_decode"})
+            self.state.current_direction = f"❌ {error_msg}"
+        except Exception as e:
+            error_msg = f"Error generating impact chains: {str(e)[:35]}"
+            self.log(error_msg, {"error_type": "exception"})
+            self.state.current_direction = f"❌ {error_msg}"
 
     async def _generate_deep_dive(self) -> None:
         """Generate deep-dive tasks for arguments that need more evidence."""
+        # Update UI with current research direction
+        direction = "🔎 Deepening existing arguments"
+        self.state.current_direction = direction
+        self.log(direction, {"phase": "deep_dive"})
+
         brief = self.session.read_brief()
 
         # Find arguments with few cards
@@ -267,6 +323,11 @@ Only output JSON array."""
             total_cards = sum(len(g.get("cards", [])) for g in arg_data.get("semantic_groups", {}).values())
             if total_cards < 3:
                 # Need more evidence for this argument
+                # Condense argument name if needed
+                display_arg = arg_name[:30] + "..." if len(arg_name) > 30 else arg_name
+                direction = f"📚 Deepening: {display_arg}"
+                self.state.current_direction = direction
+
                 task = {
                     "argument": arg_name,
                     "search_intent": f"Find additional evidence for: {arg_name}",
@@ -276,11 +337,15 @@ Only output JSON array."""
                 }
                 self.session.write_task(task)
                 self.state.items_created += 1
-                self.log("created_deep_dive_task", {"argument": arg_name[:40]})
+
+                # Log with brief argument and card count
+                self.log(f"{direction} ({total_cards} cards)", {"cards": total_cards})
                 return  # One at a time
 
-        # If no arguments need deep dive, create a generic exploration task
-        self.log("all_args_covered", {"status": "exploring new angles"})
+        # If no arguments need deep dive, explore new angles
+        direction = "✨ Exploring new strategic angles"
+        self.state.current_direction = direction
+        self.log(direction, {})
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from response text."""

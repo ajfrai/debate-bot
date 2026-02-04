@@ -1,0 +1,289 @@
+============================================================
+AUTONOMOUS PREP TRANSCRIPT
+============================================================
+
+Command: /home/abraham/debate-bot/.venv/bin/debate prep Resolved: The United States should use military power to force regime change in Iran --side pro --log --max-turns 6
+
+Resolution: Resolved: The United States should use military power to force regime change in Iran
+Side: PRO
+Max Turns: 6
+Started: 2026-02-03T14:45:17.717628
+
+============================================================
+
+
+────────────────────────────────────────────────────────────
+Turn 1/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+I'll begin autonomous prep for the PRO side of: "Resolved: The United States should use military power to force regime change in Iran"
+
+Let me start with a brief breadcrumb analysis to map the argument landscape and identify research targets.
+
+Tool Call: analyze
+Input: {
+  "analysis_type": "breadcrumb_initial"
+}
+────────────────────────────────────────
+Result:
+{
+  "analysis_type": "breadcrumb_initial",
+  "output": "# PRO Argument Tree: US Military Regime Change in Iran\n\n## Causal Chains:\n\u2219 Regime change \u2192 removes theocratic government \u2192 secures women's/minority rights (ends executions, mandatory hijab, persecution)\n\u2219 Regime change \u2192 eliminates nuclear program \u2192 prevents regional nuclear arms race \u2192 reduces existential war risk\n\u2219 Regime change \u2192 ends state sponsorship of terrorism (Hezbollah, Hamas, Houthis) \u2192 Middle East stability \u2192 fewer proxy conflicts\n\u2219 Regime change \u2192 democratic governance \u2192 Iranian public liberation \u2192 self-determination for 88M people\n\u2219 Regime change \u2192 removes anti-US regime \u2192 ends \"Death to America\" hostility \u2192 long-term security\n\n## Blockers:\n\u2219 Military intervention \u2192 civilian casualties \u2192 humanitarian crisis\n\u2219 Intervention \u2192 regional destabilization (Iraq/Libya precedent) \u2192 power vacuum worse than status quo\n\n## Evidence Needs:\n- Iran human rights violations data\n- Nuclear capability timeline/threat assessment\n- Success rates: military interventions producing stable democracies\n- Casualty projections vs. lives saved calculus",
+  "status": "completed"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 2/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Good! Now I have my research targets. I'll focus on cutting cards across 6 key topics:
+1. **Iran human rights abuses** (support PRO)
+2. **Iran nuclear threat** (support PRO)
+3. **Iran terrorism sponsorship** (support PRO)
+4. **Democratic transition feasibility** (support PRO)
+5. **Answers to "Iraq War precedent" argument** (answer CON)
+6. **Answers to "civilian casualties" argument** (answer CON)
+
+Let me start researching. I'll begin with Iran human rights violations.
+
+Tool Call: search
+Input: {
+  "query": "Iran human rights violations executions women minorities 2024",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran human rights violations executions women minorities 2024",
+  "results": "## Search Results\n\n1. **Iran Human Rights | Article: Annual Report on the Death Penalty in Iran 2024 |**\n   URL: https://www.iranhr.net/en/reports/42/\n   Description: Two Kurdish women activists, Pakhshan ... and in absolute violation of its international obligations, <strong>the Islamic Republic continued the execution of child offenders</strong>....\n\n2. **Human Rights Council hears alarming updates on executions in Iran and global civic space crackdown | UN News**\n   URL: https://news.un.org/en/story/2025/06/1164586\n   Description: In addition, of the 125 journalists prosecuted in 2024, <strong>40 were women</strong>, many reporting on human rights and women\u2019s rights issues. \u201cIn 2024, the death penalty continued to have a disproportionate impact on minority groups,\u201d Ms.\n\n3. **Resisting Death Row: Iran, Executions, and Women\u2019s Human Rights Activists \u2014 Cornell Center on the Death Penalty Worldwide**\n   URL: https://dpw.lawschool.cornell.edu/resisting-death-row-iran-executions-and-womens-human-rights-activists/\n   Description: In 2023, Iran executed 853 people. Though the number of Iran\u2019s judicial executions for 2024 are expected to continue to rise and as of September 3d of this year, <strong>Iran has killed 403 people on death row</strong>.\n\n4. **World Report 2025: Iran | Human Rights Watch**\n   URL: https://www.hrw.org/world-report/2025/country-chapters/iran\n   Description: Additionally, <strong>there was an alarming increase in executions</strong>. A report by Human Rights Watch found that Iranian authorities are carrying out the crime against humanity of persecution against Baha\u2019is in Iran.\n\n5. **Iran Human Rights | Article: Women Executed in Iran in 2024 |**\n   URL: https://iranhr.net/en/articles/7371/\n   Description: In December 2024, IHRNGO published ... the report, between 2010 and November 2024, <strong>at least 241 women were executed, with the majority convicted of murder and drug-related offences</strong>....\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 3/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Excellent sources! Let me fetch the Human Rights Watch 2025 report and the Iran Human Rights annual report on the death penalty.
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.hrw.org/world-report/2025/country-chapters/iran"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "1ce31180",
+  "url": "https://www.hrw.org/world-report/2025/country-chapters/iran",
+  "length": 5032,
+  "preview": "In May, Ebrahim Raeesi, the former Iranian president, was killed in a helicopter crash in Iran\u2019s East Azerbaijan province, which led to an early election in June that put Masoud Pezeshkian as the new President of Iran in office. Iranian authorities continued to repress all forms of peaceful dissent and political protest. The crackdown targeted women human rights defenders, members of ethnic and religious minorities, and family members of some of those arrested or killed in the 2022 anti-governme...",
+  "message": "Source fetched with ID 1ce31180. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.iranhr.net/en/reports/42/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "5c9a8117",
+  "url": "https://www.iranhr.net/en/reports/42/",
+  "length": 5032,
+  "preview": "The 17th Annual Report on the Death Penalty in Iran, by Iran Human Rights (IHRNGO) and ECPM (Together Against the Death Penalty), provides an assessment and analysis of death penalty trends in 2024 in the Islamic Republic of Iran. It sets out the number of executions in 2024, the trend compared to previous years, the legislative framework and procedures, charges, geographic distribution and a monthly breakdown of executions. Lists of women and juvenile offenders executed in 2024 are also include...",
+  "message": "Source fetched with ID 5c9a8117. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 4/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Perfect! Now let me cut cards from these sources. I'll extract multiple cards covering human rights violations.
+
+Tool Call: cut_card
+Input: {
+  "fetch_id": "1ce31180",
+  "start_phrase": "Iranian authorities continued to repress all forms",
+  "end_phrase": "family members were also targeted with judicial harassment",
+  "tag": "Iran systematically represses dissent, targeting women and minorities",
+  "argument": "Iranian regime violates fundamental human rights through systematic repression",
+  "purpose": "support",
+  "author": "Human Rights Watch",
+  "credentials": "Leading international human rights organization",
+  "year": "2025",
+  "source": "Human Rights Watch World Report",
+  "evidence_type": "empirical"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "error",
+  "message": "End phrase not found after start phrase: 'family members were also targeted with judicial ha...'"
+}
+
+
+Tool Call: cut_card
+Input: {
+  "fetch_id": "1ce31180",
+  "start_phrase": "Additionally, there was an alarming increase in executions",
+  "end_phrase": "persecution against Baha'is in Iran",
+  "tag": "Iran dramatically increased executions and commits crimes against humanity",
+  "argument": "Iranian regime commits crimes against humanity against religious minorities",
+  "purpose": "support",
+  "author": "Human Rights Watch",
+  "credentials": "Leading international human rights organization",
+  "year": "2025",
+  "source": "Human Rights Watch World Report",
+  "evidence_type": "empirical"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "error",
+  "message": "End phrase not found after start phrase: 'persecution against Baha'is in Iran...'"
+}
+
+
+Tool Call: cut_card
+Input: {
+  "fetch_id": "5c9a8117",
+  "start_phrase": "The 17th Annual Report on the Death Penalty",
+  "end_phrase": "juvenile offenders executed in 2024 are also included",
+  "tag": "Iran executes women and children in systematic violation of international law",
+  "argument": "Iran executes juvenile offenders in violation of international law",
+  "purpose": "support",
+  "author": "Iran Human Rights and ECPM",
+  "credentials": "International human rights monitoring organizations",
+  "year": "2024",
+  "source": "Iran Human Rights Annual Report",
+  "evidence_type": "statistical"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "tag": "Iran executes women and children in systematic violation of international law",
+  "argument": "Iran executes juvenile offenders in violation of international law",
+  "claim": "Iran executes women and children in systematic violation of international law",
+  "card_number": 1,
+  "message": "Card cut and saved to iran_executes_juvenile_offenders_in_violation_of_internation.md"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 5/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Good, got 1 card! Let me search for more sources on Iran's nuclear program and terrorism sponsorship to diversify my research.
+
+Tool Call: search
+Input: {
+  "query": "Iran nuclear weapons program enrichment threat 2024 2025",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran nuclear weapons program enrichment threat 2024 2025",
+  "results": "## Search Results\n\n1. **Iran's Nuclear Timetable: The Weapon Potential | Iran Watch**\n   URL: https://www.iranwatch.org/our-publications/articles-reports/irans-nuclear-timetable-weapon-potential\n   Description: Since February 2021, Iran has denied IAEA access to recorded data from centrifuge production plants and in June 2022 forced the IAEA to remove monitoring equipment altogether from such plants as well as from uranium enrichment and uranium concentrate (yellowcake) production facilities. Although a few cameras were re-installed at centrifuge production plants in May 2023, the Agency still cannot access the recordings. Iran has also refused to cooperate with the Agency\u2019s investigation of uranium particles found at two undeclared sites. The overall effect has caused the IAEA to lose knowledge of essential elements of Iran\u2019s program. As of May 2025, Iran was operating 36 cascades of IR-1 centrifuges as well as 46 cascades of more powerful centrifuges (31 IR-2m cascades, 12 IR-4 cascades, and three IR-6 cascades) at the Natanz Fuel Enrichment Plant (FEP).\n\n2. **Iran and Nuclear Weapons Production | Congress.gov | Library of Congress**\n   URL: https://www.congress.gov/crs-product/IF12106\n   Description: <strong>Tehran has not made a decision to develop nuclear weapons</strong>, according to 2024 and 2025 public U.S. intelligence assessments. IAEA Director General Rafael Grossi stated Grossi explained in June 21 CNN interview that the IAEA does &quot;not have \u2026 ...\n\n3. **Nuclear program of Iran - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/Nuclear_program_of_Iran\n   Description: In the last months of the Biden ... negotiations since April 2025, aiming to curb Iran&#x27;s program for sanctions relief, though <strong>Iran&#x27;s leaders have refused to stop enriching uranium</strong>....\n\n4. **The Coming Iranian Nuclear Challenge in 2025 | The Iran Primer**\n   URL: https://iranprimer.usip.org/blog/2025/jan/13/coming-iranian-nuclear-challenge-2025\n   Description: If Iran diverted more efficient ... remain secret for as long as it would have when Iran\u2019s centrifuges were less efficient. <strong>Iran&#x27;s nuclear policy doctrine began to shift in 2024</strong>....\n\n5. **The Status of Iran's Nuclear Program | Arms Control Association**\n   URL: https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1\n   Description: Iran\u2019s expanded uranium enrichment ... time it takes to produce enough weapons-grade material for a bomb. <strong>As of late 2024, Iran can produce enough weapons-grade uranium for 5-6 bombs in less than two weeks</strong>....\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+Tool Call: search
+Input: {
+  "query": "Iran sponsorship terrorism Hezbollah Hamas Houthis proxy groups",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran sponsorship terrorism Hezbollah Hamas Houthis proxy groups",
+  "results": "## Search Results\n\n1. **Hezbollah, Hamas, and More: Iran's Terror Network Around the Globe | AJC**\n   URL: https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe\n   Description: The October 7 massacre by the ... and its terror proxies pose. Since that attack, <strong>the Iranian-backed Hezbollah in Lebanon, Houthis in Yemen, and militias in Iraq and Syria</strong>, have launched attacks on Israel and U.S...\n\n2. **Understanding Iran's Use of Terrorist Groups as Proxies | School of International Service | American University, Washington, DC**\n   URL: https://www.american.edu/sis/news/20240205-understanding-irans-use-of-terrorist-groups-as-proxies.cfm\n   Description: The list has been rightly criticized ... In Iran\u2019s case, the label is more accurate. <strong>Iran supports Hamas, Hezbollah, and the Houthis in Yemen, among other terrorist organizations</strong>....\n\n3. **Iran and state-sponsored terrorism - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/Iran_and_state-sponsored_terrorism\n   Description: The extent of Iran&#x27;s support to ... Popular Mobilization Forces, several Bahraini militias, the Houthis, and the Taliban that together form the <strong>Axis of Resistance</strong> alongside the Iraqi, and Russian governments....\n\n4. **Iran-Supported Groups in the Middle East and U.S. Policy | Congress.gov | Library of Congress**\n   URL: https://www.congress.gov/crs-product/IF12587\n   Description: The Qods Force (QF) of Iran&#x27;s Islamic Revolutionary Guards Corps (IRGC) coordinates Iranian support to armed groups abroad; both the IRGC and IRGC-QF are designated for U.S. sanctions under terrorism-related authorities. ... According to U.S. officials, the groups profiled below are prominent beneficiaries of Iranian government support. The nature and degree of Iranian support vary: while all share some key interests with Tehran, to differing extents they also may act independently in pursuit of their own interests. ... Arguably the most powerful Iranian-backed group and a key player in Lebanese politics, Hezbollah (&quot;Party of God,&quot; alt.\n\n5. **Iran\u2019s Islamist Proxies in the Middle East | Wilson Center**\n   URL: https://www.wilsoncenter.org/article/irans-islamist-proxies\n   Description: In 2020, the State Department estimated that Iran gave Hezbollah $700 million a year. In the past, <strong>Tehran had historically given $100 million annually to Palestinian groups, including Hamas and Palestinian Islamic Jihad</strong>.\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 6/6
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Excellent! Let me fetch these key sources.
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "66969cc6",
+  "url": "https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1",
+  "length": 5032,
+  "preview": "Iran responded to the United States' withdrawal from the Joint Comprehensive Plan of Action (JCPOA) in May 2018 by breaching the limits on its nuclear program that were put in place by the accord and investing in new nuclear capabilities. As a result, Iran\u2019s advances have brought the country to the threshold of nuclear weapons. Furthermore, Iran reduced IAEA monitoring activities in 2021, making it more challenging for the agency to provide assurance that Iran\u2019s nuclear program is peaceful and t...",
+  "message": "Source fetched with ID 66969cc6. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://iranprimer.usip.org/blog/2025/jan/13/coming-iranian-nuclear-challenge-2025"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "74c3f164",
+  "url": "https://iranprimer.usip.org/blog/2025/jan/13/coming-iranian-nuclear-challenge-2025",
+  "length": 5032,
+  "preview": "Kelsey Davenport is the Director for Nonproliferation Policy at the Arms Control Association.\nWhere does Iran\u2019s nuclear program stand at the beginning of 2025?\nIran has become a nuclear weapons threshold state. It has developed the technologies and capabilities that would allow Tehran to move quickly to develop nuclear weapons, if the political decision were made to do so. In the last several months of 2024, Iran took steps that dramatically expanded its capacity to enrich uranium and its produc...",
+  "message": "Source fetched with ID 74c3f164. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.wilsoncenter.org/article/irans-islamist-proxies"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "e1a33e60",
+  "url": "https://www.wilsoncenter.org/article/irans-islamist-proxies",
+  "length": 5032,
+  "preview": "By Ashley Lane\nSince the 1979 revolution, Iran has built a network of proxies across the Middle East. As of 2022, Tehran had allies among more than a dozen major militias, some with their own political parties, that challenged local and neighboring governments. Iran\u2019s Revolutionary Guards and the elite Qods Force provided arms, training and financial support to militias and political movements in at least six countries: Bahrain, Iraq, Lebanon, the Palestinian Territories, Syria and Yemen.\nThe Un...",
+  "message": "Source fetched with ID e1a33e60. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+============================================================
+PREP COMPLETE
+============================================================
+
+Turns used: 6/6
+Arguments: 1
+Total cards: 1
+Analyses: 1
+Completed: 2026-02-03T14:46:09.140686

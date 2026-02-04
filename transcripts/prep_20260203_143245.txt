@@ -1,0 +1,186 @@
+============================================================
+AUTONOMOUS PREP TRANSCRIPT
+============================================================
+
+Command: /home/abraham/debate-bot/.venv/bin/debate prep Resolved: The United States should use military power to force regime change in Iran --side pro --log --max-turns 3
+
+Resolution: Resolved: The United States should use military power to force regime change in Iran
+Side: PRO
+Max Turns: 3
+Started: 2026-02-03T14:32:45.625463
+
+============================================================
+
+
+────────────────────────────────────────────────────────────
+Turn 1/3
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+I'll begin autonomous prep for the PRO side of forcing regime change in Iran. Let me start with a brief breadcrumb analysis to map the argument landscape, then focus heavily on cutting cards.
+
+Tool Call: analyze
+Input: {
+  "analysis_type": "breadcrumb_initial"
+}
+────────────────────────────────────────
+Result:
+{
+  "analysis_type": "breadcrumb_initial",
+  "output": "# PRO ARGUMENT TREE: Military Regime Change in Iran\n\n## Causal Chains\n\n\u2219 Regime change \u2192 eliminates nuclear threat \u2192 prevents nuclear proliferation/Iran bomb \u2192 regional/global security\n\u2219 Regime change \u2192 removes theocratic government \u2192 democracy/liberal reforms \u2192 human rights improvements (women, minorities, dissidents)\n\u2219 Regime change \u2192 ends proxy warfare \u2192 reduces Hezbollah/Houthi/militia support \u2192 Mideast stability\n\u2219 Regime change \u2192 stops terrorism sponsorship \u2192 fewer attacks on US/allies \u2192 lives saved\n\u2219 Regime change \u2192 frees domestic opposition \u2192 Iranian people gain freedoms \u2192 self-determination\n\n**Blocker:** Military action \u2192 civilian casualties + prolonged occupation \u2192 humanitarian crisis/instability\n\n## Evidence Needs\n- Iranian nuclear program timeline/capability data\n- Human rights violations documentation (executions, torture, suppression)\n- Iran's proxy funding amounts/terror designation proof\n- Post-intervention success cases (precedent)\n- Military feasibility studies + civilian casualty projections",
+  "status": "completed"
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 2/3
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Excellent. I have my research targets. Now I'll focus on cutting cards across 3 main topics:
+1. **Nuclear threat** (Iran's nuclear program justifies intervention)
+2. **Human rights abuses** (regime brutally oppresses its people)
+3. **Proxy warfare/terrorism** (Iran destabilizes the Middle East)
+
+Let me start researching and cutting cards. I'll prioritize search → fetch → cut workflow.
+
+Tool Call: search
+Input: {
+  "query": "Iran nuclear program weapons capability timeline 2024 enrichment",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran nuclear program weapons capability timeline 2024 enrichment",
+  "results": "## Search Results\n\n1. **Iran and Nuclear Weapons Production | Congress.gov | Library of Congress**\n   URL: https://www.congress.gov/crs-product/IF12106\n   Description: The aforementioned JCPOA restrictions ... year to produce enough weapons-grade HEU for one nuclear weapon. <strong>The agreement does not explicitly mandate such a timeline</strong>....\n\n2. **Iran's Nuclear Timetable: The Weapon Potential | Iran Watch**\n   URL: https://www.iranwatch.org/our-publications/articles-reports/irans-nuclear-timetable-weapon-potential\n   Description: How quickly could Iran get enough fissile material for a small nuclear arsenal? This timetable estimates how quickly Iran could amass enough weapons-grade uranium for at least five bombs. Once it has the enriched uranium, however, it could take <strong>at least several months to turn it into a working</strong> ...\n\n3. **The Status of Iran's Nuclear Program | Arms Control Association**\n   URL: https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1\n   Description: As of late 2024, Iran can produce enough weapons-grade uranium for 5-6 bombs in <strong>less than two weeks</strong>. Iran announced additional plans in late-2024 to further expand its uranium enrichment program. These activities will further decrease Iran\u2019s breakout to multiple bombs worth of weapons-grade ...\n\n4. **Nuclear program of Iran - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/Nuclear_program_of_Iran\n   Description: In 2003, Iran suspended its formal nuclear weapons program, and claims its program is for peaceful purposes only, yet analysts and the IAEA have refuted such claims. <strong>As of May 2024 Iran was producing enriched uranium at 60% purity</strong>, and was ...\n\n5. **What to Know About Iran\u2019s Nuclear Program: Breakout Time**\n   URL: https://www.fdd.org/analysis/2024/03/07/what-to-know-about-irans-nuclear-program-breakout-time/\n   Description: According to February 2024 estimates ... can now make WGU for <strong>seven nuclear weapons in one month, nine nuclear weapons in two months, 11 nuclear weapons in three months, and 13 nuclear weapons in five months</strong>....\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+Tool Call: search
+Input: {
+  "query": "Iran human rights abuses executions women protesters 2024",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran human rights abuses executions women protesters 2024",
+  "results": "## Search Results\n\n1. **Human Rights Council hears alarming updates on executions in Iran and global civic space crackdown | UN News**\n   URL: https://news.un.org/en/story/2025/06/1164586\n   Description: Some executions were reportedly linked to protests that began in September 2022 under the banner \u201cWomen, Life, and Freedom.\u201d \u00b7 Beyond executions, femicide cases surged, with <strong>179 reported in 2024 compared to 55 the year before</strong>.\n\n2. **Iran Human Rights | Article: Annual Report on the Death Penalty in Iran 2024 |**\n   URL: https://www.iranhr.net/en/reports/42/\n   Description: Iran Human Rights has also been able to document executions of people with psychosocial and intellectual disabilities. In 2024, <strong>at least five people including protester Mohammad Ghobadlu were executed</strong>, again in total contradiction with Iran\u2019s ...\n\n3. **2025\u20132026 Iranian protests - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/2025%E2%80%932026_Iranian_protests\n   Description: NPR reported that months before ... civil rights abuses and widespread corruption, and that the protests sparked concerns that they could deteriorate into something much more serious. According to The Atlantic, the political character of the protests was manifested by protesters chanting &quot;Death to the Dictator&quot; in reference to Supreme leader of Iran Ali Khamenei, and their loss of faith in Pezeshkian, who was elected in 2024 on the platform ...\n\n4. **Iran: Authorities target women\u2019s rights activists with arbitrary arrest, flogging and death penalty - Amnesty International**\n   URL: https://www.amnesty.org/en/latest/news/2025/03/iran-authorities-target-womens-rights-activists-with-arbitrary-arrest-flogging-and-death-penalty/\n   Description: In its March 2024 report, the Fact-Finding Mission found that <strong>the Iranian authorities have \u201ccommitted a series of extensive, sustained and continuing acts that individually constitute human rights violations, directed against women [and] girls</strong>\u2026...\n\n5. **Women Activists Increasingly Sentenced to Death as Political Executions in Iran Surge - Center for Human Rights in Iran**\n   URL: https://iranhumanrights.org/2024/07/women-activists-increasingly-sentenced-to-death-as-political-executions-in-iran-surge/\n   Description: Four Women Slammed with Bogus Political ... Confessions, Denial of Counsel July 30, 2024 \u2013 <strong>Multiple women political prisoners are at risk of execution based on sham charges</strong>, as the number of executions across ......\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+Tool Call: search
+Input: {
+  "query": "Iran proxy warfare Hezbollah Houthis funding terrorism sponsorship",
+  "num_results": 5
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "query": "Iran proxy warfare Hezbollah Houthis funding terrorism sponsorship",
+  "results": "## Search Results\n\n1. **Hezbollah, Hamas, and More: Iran's Terror Network Around the Globe | AJC**\n   URL: https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe\n   Description: The evidence \u201cfirmly established that <strong>the Khobar Towers bombing was planned, funded, and sponsored by senior leadership in the government of the Islamic Republic of Iran</strong>,\u201d the court ruled.\n\n2. **Understanding Iran's Use of Terrorist Groups as Proxies | School of International Service | American University, Washington, DC**\n   URL: https://www.american.edu/sis/news/20240205-understanding-irans-use-of-terrorist-groups-as-proxies.cfm\n   Description: <strong>From its longtime financial support of Hezbollah in Lebanon</strong> to its backing of militias in Iraq and Yemen, Iran&#x27;s utilization of proxy groups has shaped regional dynamics, fueled conflicts, and presented a complex challenge for global security.\n\n3. **Iran and state-sponsored terrorism - Wikipedia**\n   URL: https://en.wikipedia.org/wiki/Iran_and_state-sponsored_terrorism\n   Description: The extent of Iran&#x27;s support to Islamist and terrorist groups has been subject to debate, however, it is known that Iran has supported mainly anti-American groups such as Hezbollah, rejectionist groups in Palestine such as Hamas, the Islamic Jihad Movement in Palestine, and others, as well as other groups including the Popular Mobilization Forces, several Bahraini militias, the Houthis, and the Taliban that together form the Axis of Resistance alongside the Iraqi, and Russian governments. Iran uses the axis of resistance as a proxy force, fighting in Lebanon, Syria, Yemen, and Iraq, and with militias collaborating with one another.\n\n4. **Full article: Iran\u2019s proxy war paradox: strategic gains, control issues, and operational constraints**\n   URL: https://www.tandfonline.com/doi/full/10.1080/09592318.2025.2512807\n   Description: DeVore, Marc R. \u201cExploring the Iran-Hezbollah Relationship: A Case Study of How State Sponsorship Affects Terrorist Group decision-Making.\u201d Perspectives on Terrorism 6, no.\n\n5. **Iran\u2019s Islamist Proxies in the Middle East | Wilson Center**\n   URL: https://www.wilsoncenter.org/article/irans-islamist-proxies\n   Description: <strong>They have been supported by the Revolutionary Guards since at least 2011</strong>; Iran and Lebanese Hezbollah expanded training and increased arms shipments and arms after a Saudi-led coalition intervened in Yemen\u2019s war in 2015.\n",
+  "message": "Search completed. Use fetch_source to get full article text from a URL."
+}
+
+
+────────────────────────────────────────────────────────────
+Turn 3/3
+────────────────────────────────────────────────────────────
+
+
+Agent Thinking:
+Perfect! Strong sources across all three topics. Now I'll fetch and cut cards. Let me start with the most urgent sources.
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "050390e3",
+  "url": "https://www.armscontrol.org/factsheets/status-irans-nuclear-program-1",
+  "length": 5032,
+  "preview": "Iran responded to the United States' withdrawal from the Joint Comprehensive Plan of Action (JCPOA) in May 2018 by breaching the limits on its nuclear program that were put in place by the accord and investing in new nuclear capabilities. As a result, Iran\u2019s advances have brought the country to the threshold of nuclear weapons. Furthermore, Iran reduced IAEA monitoring activities in 2021, making it more challenging for the agency to provide assurance that Iran\u2019s nuclear program is peaceful and t...",
+  "message": "Source fetched with ID 050390e3. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.fdd.org/analysis/2024/03/07/what-to-know-about-irans-nuclear-program-breakout-time/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "error",
+  "message": "Failed to download content from https://www.fdd.org/analysis/2024/03/07/what-to-know-about-irans-nuclear-program-breakout-time/"
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.iranhr.net/en/reports/42/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "e0f11571",
+  "url": "https://www.iranhr.net/en/reports/42/",
+  "length": 5032,
+  "preview": "The 17th Annual Report on the Death Penalty in Iran, by Iran Human Rights (IHRNGO) and ECPM (Together Against the Death Penalty), provides an assessment and analysis of death penalty trends in 2024 in the Islamic Republic of Iran. It sets out the number of executions in 2024, the trend compared to previous years, the legislative framework and procedures, charges, geographic distribution and a monthly breakdown of executions. Lists of women and juvenile offenders executed in 2024 are also include...",
+  "message": "Source fetched with ID e0f11571. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.amnesty.org/en/latest/news/2025/03/iran-authorities-target-womens-rights-activists-with-arbitrary-arrest-flogging-and-death-penalty/"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "7145d0aa",
+  "url": "https://www.amnesty.org/en/latest/news/2025/03/iran-authorities-target-womens-rights-activists-with-arbitrary-arrest-flogging-and-death-penalty/",
+  "length": 5032,
+  "preview": "Iranian authorities have escalated their crackdown on women\u2019s rights defenders, journalists, singers and other activists demanding equality or who defy compulsory veiling using arbitrary detention, unjust prosecution, flogging, and even the death penalty in a bid to quash Iran\u2019s women\u2019s rights movement, Amnesty International said today.\nSince International Women\u2019s Day (IWD) on 8 March, the Iranian authorities have arbitrarily arrested at least five women\u2019s rights activists. These arrests come am...",
+  "message": "Source fetched with ID 7145d0aa. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+Tool Call: fetch_source
+Input: {
+  "url": "https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe"
+}
+────────────────────────────────────────
+Result:
+{
+  "status": "success",
+  "fetch_id": "3a642b5d",
+  "url": "https://www.ajc.org/news/hezbollah-hamas-and-more-irans-terror-network-around-the-globe",
+  "length": 5032,
+  "preview": "June 13, 2025\nSince the 1979 Islamic Revolution, one of the key priorities of the Iranian regime has been exporting its revolution abroad. Designated a sponsor of terror by the U.S. government in 1984, Iran is considered the \u201cforemost state sponsor of terrorism,\u201d providing \u201ca range of support, including financial, training, and equipment, to [terrorist] groups around the world \u2013 particularly Hezbollah,\u201d according to the U.S. State Department.\nTehran has used its proxy army of more than a dozen m...",
+  "message": "Source fetched with ID 3a642b5d. Use cut_card to extract cards by specifying start/end phrases."
+}
+
+
+============================================================
+PREP COMPLETE
+============================================================
+
+Turns used: 3/3
+Arguments: 0
+Total cards: 0
+Analyses: 1
+Completed: 2026-02-03T14:33:23.317058

@@ -50,8 +50,14 @@ def get_status_symbol(status: str) -> str:
     return symbols.get(status, "○")
 
 
-def create_agent_panel(agent: "BaseAgent", width: int = 60) -> Panel:
-    """Create a Rich panel for an agent's status."""
+def create_agent_panel(agent: "BaseAgent", width: int = 60, show_details: bool = False) -> Panel:
+    """Create a Rich panel for an agent's status.
+
+    Args:
+        agent: The agent to display
+        width: Panel width
+        show_details: If True, show more details (for single-agent view)
+    """
     state = agent.state
 
     # Status line
@@ -61,8 +67,17 @@ def create_agent_panel(agent: "BaseAgent", width: int = 60) -> Panel:
     # Build content
     lines = []
 
-    # Recent actions (last 3)
-    for action in state.recent_actions[-3:]:
+    # Show current research direction if available (for strategy agent)
+    if state.current_direction:
+        direction_text = state.current_direction
+        if len(direction_text) > width - 6:
+            direction_text = direction_text[: width - 9] + "..."
+        lines.append(f"[bold cyan]🔍 Researching:[/bold cyan] {direction_text}")
+        lines.append("")  # Blank line for separation
+
+    # Recent actions (show more for single-agent view)
+    num_actions = 6 if show_details else 3
+    for action in state.recent_actions[-num_actions:]:
         lines.append(f"  {status_symbol} {action[: width - 10]}")
 
     if not lines:
@@ -172,7 +187,15 @@ async def render_ui(
     console.print(f"[dim]Side: {session.side.value.upper()} | Session: {session.session_id}[/dim]")
     console.print()
 
-    with Live(console=console, refresh_per_second=int(1 / refresh_rate)) as live:
+    # Create initial layout BEFORE Live context to show immediately
+    time_remaining = deadline - time.time()
+    initial_layout = create_layout(agents, session, time_remaining)
+
+    with Live(initial_layout, console=console, refresh_per_second=int(1 / refresh_rate)) as live:
+        # Brief pause to ensure terminal is ready
+        await asyncio.sleep(0.05)
+
+        # Continuous update loop
         while time.time() < deadline:
             time_remaining = deadline - time.time()
             layout = create_layout(agents, session, time_remaining)
@@ -181,6 +204,80 @@ async def render_ui(
 
         # Final update
         layout = create_layout(agents, session, 0)
+        live.update(layout)
+
+
+def create_single_agent_layout(
+    agent: "BaseAgent",
+    session: "PrepSession",
+    time_remaining: float,
+) -> Layout:
+    """Create a layout for a single agent view.
+
+    Args:
+        agent: The agent to display
+        session: The prep session
+        time_remaining: Seconds remaining
+
+    Returns:
+        Layout with agent panel and stats
+    """
+    layout = Layout()
+
+    # Simple vertical split: agent panel on top, stats on bottom
+    layout.split_column(
+        Layout(name="agent", ratio=3),
+        Layout(name="stats", ratio=1),
+    )
+
+    # Agent panel with extra details
+    layout["agent"].update(create_agent_panel(agent, width=80, show_details=True))
+
+    # Stats panel with countdown
+    layout["stats"].update(create_stats_panel(session, time_remaining))
+
+    return layout
+
+
+async def render_single_agent_ui(
+    agent: "BaseAgent",
+    session: "PrepSession",
+    deadline: float,
+    refresh_rate: float = 0.5,
+) -> None:
+    """Render the live terminal UI for a single agent.
+
+    Args:
+        agent: The agent to display
+        session: The prep session
+        deadline: Unix timestamp when prep ends
+        refresh_rate: Seconds between UI updates
+    """
+    console = Console()
+
+    # Print header
+    console.print()
+    console.print(f"[bold cyan]{agent.state.name.title()} Agent: {session.resolution}[/bold cyan]")
+    console.print(f"[dim]Side: {session.side.value.upper()} | Session: {session.session_id}[/dim]")
+    console.print()
+
+    # Create initial layout BEFORE Live context to show immediately
+    time_remaining = deadline - time.time()
+    initial_layout = create_single_agent_layout(agent, session, time_remaining)
+
+    with Live(initial_layout, console=console, refresh_per_second=int(1 / refresh_rate)) as live:
+        # Brief pause to ensure terminal is ready
+        await asyncio.sleep(0.05)
+
+        # Continuous update loop
+        while time.time() < deadline:
+            time_remaining = deadline - time.time()
+            layout = create_single_agent_layout(agent, session, time_remaining)
+            live.update(layout)
+            await asyncio.sleep(refresh_rate)
+
+        # Final update
+        layout = create_single_agent_layout(agent, session, 0)
         live.update(layout)
 
 

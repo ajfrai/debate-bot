@@ -11,7 +11,7 @@ from debate.prep.organizer_agent import OrganizerAgent
 from debate.prep.search_agent import SearchAgent
 from debate.prep.session import PrepSession
 from debate.prep.strategy_agent import StrategyAgent
-from debate.prep.ui import print_summary, render_ui
+from debate.prep.ui import print_summary, render_single_agent_ui, render_ui
 
 
 async def run_prep(
@@ -117,6 +117,7 @@ async def run_strategy_agent(
     side: Side,
     session_id: str | None = None,
     duration_minutes: float = 5.0,
+    show_ui: bool = True,
 ) -> dict[str, Any]:
     """Run only the StrategyAgent independently.
 
@@ -125,6 +126,7 @@ async def run_strategy_agent(
         side: Which side to prep
         session_id: Existing session ID to continue, or None for new session
         duration_minutes: How long to run
+        show_ui: Whether to show the terminal UI
 
     Returns:
         Summary dict with stats and paths
@@ -146,7 +148,22 @@ async def run_strategy_agent(
     strategy = StrategyAgent(session)
     deadline = time.time() + (duration_minutes * 60)
 
-    await strategy.run(deadline)
+    # Run with or without UI
+    if show_ui:
+        # Start UI rendering first, then agent
+        # This ensures UI displays before any blocking operations
+        ui_task = asyncio.create_task(render_single_agent_ui(strategy, session, deadline))
+        # Brief delay to let UI initialize
+        await asyncio.sleep(0.1)
+        # Now run agent
+        agent_task = asyncio.create_task(strategy.run(deadline))
+        # Wait for both to complete
+        await asyncio.gather(ui_task, agent_task)
+    else:
+        await strategy.run(deadline)
+
+    # Print summary
+    print_summary(session, [strategy])
 
     return {
         "session_id": session.session_id,
@@ -162,6 +179,7 @@ async def run_search_agent(
     side: Side,
     session_id: str,
     duration_minutes: float = 5.0,
+    show_ui: bool = True,
 ) -> dict[str, Any]:
     """Run only the SearchAgent independently.
 
@@ -170,6 +188,7 @@ async def run_search_agent(
         side: Which side to prep
         session_id: Existing session ID with tasks to process
         duration_minutes: How long to run
+        show_ui: Whether to show the terminal UI
 
     Returns:
         Summary dict with stats and paths
@@ -194,7 +213,19 @@ async def run_search_agent(
 
     # Run the agent
     deadline = time.time() + (duration_minutes * 60)
-    await search.run(deadline)
+
+    # Run with or without UI
+    if show_ui:
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(search, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(search.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
+    else:
+        await search.run(deadline)
+
+    # Print summary
+    print_summary(session, [search])
 
     return {
         "session_id": session.session_id,
@@ -210,6 +241,7 @@ async def run_cutter_agent(
     side: Side,
     session_id: str,
     duration_minutes: float = 5.0,
+    show_ui: bool = True,
 ) -> dict[str, Any]:
     """Run only the CutterAgent independently.
 
@@ -218,6 +250,7 @@ async def run_cutter_agent(
         side: Which side to prep
         session_id: Existing session ID with search results to process
         duration_minutes: How long to run
+        show_ui: Whether to show the terminal UI
 
     Returns:
         Summary dict with stats and paths
@@ -242,7 +275,19 @@ async def run_cutter_agent(
 
     # Run the agent
     deadline = time.time() + (duration_minutes * 60)
-    await cutter.run(deadline)
+
+    # Run with or without UI
+    if show_ui:
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(cutter, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(cutter.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
+    else:
+        await cutter.run(deadline)
+
+    # Print summary
+    print_summary(session, [cutter])
 
     return {
         "session_id": session.session_id,
@@ -258,6 +303,7 @@ async def run_organizer_agent(
     side: Side,
     session_id: str,
     duration_minutes: float = 5.0,
+    show_ui: bool = True,
 ) -> dict[str, Any]:
     """Run only the OrganizerAgent independently.
 
@@ -266,6 +312,7 @@ async def run_organizer_agent(
         side: Which side to prep
         session_id: Existing session ID with cards to organize
         duration_minutes: How long to run
+        show_ui: Whether to show the terminal UI
 
     Returns:
         Summary dict with stats and paths
@@ -290,7 +337,19 @@ async def run_organizer_agent(
 
     # Run the agent
     deadline = time.time() + (duration_minutes * 60)
-    await organizer.run(deadline)
+
+    # Run with or without UI
+    if show_ui:
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(organizer, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(organizer.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
+    else:
+        await organizer.run(deadline)
+
+    # Print summary
+    print_summary(session, [organizer])
 
     return {
         "session_id": session.session_id,
