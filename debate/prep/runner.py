@@ -178,6 +178,7 @@ async def run_search_agent(
     session_id: str,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
+    reset: bool = False,
 ) -> dict[str, Any]:
     """Run only the SearchAgent independently.
 
@@ -185,12 +186,18 @@ async def run_search_agent(
         session_id: Existing session ID with tasks to process
         duration_minutes: How long to run
         show_ui: Whether to show the terminal UI
+        reset: If True, clear search progress to re-process all tasks
 
     Returns:
         Summary dict with stats and paths
     """
     # Load existing session from session_id
     session = PrepSession.load_from_session_id(session_id)
+
+    # Reset search progress if requested
+    if reset:
+        session._read_log.pop("search", None)
+        session._save_read_log()
 
     # Create search agent and check dependencies
     search = SearchAgent(session)

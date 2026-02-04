@@ -50,13 +50,16 @@ def get_status_symbol(status: str) -> str:
     return symbols.get(status, "○")
 
 
-def create_agent_panel(agent: "BaseAgent", width: int = 60, show_details: bool = False) -> Panel:
+def create_agent_panel(
+    agent: "BaseAgent", width: int = 60, show_details: bool = False, session: "PrepSession | None" = None
+) -> Panel:
     """Create a Rich panel for an agent's status.
 
     Args:
         agent: The agent to display
         width: Panel width
         show_details: If True, show more details (for single-agent view)
+        session: PrepSession for getting task stats (optional)
     """
     state = agent.state
 
@@ -75,8 +78,89 @@ def create_agent_panel(agent: "BaseAgent", width: int = 60, show_details: bool =
         lines.append(f"[bold cyan]🔍 Researching:[/bold cyan] {direction_text}")
         lines.append("")  # Blank line for separation
 
+    # Show current task for search agent
+    if state.current_task_id:
+        task_line = f"[bold yellow]📋 Task:[/bold yellow] {state.current_task_id}"
+        if state.current_task_progress:
+            task_line += f" [{state.current_task_progress}]"
+        lines.append(task_line)
+
+    # Show search agent details if available
+    if state.current_query and show_details:
+        query_text = state.current_query
+        if len(query_text) > width - 10:
+            query_text = query_text[: width - 13] + "..."
+        lines.append(f"[bold yellow]🔎 Query:[/bold yellow] {query_text}")
+
+    if state.current_source and show_details:
+        source_text = state.current_source
+        if len(source_text) > width - 10:
+            source_text = source_text[: width - 13] + "..."
+        lines.append(f"[bold blue]📄 Source:[/bold blue] {source_text}")
+
+    if state.current_snippet and show_details:
+        snippet_text = state.current_snippet
+        if len(snippet_text) > width - 10:
+            snippet_text = snippet_text[: width - 13] + "..."
+        lines.append(f"[dim]📝 Snippet:[/dim] {snippet_text}")
+        lines.append("")  # Blank line for separation
+
+    # Kanban board for search agent
+    if agent.name == "search" and state.task_stages:
+        # Group tasks by stage
+        stages = {"queued": [], "query": [], "search": [], "fetch": [], "done": []}
+        for task_id, stage in state.task_stages.items():
+            if stage in stages:
+                stages[stage].append(task_id)
+
+        # Build kanban header with fixed width columns
+        col_width = 8
+        headers = [
+            ("[yellow]", "Queue", "[/yellow]"),
+            ("[cyan]", "Query", "[/cyan]"),
+            ("[blue]", "Search", "[/blue]"),
+            ("[magenta]", "Fetch", "[/magenta]"),
+            ("[green]", "Done", "[/green]"),
+        ]
+        header_parts = []
+        for start_tag, text, end_tag in headers:
+            padded = f"{text:<{col_width}}"
+            header_parts.append(f"{start_tag}{padded}{end_tag}")
+        lines.append(f"  {' | '.join(header_parts)}")
+
+        # Build kanban rows (show up to 3 tasks per column)
+        max_rows = 3
+        for i in range(max_rows):
+            row_parts = []
+            for stage in ["queued", "query", "search", "fetch", "done"]:
+                tasks = stages[stage]
+                if i < len(tasks):
+                    task_id = tasks[i][:col_width]  # Truncate to col_width
+                    row_parts.append(f"{task_id:<{col_width}}")
+                else:
+                    row_parts.append(" " * col_width)
+            lines.append(f"  {' | '.join(row_parts)}")
+
+        # Show overflow counts if needed
+        overflow = []
+        for stage, color in [
+            ("queued", "yellow"),
+            ("query", "cyan"),
+            ("search", "blue"),
+            ("fetch", "magenta"),
+            ("done", "green"),
+        ]:
+            count = len(stages[stage])
+            if count > max_rows:
+                overflow.append(f"[{color}]+{count - max_rows} {stage}[/{color}]")
+
+        if overflow:
+            lines.append(f"  {', '.join(overflow)}")
+
+        lines.append("")  # Blank line for separation
+
     # Recent actions (show more for single-agent view)
-    num_actions = 6 if show_details else 3
+    num_actions = 8 if show_details else 5
     for action in state.recent_actions[-num_actions:]:
         lines.append(f"  {status_symbol} {action[: width - 10]}")
 
@@ -152,13 +236,13 @@ def create_layout(
     agent_by_name = {a.name: a for a in agents}
 
     if "strategy" in agent_by_name:
-        layout["strategy"].update(create_agent_panel(agent_by_name["strategy"]))
+        layout["strategy"].update(create_agent_panel(agent_by_name["strategy"], session=session))
     if "search" in agent_by_name:
-        layout["search"].update(create_agent_panel(agent_by_name["search"]))
+        layout["search"].update(create_agent_panel(agent_by_name["search"], session=session))
     if "cutter" in agent_by_name:
-        layout["cutter"].update(create_agent_panel(agent_by_name["cutter"]))
+        layout["cutter"].update(create_agent_panel(agent_by_name["cutter"], session=session))
     if "organizer" in agent_by_name:
-        layout["organizer"].update(create_agent_panel(agent_by_name["organizer"]))
+        layout["organizer"].update(create_agent_panel(agent_by_name["organizer"], session=session))
 
     layout["footer"].update(create_stats_panel(session, time_remaining))
 
@@ -231,7 +315,7 @@ def create_single_agent_layout(
     )
 
     # Agent panel with extra details
-    layout["agent"].update(create_agent_panel(agent, width=80, show_details=True))
+    layout["agent"].update(create_agent_panel(agent, width=80, show_details=True, session=session))
 
     # Stats panel with countdown
     layout["stats"].update(create_stats_panel(session, time_remaining))

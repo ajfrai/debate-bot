@@ -261,6 +261,38 @@ class PrepSession:
             "feedback": len(list(feedback_dir.glob("*.json"))) if feedback_dir.exists() else 0,
         }
 
+    def get_task_stats(self) -> dict[str, int]:
+        """Get search task statistics from event log.
+
+        Returns:
+            Dict with: total, completed, failed counts
+        """
+        events = self.get_event_log(limit=1000)
+
+        enqueued_tasks = set()
+        completed_tasks = set()
+        failed_tasks = set()
+
+        for event in events:
+            if event.get("action") == "enqueue" and event.get("agent") == "strategy":
+                enqueued_tasks.add(event.get("task_id", ""))
+            elif event.get("action") == "staged_result" and event.get("agent") == "search":
+                completed_tasks.add(event.get("task_id", ""))
+            elif event.get("action") in ("query_failed", "search_failed") and event.get("agent") == "search":
+                failed_tasks.add(event.get("task_id", ""))
+
+        total = len(enqueued_tasks)
+        completed = len(completed_tasks)
+        failed = len(failed_tasks)
+        pending = total - completed - failed
+
+        return {
+            "total": total,
+            "pending": pending,
+            "completed": completed,
+            "failed": failed,
+        }
+
     def get_event_log(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent events from the event log."""
         log_path = self.staging_dir / "_event_log.jsonl"

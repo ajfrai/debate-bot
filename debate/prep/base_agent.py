@@ -21,6 +21,13 @@ class AgentState:
     items_created: int = 0
     recent_actions: list[str] = field(default_factory=list)
     current_direction: str = ""  # Current research direction being pursued
+    current_query: str = ""  # Current search query
+    current_source: str = ""  # Current source URL being fetched
+    current_snippet: str = ""  # Current content snippet
+    current_task_id: str = ""  # Current task being processed
+    current_task_progress: str = ""  # Current stage (e.g., "query", "searching", "fetch 1/2")
+    # Kanban board: task_id -> stage mapping
+    task_stages: dict[str, str] = field(default_factory=dict)  # stage: queued, query, search, fetch, done
 
     def update(self, action: str, status: str = "working") -> None:
         """Update agent state with a new action."""
