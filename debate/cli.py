@@ -535,6 +535,7 @@ def cmd_prep_search(args) -> None:
             run_search_agent(
                 session_id=args.session,
                 duration_minutes=args.duration,
+                reset=args.reset if hasattr(args, "reset") else False,
             )
         )
 
@@ -784,6 +785,11 @@ def main() -> None:
         type=float,
         default=5.0,
         help="Duration in minutes (default: 5)",
+    )
+    prep_search_parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset search progress to re-process all tasks",
     )
     prep_search_parser.set_defaults(func=cmd_prep_search)
 

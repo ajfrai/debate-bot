@@ -69,14 +69,26 @@ class SearchAgent(BaseAgent):
 
     async def check_for_work(self) -> list[Any]:
         """Check for pending research tasks."""
-        return self.session.get_pending_tasks()
+        tasks = self.session.get_pending_tasks()
+        # Mark new tasks as queued in kanban
+        for task in tasks:
+            task_id = task.get("id", "")
+            if task_id and task_id not in self.state.task_stages:
+                self.state.task_stages[task_id] = "queued"
+        return tasks
 
     async def process_item(self, task: dict[str, Any]) -> None:
         """Process a research task: generate query, search, fetch, stage."""
         task_id = task["id"]
         task_path = str(self.session.staging_dir / "strategy" / "tasks" / f"task_{task_id}.json")
 
-        self.log("processing_task", {"task_id": task_id, "argument": task.get("argument", "")[:40]})
+        self.state.current_task_id = task_id
+        self.state.current_task_progress = "starting"
+        argument = task.get("argument", "")
+        self.log("processing_task", {"task_id": task_id, "argument": argument[:40]})
+        self.state.update(f"Running: {argument[:50]}", "working")
+        # Move to query stage
+        self.state.task_stages[task_id] = "query"
 
         # Rate limiting
         time_since_last = time.time() - self._last_search_time
@@ -86,31 +98,99 @@ class SearchAgent(BaseAgent):
             await asyncio.sleep(wait_time)
 
         # Generate search query
+        self.state.current_task_progress = "generating_query"
         query = await self._generate_query(task)
         if not query:
             self.log("query_failed", {"task_id": task_id})
+            self.state.current_task_id = ""
             return
 
-        self.log("query_generated", {"query": query[:50]})
+        self.log(
+            "query_generated",
+            {
+                "task_id": task_id,
+                "argument": task.get("argument", "")[:50],
+                "search_intent": task.get("search_intent", "")[:50],
+                "query": query,
+            },
+        )
+        self.state.current_query = query
+        self.state.current_task_progress = "query_ok"
+        self.state.update(f"Query: {query[:60]}", "working")
 
-        # Execute search
+        # Execute search (check for fixture mode)
+        from tests.fixtures import is_fixture_mode, mock_brave_search
+
+        self.state.current_task_progress = "searching"
+        # Move to search stage
+        self.state.task_stages[task_id] = "search"
         self._last_search_time = time.time()
-        search_results = _brave_search(query, num_results=5, quiet=True)
+        if is_fixture_mode():
+            search_results: str | None = mock_brave_search(query, num_results=5, quiet=True)
+        else:
+            search_results = _brave_search(query, num_results=5, quiet=True)
 
         if not search_results:
-            self.log("search_failed", {"task_id": task_id, "query": query[:50]})
+            self.log("search_failed", {"task_id": task_id, "query": query})
+            self.state.current_task_id = ""
             return
 
         # Extract URLs and fetch articles
         urls = _extract_urls_from_search_results(search_results)
         brave_api_key = os.environ.get("BRAVE_API_KEY")
 
+        self.log(
+            "search_success",
+            {
+                "query": query,
+                "urls_found": len(urls),
+                "urls_to_fetch": min(2, len(urls)),
+            },
+        )
+        self.state.update(f"Searched: {len(urls)} results found", "working")
+
         fetched_sources = []
-        for url in urls[:2]:  # Fetch top 2
-            self.log("fetching", {"url": url[:50]})
-            article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True)
+        from tests.fixtures import is_fixture_mode, mock_fetch_source
+
+        # Move to fetch stage
+        self.state.task_stages[task_id] = "fetch"
+
+        num_to_fetch = min(2, len(urls))
+        for idx, url in enumerate(urls[:2], 1):  # Fetch top 2
+            self.state.current_source = url
+            self.state.current_task_progress = f"fetch {idx}/{num_to_fetch}"
+            self.log("fetching_start", {"url": url})
+            self.state.update(f"Fetching ({idx}/{num_to_fetch}): {url[:50]}", "working")
+
+            article = None
+            error_msg = "Unknown error"
+
+            try:
+                if is_fixture_mode():
+                    article = mock_fetch_source(url)
+                else:
+                    article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True)
+
+                if not article:
+                    error_msg = "Paywall or failed to extract content"
+            except Exception as e:
+                error_msg = str(e)[:80]
 
             if article:
+                content_preview = article.full_text[:100] if article.full_text else ""
+                self.state.current_snippet = content_preview
+                word_count = article.word_count
+                title = article.title[:60] if article.title else "No title"
+                self.log(
+                    "fetch_success",
+                    {
+                        "url": article.url,
+                        "title": title,
+                        "word_count": word_count,
+                        "content_preview": content_preview,
+                    },
+                )
+                self.state.update(f"✓ {title} ({word_count:,} words)", "working")
                 fetched_sources.append(
                     {
                         "url": article.url,
@@ -121,18 +201,30 @@ class SearchAgent(BaseAgent):
                     }
                 )
             else:
+                self.log(
+                    "fetch_failed",
+                    {
+                        "url": url,
+                        "reason": error_msg,
+                    },
+                )
+                # Truncate URL and error for display
+                url_short = url[:35] if len(url) > 35 else url
+                self.state.update(f"✗ Failed: {url_short} ({error_msg[:40]})", "working")
                 fetched_sources.append(
                     {
                         "url": url,
                         "title": None,
                         "full_text": None,
                         "fetch_status": "failed",
+                        "error": error_msg,
                     }
                 )
 
             await asyncio.sleep(2)  # Rate limit between fetches
 
         # Stage results
+        self.state.current_task_progress = "staging"
         result = {
             "task_id": task_id,
             "query": query,
@@ -144,19 +236,43 @@ class SearchAgent(BaseAgent):
 
         self.session.write_search_result(result)
         self.state.items_created += 1
+
+        successful_sources = len([s for s in fetched_sources if s["fetch_status"] == "success"])
+        failed_sources = len([s for s in fetched_sources if s["fetch_status"] == "failed"])
         self.log(
             "staged_result",
             {
                 "task_id": task_id,
-                "sources_fetched": len([s for s in fetched_sources if s["fetch_status"] == "success"]),
+                "query": query,
+                "sources_fetched": successful_sources,
+                "sources_failed": failed_sources,
             },
         )
 
         # Mark as processed only after successful completion (idempotency)
         self.session.mark_processed("search", task_path)
 
+        # Log completion with summary
+        summary = f"✓ Complete: {argument[:40]} ({successful_sources} articles"
+        if failed_sources > 0:
+            summary += f", {failed_sources} failed"
+        summary += ")"
+        self.state.update(summary, "working")
+
+        # Move to done stage
+        self.state.task_stages[task_id] = "done"
+
+        self.state.current_task_id = ""
+        self.state.current_task_progress = ""
+
     async def _generate_query(self, task: dict[str, Any]) -> str | None:
         """Generate a targeted search query for the task."""
+        # Check if using fixtures
+        from tests.fixtures import is_fixture_mode, mock_generate_query
+
+        if is_fixture_mode():
+            return mock_generate_query(task)
+
         config = Config()
         model = config.get_agent_model("prep_search")
 
