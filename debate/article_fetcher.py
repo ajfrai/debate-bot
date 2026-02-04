@@ -239,6 +239,7 @@ def fetch_source(
     url: str,
     retry_on_paywall: bool = True,
     brave_api_key: str | None = None,
+    quiet: bool = False,
 ) -> FetchedArticle | None:
     """Fetch full text from a URL with paywall detection and retry.
 
@@ -253,6 +254,7 @@ def fetch_source(
         url: The URL to fetch
         retry_on_paywall: If True, try to find a free version when paywall detected
         brave_api_key: Brave Search API key for finding alternative sources
+        quiet: If True, suppress print output (useful for parallel UI)
 
     Returns:
         FetchedArticle if successful, None if failed or paywall with no alternative
@@ -262,7 +264,8 @@ def fetch_source(
     if fetch_id in _ARTICLE_CACHE:
         return _ARTICLE_CACHE[fetch_id]
 
-    print(f"  Fetching: {url[:80]}...")
+    if not quiet:
+        print(f"  Fetching: {url[:80]}...")
 
     try:
         # Determine if PDF or web article
@@ -280,17 +283,20 @@ def fetch_source(
         is_paywalled = _detect_paywall(text, url)
 
         if is_paywalled:
-            print("  ⚠ Paywall detected")
+            if not quiet:
+                print("  ⚠ Paywall detected")
 
             # Try to find a free version if requested
             if retry_on_paywall:
-                print("  Searching for free version...")
+                if not quiet:
+                    print("  Searching for free version...")
                 time.sleep(3)  # Rate limit pause
 
                 alternative_url = _find_free_version(url, title, brave_api_key)
 
                 if alternative_url:
-                    print(f"  ✓ Found alternative: {alternative_url[:80]}...")
+                    if not quiet:
+                        print(f"  ✓ Found alternative: {alternative_url[:80]}...")
                     time.sleep(2)  # Brief pause before fetching alternative
 
                     # Recursively fetch the alternative (but don't retry again)
@@ -298,9 +304,11 @@ def fetch_source(
                         alternative_url,
                         retry_on_paywall=False,  # Don't retry again
                         brave_api_key=brave_api_key,
+                        quiet=quiet,
                     )
                 else:
-                    print("  ✗ No free version found, skipping")
+                    if not quiet:
+                        print("  ✗ No free version found, skipping")
                     return None
             else:
                 # Already retried once, give up
@@ -324,11 +332,13 @@ def fetch_source(
         # Cache it
         _ARTICLE_CACHE[fetch_id] = article
 
-        print(f"  ✓ Fetched {word_count} words from {content_type}")
+        if not quiet:
+            print(f"  ✓ Fetched {word_count} words from {content_type}")
         return article
 
     except Exception as e:
-        print(f"  ✗ Failed to fetch: {str(e)[:100]}")
+        if not quiet:
+            print(f"  ✗ Failed to fetch: {str(e)[:100]}")
         return None
 
 

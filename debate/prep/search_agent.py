@@ -76,7 +76,7 @@ class SearchAgent(BaseAgent):
 
         # Execute search
         self._last_search_time = time.time()
-        search_results = _brave_search(query, num_results=5)
+        search_results = _brave_search(query, num_results=5, quiet=True)
 
         if not search_results:
             self.log("search_failed", {"task_id": task_id, "query": query[:50]})
@@ -88,8 +88,8 @@ class SearchAgent(BaseAgent):
 
         fetched_sources = []
         for url in urls[:2]:  # Fetch top 2
-            self.state.update(f"fetching: {url[:40]}...")
-            article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key)
+            self.log("fetching", {"url": url[:50]})
+            article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True)
 
             if article:
                 fetched_sources.append(

@@ -42,3 +42,6 @@ Thumbs.db
 
 # Local evidence files (per-user research)
 evidence/
+
+# Prep session staging directories
+staging/
