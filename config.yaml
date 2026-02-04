@@ -11,6 +11,16 @@ agents:
   research:
     model: claude-haiku-4-5  # Cost-effective for iterative research
 
+  # Specialized prep agents (parallel prep system)
+  prep_strategy:
+    model: claude-sonnet-4-5  # Needs strategic reasoning
+  prep_search:
+    model: claude-haiku-4-5  # Just generates queries (~20 tokens)
+  prep_cutter:
+    model: claude-haiku-4-5  # Identifies cut points (~50 tokens)
+  prep_organizer:
+    model: claude-haiku-4-5  # Places cards, generates feedback
+
 # API configuration
 api:
   max_tokens: 4096  # Maximum tokens per response
