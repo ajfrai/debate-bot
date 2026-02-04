@@ -1,5 +1,6 @@
 """StrategyAgent: Maintains argument queue and decides what to research."""
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -165,7 +166,9 @@ Output JSON array:
 Only output JSON array."""
 
         try:
-            response = self._get_client().messages.create(
+            # Run sync API call in thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self._get_client().messages.create,
                 model=model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],
@@ -237,7 +240,9 @@ Generate 2 impact research tasks:
 Only output JSON array."""
 
         try:
-            response = self._get_client().messages.create(
+            # Run sync API call in thread pool to avoid blocking event loop
+            response = await asyncio.to_thread(
+                self._get_client().messages.create,
                 model=model,
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],

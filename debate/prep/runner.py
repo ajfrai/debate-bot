@@ -150,10 +150,15 @@ async def run_strategy_agent(
 
     # Run with or without UI
     if show_ui:
-        await asyncio.gather(
-            strategy.run(deadline),
-            render_single_agent_ui(strategy, session, deadline),
-        )
+        # Start UI rendering first, then agent
+        # This ensures UI displays before any blocking operations
+        ui_task = asyncio.create_task(render_single_agent_ui(strategy, session, deadline))
+        # Brief delay to let UI initialize
+        await asyncio.sleep(0.1)
+        # Now run agent
+        agent_task = asyncio.create_task(strategy.run(deadline))
+        # Wait for both to complete
+        await asyncio.gather(ui_task, agent_task)
     else:
         await strategy.run(deadline)
 
@@ -211,10 +216,11 @@ async def run_search_agent(
 
     # Run with or without UI
     if show_ui:
-        await asyncio.gather(
-            search.run(deadline),
-            render_single_agent_ui(search, session, deadline),
-        )
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(search, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(search.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
     else:
         await search.run(deadline)
 
@@ -272,10 +278,11 @@ async def run_cutter_agent(
 
     # Run with or without UI
     if show_ui:
-        await asyncio.gather(
-            cutter.run(deadline),
-            render_single_agent_ui(cutter, session, deadline),
-        )
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(cutter, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(cutter.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
     else:
         await cutter.run(deadline)
 
@@ -333,10 +340,11 @@ async def run_organizer_agent(
 
     # Run with or without UI
     if show_ui:
-        await asyncio.gather(
-            organizer.run(deadline),
-            render_single_agent_ui(organizer, session, deadline),
-        )
+        # Start UI rendering first, then agent
+        ui_task = asyncio.create_task(render_single_agent_ui(organizer, session, deadline))
+        await asyncio.sleep(0.1)
+        agent_task = asyncio.create_task(organizer.run(deadline))
+        await asyncio.gather(ui_task, agent_task)
     else:
         await organizer.run(deadline)
 
