@@ -1,0 +1,68 @@
+{
+  "results": [
+    {
+      "query": "JCPOA Iran nuclear compliance verification 2015-2018",
+      "urls": [
+        "https://www.arms-control.org/analysis/jcpoa-joint-comprehensive-plan-action",
+        "https://www.iaea.org/newscenter/focus/iran",
+        "https://www.cfr.org/backgrounder/iran-nuclear-agreement"
+      ]
+    },
+    {
+      "query": "Iranian nuclear weapons capability 2024 assessment",
+      "urls": [
+        "https://www.state.gov/documents/organization/iran-nuclear",
+        "https://www.bbc.com/news/world-middle-east-iran-nuclear",
+        "https://foreignaffairs.com/iran-nuclear-weapons"
+      ]
+    },
+    {
+      "query": "US military intervention Iran cost analysis",
+      "urls": [
+        "https://www.rand.org/research-areas/military-operations-iran",
+        "https://www.brookings.edu/articles/military-options-iran",
+        "https://csis.org/programs/iran-program"
+      ]
+    },
+    {
+      "query": "Middle East regional stability Iran military action",
+      "urls": [
+        "https://www.reuters.com/world/middle-east",
+        "https://www.aljazeera.com/news/longform/middle-east",
+        "https://www.ft.com/content/iran-middle-east"
+      ]
+    },
+    {
+      "query": "Iran sanctions economic impact 2023 2024",
+      "urls": [
+        "https://www.imf.org/external/pubs/ft/sdn/2024/sdn2401.pdf",
+        "https://www.worldbank.org/en/topic/macroeconomics/brief/iran-economy",
+        "https://oec.world/en/profile/country/irn"
+      ]
+    },
+    {
+      "query": "Chinese support Iran nuclear program",
+      "urls": [
+        "https://www.hudson.org/research/china-iran-nuclear",
+        "https://www.reuters.com/business/energy/china-iran-nuclear",
+        "https://thediplomat.com/2024/02/china-iran-ties"
+      ]
+    },
+    {
+      "query": "Israel Iran military conflict escalation 2024",
+      "urls": [
+        "https://www.haaretz.com/israel-news/iran",
+        "https://www.jpost.com/middle-east/iran-israel",
+        "https://www.bbc.com/news/world-middle-east"
+      ]
+    },
+    {
+      "query": "US military readiness Iran contingency planning",
+      "urls": [
+        "https://www.defense.gov/News/Releases/",
+        "https://www.centcom.mil/",
+        "https://www.usnews.com/news/military"
+      ]
+    }
+  ]
+}

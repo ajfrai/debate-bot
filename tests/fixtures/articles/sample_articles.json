@@ -1,0 +1,44 @@
+{
+  "articles": [
+    {
+      "url": "https://www.arms-control.org/analysis/jcpoa-joint-comprehensive-plan-action",
+      "title": "The Joint Comprehensive Plan of Action (JCPOA)",
+      "content": "The Joint Comprehensive Plan of Action (JCPOA), commonly known as the Iran nuclear deal, is an agreement between Iran and the P5+1 (the five permanent members of the United Nations Security Council plus Germany). The agreement aims to ensure that Iran's nuclear program is exclusively peaceful. Under the JCPOA, Iran agreed to limit its uranium enrichment and allow international inspections of its nuclear facilities. The International Atomic Energy Agency (IAEA) conducts regular inspections and has confirmed Iran's compliance with the technical requirements of the agreement. The deal has been controversial, with supporters arguing it prevents Iranian nuclear weapons development and critics claiming it does not go far enough."
+    },
+    {
+      "url": "https://www.iaea.org/newscenter/focus/iran",
+      "title": "IAEA Focus: Iran",
+      "content": "The International Atomic Energy Agency (IAEA) is responsible for verifying Iran's compliance with the JCPOA. As of 2024, the IAEA continues to monitor Iran's nuclear activities through inspections and environmental sampling. The agency has reported on Iran's adherence to agreed limits on uranium enrichment levels and the production of heavy water. Iran has maintained the Additional Protocol with the IAEA, allowing for inspections at declared nuclear sites. However, tensions have increased over access to military sites and certain undeclared locations, with Iran restricting some inspector access."
+    },
+    {
+      "url": "https://www.state.gov/documents/organization/iran-nuclear",
+      "title": "U.S. Department of State - Iran Nuclear Program",
+      "content": "The United States has assessed that Iran continues to advance its nuclear program, increasing uranium enrichment levels and accumulating enriched uranium at concentrations previously prohibited under the JCPOA. According to State Department assessments, Iran has produced uranium enriched to 60% purity, approaching weapons-grade levels of 90%. The U.S. government maintains that Iran's actions are inconsistent with the spirit of the JCPOA, though technical compliance remains disputed. Intelligence agencies continue to assess that Iran has not yet developed nuclear weapons, but the trajectory of the program raises concerns about Iran's intentions."
+    },
+    {
+      "url": "https://www.rand.org/research-areas/military-operations-iran",
+      "title": "RAND Corporation: Military Options in Iran",
+      "content": "The RAND Corporation has conducted extensive analysis of potential military intervention options against Iran. Military scenarios have estimated significant costs both in direct military expenditures and potential regional destabilization. A comprehensive military campaign against Iranian nuclear facilities would require sustained operations over weeks to months and could result in significant casualties. Regional allies including Saudi Arabia and the United Arab Emirates have expressed concerns about escalation risks. The report concludes that military action would likely set back Iran's nuclear program by 3-5 years but could trigger broader regional conflict."
+    },
+    {
+      "url": "https://www.brookings.edu/articles/military-options-iran",
+      "title": "Brookings Institution: Strategic Options for Iran",
+      "content": "The Brookings Institution analysis presents multiple strategic options for addressing Iran's nuclear advancement. The report outlines military, diplomatic, and hybrid approaches, evaluating the costs and benefits of each. Military options are presented as high-risk with uncertain outcomes, while diplomatic engagement offers potential for negotiated settlements but faces credibility challenges. The analysis emphasizes that any approach must consider regional stability, international support, and long-term strategic objectives. Experts note that international consensus is limited, with China and Russia opposing military action."
+    },
+    {
+      "url": "https://www.imf.org/external/pubs/ft/sdn/2024/sdn2401.pdf",
+      "title": "IMF Study: Iran's Economic Situation",
+      "content": "The International Monetary Fund's recent assessment of Iran's economy shows the country facing significant challenges from sanctions. Economic growth has slowed to 2-3% annually, with inflation exceeding 35% in some estimates. Oil exports remain constrained by U.S. and international sanctions, limiting government revenue. The Iranian currency has depreciated significantly against major currencies. Unemployment, particularly among youth, remains high at estimated 15-20%. Military expenditures continue to consume substantial government resources despite economic constraints."
+    },
+    {
+      "url": "https://www.hudson.org/research/china-iran-nuclear",
+      "title": "Hudson Institute: China-Iran Nuclear Cooperation",
+      "content": "China has significantly expanded its nuclear cooperation with Iran since the U.S. withdrawal from the JCPOA. Chinese companies have been involved in construction and technical assistance for Iranian nuclear facilities. Intelligence reports suggest Chinese advisors have provided technical support for uranium enrichment processes. However, analysts note that China's support remains limited compared to full nuclear weapons development assistance. China's strategic interest in Iran relates primarily to energy security and regional balance of power rather than Iranian nuclear weapons development."
+    },
+    {
+      "url": "https://www.haaretz.com/israel-news/iran",
+      "title": "Haaretz: Israel and the Iran Nuclear Threat",
+      "content": "Israel has consistently opposed the JCPOA and has conducted intelligence operations against Iran's nuclear program. Israeli officials have stated that Iran's nuclear advancement poses an existential threat to Israel. Israel maintains that it reserves the right to act unilaterally to prevent Iranian nuclear weapons development. Analysts assess that Israeli military action against Iranian nuclear facilities remains a possibility, particularly if Iran advances toward weapons-grade uranium production. Such action would likely trigger significant regional escalation and international responses."
+    }
+  ]
+}

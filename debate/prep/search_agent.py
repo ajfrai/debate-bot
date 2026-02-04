@@ -33,7 +33,8 @@ class SearchAgent(BaseAgent):
         super().__init__(session, poll_interval=2.0)
         self._client: anthropic.Anthropic | None = None
         self._last_search_time: float = 0.0
-        self._search_delay: float = 3.0  # Seconds between searches
+        self._search_delay: float = 1.0  # Brave Free: 1 req/sec (was 3.0s - too conservative!)
+        self._fetch_delay: float = 0.5  # Delay between article fetches (not Brave API calls)
 
     @property
     def name(self) -> str:
@@ -85,8 +86,20 @@ class SearchAgent(BaseAgent):
         self.state.current_task_id = task_id
         self.state.current_task_progress = "starting"
         argument = task.get("argument", "")
+        self.state.current_argument = argument  # Track argument for UI
         self.log("processing_task", {"task_id": task_id, "argument": argument[:40]})
         self.state.update(f"Running: {argument[:50]}", "working")
+
+        # Initialize retry tracking if needed
+        if task_id not in self.state.task_retries:
+            self.state.task_retries[task_id] = 0
+        if task_id not in self.state.task_urls_tried:
+            self.state.task_urls_tried[task_id] = []
+
+        # Clear from error column if retrying
+        if task_id in self.state.task_errors:
+            del self.state.task_errors[task_id]
+
         # Move to query stage
         self.state.task_stages[task_id] = "query"
 
@@ -97,12 +110,16 @@ class SearchAgent(BaseAgent):
             self.state.update(f"rate_limit_wait_{wait_time:.1f}s", "waiting")
             await asyncio.sleep(wait_time)
 
-        # Generate search query
+        # Generate search query (modify if retrying)
         self.state.current_task_progress = "generating_query"
-        query = await self._generate_query(task)
-        if not query:
-            self.log("query_failed", {"task_id": task_id})
-            self.state.current_task_id = ""
+        try:
+            retry_count = self.state.task_retries.get(task_id, 0)
+            query = await self._generate_query(task, retry_attempt=retry_count)
+            if not query:
+                await self._handle_error(task_id, "Query generation failed", task)
+                return
+        except Exception as e:
+            await self._handle_error(task_id, f"Query error: {str(e)[:40]}", task)
             return
 
         self.log(
@@ -125,14 +142,18 @@ class SearchAgent(BaseAgent):
         # Move to search stage
         self.state.task_stages[task_id] = "search"
         self._last_search_time = time.time()
-        if is_fixture_mode():
-            search_results: str | None = mock_brave_search(query, num_results=5, quiet=True)
-        else:
-            search_results = _brave_search(query, num_results=5, quiet=True)
 
-        if not search_results:
-            self.log("search_failed", {"task_id": task_id, "query": query})
-            self.state.current_task_id = ""
+        try:
+            if is_fixture_mode():
+                search_results: str | None = mock_brave_search(query, num_results=5, quiet=True)
+            else:
+                search_results = _brave_search(query, num_results=5, quiet=True)
+
+            if not search_results:
+                await self._handle_error(task_id, "Search returned no results", task)
+                return
+        except Exception as e:
+            await self._handle_error(task_id, f"Search error: {str(e)[:40]}", task)
             return
 
         # Extract URLs and fetch articles
@@ -149,18 +170,35 @@ class SearchAgent(BaseAgent):
         )
         self.state.update(f"Searched: {len(urls)} results found", "working")
 
+        # Filter out already-tried URLs
+        urls_tried = self.state.task_urls_tried.get(task_id, [])
+        urls = [u for u in urls if u not in urls_tried]
+
+        if not urls:
+            # All URLs from this search already tried - need new search
+            await self._handle_error(task_id, "All URLs already tried", task)
+            return
+
         fetched_sources = []
         from tests.fixtures import is_fixture_mode, mock_fetch_source
 
         # Move to fetch stage
         self.state.task_stages[task_id] = "fetch"
 
+        # Try to fetch at least one successful article
         num_to_fetch = min(2, len(urls))
-        for idx, url in enumerate(urls[:2], 1):  # Fetch top 2
+        successful_fetches = 0
+
+        for idx, url in enumerate(urls[:num_to_fetch], 1):
             self.state.current_source = url
             self.state.current_task_progress = f"fetch {idx}/{num_to_fetch}"
             self.log("fetching_start", {"url": url})
             self.state.update(f"Fetching ({idx}/{num_to_fetch}): {url[:50]}", "working")
+
+            # Mark URL as tried
+            if task_id not in self.state.task_urls_tried:
+                self.state.task_urls_tried[task_id] = []
+            self.state.task_urls_tried[task_id].append(url)
 
             article = None
             error_msg = "Unknown error"
@@ -177,6 +215,7 @@ class SearchAgent(BaseAgent):
                 error_msg = str(e)[:80]
 
             if article:
+                successful_fetches += 1
                 content_preview = article.full_text[:100] if article.full_text else ""
                 self.state.current_snippet = content_preview
                 word_count = article.word_count
@@ -221,7 +260,13 @@ class SearchAgent(BaseAgent):
                     }
                 )
 
-            await asyncio.sleep(2)  # Rate limit between fetches
+            await asyncio.sleep(self._fetch_delay)  # Delay between article fetches
+
+        # Check if we got at least one successful fetch
+        if successful_fetches == 0:
+            # All fetches failed - trigger retry
+            await self._handle_error(task_id, "All fetches failed", task)
+            return
 
         # Stage results
         self.state.current_task_progress = "staging"
@@ -262,11 +307,20 @@ class SearchAgent(BaseAgent):
         # Move to done stage
         self.state.task_stages[task_id] = "done"
 
+        # Clear current task state
         self.state.current_task_id = ""
         self.state.current_task_progress = ""
+        self.state.current_argument = ""
+        self.state.current_query = ""
+        self.state.current_source = ""
 
-    async def _generate_query(self, task: dict[str, Any]) -> str | None:
-        """Generate a targeted search query for the task."""
+    async def _generate_query(self, task: dict[str, Any], retry_attempt: int = 0) -> str | None:
+        """Generate a targeted search query for the task.
+
+        Args:
+            task: The research task
+            retry_attempt: Number of previous attempts (0 = first try, 1+ = retry)
+        """
         # Check if using fixtures
         from tests.fixtures import is_fixture_mode, mock_generate_query
 
@@ -276,11 +330,18 @@ class SearchAgent(BaseAgent):
         config = Config()
         model = config.get_agent_model("prep_search")
 
+        # Modify prompt based on retry attempt
+        retry_instructions = ""
+        if retry_attempt == 1:
+            retry_instructions = "\nIMPORTANT: Previous search failed. Try broader terms or alternative phrasing."
+        elif retry_attempt >= 2:
+            retry_instructions = "\nIMPORTANT: Multiple attempts failed. Use very different keywords or approach the topic from a different angle."
+
         prompt = f"""Generate ONE search query to find evidence for this debate argument.
 
 Argument: {task.get("argument", "")}
 Search intent: {task.get("search_intent", "")}
-Evidence type needed: {task.get("evidence_type", "support")}
+Evidence type needed: {task.get("evidence_type", "support")}{retry_instructions}
 
 Requirements:
 - Be specific (include key terms, years like 2024/2025)
@@ -313,3 +374,57 @@ Output ONLY the search query, nothing else. Max 15 words."""
         except Exception as e:
             self.log("query_error", {"error": str(e)[:100]})
             return None
+
+    async def _handle_error(self, task_id: str, error_reason: str, task: dict[str, Any]) -> None:
+        """Handle task error and implement retry logic.
+
+        Strategy:
+        - Try next URL from search results (already handled in process_item)
+        - If all URLs exhausted, increment retry and requeue
+        - Max 3 attempts total
+        """
+        # Increment retry count
+        self.state.task_retries[task_id] = self.state.task_retries.get(task_id, 0) + 1
+        retry_count = self.state.task_retries[task_id]
+
+        # Move to error stage
+        self.state.task_stages[task_id] = "error"
+        self.state.task_errors[task_id] = error_reason
+
+        self.log(
+            "task_error",
+            {
+                "task_id": task_id,
+                "error": error_reason,
+                "retry_count": retry_count,
+                "max_retries": 3,
+            },
+        )
+
+        # Check if we should retry
+        if retry_count < 3:
+            # Requeue for retry
+            self.log("retry_queued", {"task_id": task_id, "attempt": retry_count + 1})
+            self.state.update(f"Retry queued ({retry_count + 1}/3): {error_reason}", "working")
+
+            # Clear current task
+            self.state.current_task_id = ""
+            self.state.current_task_progress = ""
+            self.state.current_argument = ""
+            self.state.current_query = ""
+            self.state.current_source = ""
+
+            # Add small delay before retry
+            await asyncio.sleep(2)
+
+            # Requeue by moving back to queued stage
+            self.state.task_stages[task_id] = "queued"
+        else:
+            # Max retries reached - keep in error column
+            self.log("max_retries_reached", {"task_id": task_id})
+            self.state.update(f"Max retries reached: {error_reason}", "working")
+            self.state.current_task_id = ""
+            self.state.current_task_progress = ""
+            self.state.current_argument = ""
+            self.state.current_query = ""
+            self.state.current_source = ""

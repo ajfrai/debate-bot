@@ -78,37 +78,37 @@ def create_agent_panel(
         lines.append(f"[bold cyan]🔍 Researching:[/bold cyan] {direction_text}")
         lines.append("")  # Blank line for separation
 
-    # Show current task for search agent
-    if state.current_task_id:
-        task_line = f"[bold yellow]📋 Task:[/bold yellow] {state.current_task_id}"
-        if state.current_task_progress:
-            task_line += f" [{state.current_task_progress}]"
-        lines.append(task_line)
+    # Show search agent top status section
+    if agent.name == "search" and show_details:
+        # Show current argument being researched
+        if state.current_argument:
+            arg_text = state.current_argument
+            if len(arg_text) > width - 15:
+                arg_text = arg_text[: width - 18] + "..."
+            lines.append(f"[bold cyan]🎯 Argument:[/bold cyan] {arg_text}")
 
-    # Show search agent details if available
-    if state.current_query and show_details:
-        query_text = state.current_query
-        if len(query_text) > width - 10:
-            query_text = query_text[: width - 13] + "..."
-        lines.append(f"[bold yellow]🔎 Query:[/bold yellow] {query_text}")
+        # Show current query
+        if state.current_query:
+            query_text = state.current_query
+            if len(query_text) > width - 10:
+                query_text = query_text[: width - 13] + "..."
+            lines.append(f"[bold yellow]🔎 Query:[/bold yellow] {query_text}")
 
-    if state.current_source and show_details:
-        source_text = state.current_source
-        if len(source_text) > width - 10:
-            source_text = source_text[: width - 13] + "..."
-        lines.append(f"[bold blue]📄 Source:[/bold blue] {source_text}")
+        # Show current fetch target
+        if state.current_source:
+            source_text = state.current_source
+            if len(source_text) > width - 10:
+                source_text = source_text[: width - 13] + "..."
+            lines.append(f"[bold blue]📄 Fetching:[/bold blue] {source_text}")
 
-    if state.current_snippet and show_details:
-        snippet_text = state.current_snippet
-        if len(snippet_text) > width - 10:
-            snippet_text = snippet_text[: width - 13] + "..."
-        lines.append(f"[dim]📝 Snippet:[/dim] {snippet_text}")
-        lines.append("")  # Blank line for separation
+        # Blank line for separation before kanban
+        if state.current_argument or state.current_query or state.current_source:
+            lines.append("")
 
     # Kanban board for search agent
     if agent.name == "search" and state.task_stages:
         # Group tasks by stage
-        stages = {"queued": [], "query": [], "search": [], "fetch": [], "done": []}
+        stages = {"queued": [], "query": [], "search": [], "fetch": [], "done": [], "error": []}
         for task_id, stage in state.task_stages.items():
             if stage in stages:
                 stages[stage].append(task_id)
@@ -121,6 +121,7 @@ def create_agent_panel(
             ("[blue]", "Search", "[/blue]"),
             ("[magenta]", "Fetch", "[/magenta]"),
             ("[green]", "Done", "[/green]"),
+            ("[red]", "Error", "[/red]"),
         ]
         header_parts = []
         for start_tag, text, end_tag in headers:
@@ -132,11 +133,19 @@ def create_agent_panel(
         max_rows = 3
         for i in range(max_rows):
             row_parts = []
-            for stage in ["queued", "query", "search", "fetch", "done"]:
+            for stage in ["queued", "query", "search", "fetch", "done", "error"]:
                 tasks = stages[stage]
                 if i < len(tasks):
-                    task_id = tasks[i][:col_width]  # Truncate to col_width
-                    row_parts.append(f"{task_id:<{col_width}}")
+                    task_id = tasks[i]
+                    # For error column, show error reason if available
+                    if stage == "error" and task_id in state.task_errors:
+                        error_msg = state.task_errors[task_id]
+                        # Truncate error message to fit
+                        display = f"{task_id[:4]}:{error_msg[:3]}"[:col_width]
+                        row_parts.append(f"[red]{display:<{col_width}}[/red]")
+                    else:
+                        task_display = task_id[:col_width]  # Truncate to col_width
+                        row_parts.append(f"{task_display:<{col_width}}")
                 else:
                     row_parts.append(" " * col_width)
             lines.append(f"  {' | '.join(row_parts)}")
@@ -149,6 +158,7 @@ def create_agent_panel(
             ("search", "blue"),
             ("fetch", "magenta"),
             ("done", "green"),
+            ("error", "red"),
         ]:
             count = len(stages[stage])
             if count > max_rows:
@@ -159,11 +169,7 @@ def create_agent_panel(
 
         lines.append("")  # Blank line for separation
 
-    # Recent actions (show more for single-agent view)
-    num_actions = 8 if show_details else 5
-    for action in state.recent_actions[-num_actions:]:
-        lines.append(f"  {status_symbol} {action[: width - 10]}")
-
+    # Show status if no content
     if not lines:
         lines.append(f"  {status_symbol} {state.status}")
 

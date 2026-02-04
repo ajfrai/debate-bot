@@ -26,8 +26,13 @@ class AgentState:
     current_snippet: str = ""  # Current content snippet
     current_task_id: str = ""  # Current task being processed
     current_task_progress: str = ""  # Current stage (e.g., "query", "searching", "fetch 1/2")
+    current_argument: str = ""  # Current argument being researched
     # Kanban board: task_id -> stage mapping
-    task_stages: dict[str, str] = field(default_factory=dict)  # stage: queued, query, search, fetch, done
+    task_stages: dict[str, str] = field(default_factory=dict)  # stage: queued, query, search, fetch, done, error
+    # Error tracking
+    task_errors: dict[str, str] = field(default_factory=dict)  # task_id -> error reason
+    task_retries: dict[str, int] = field(default_factory=dict)  # task_id -> retry count
+    task_urls_tried: dict[str, list[str]] = field(default_factory=dict)  # task_id -> URLs already attempted
 
     def update(self, action: str, status: str = "working") -> None:
         """Update agent state with a new action."""
