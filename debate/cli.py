@@ -7,7 +7,6 @@ from rich.console import Console
 
 from debate.card_import import import_card
 from debate.case_generator import generate_case
-from debate.debate_agent import DebateAgent
 from debate.evidence_storage import (
     find_evidence_bucket,
     list_debate_files,
@@ -425,60 +424,52 @@ def cmd_card_import(args) -> None:
 
 
 def cmd_prep(args) -> None:
-    """Run autonomous debate prep."""
-    import os
-    from datetime import datetime
+    """Run parallel specialized prep agents."""
+    from debate.prep import run_prep
 
     side = Side.PRO if args.side == "pro" else Side.CON
 
-    print(f"\nStarting autonomous prep for {args.side.upper()}")
+    print(f"\nStarting parallel prep for {args.side.upper()}")
     print(f"Resolution: {args.resolution}")
-    print(f"Turn budget: {args.max_turns}\n")
-
-    # Generate log file path if logging is enabled
-    log_path = None
-    if args.log:
-        transcripts_dir = "transcripts"
-        os.makedirs(transcripts_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = os.path.join(transcripts_dir, f"prep_{timestamp}.txt")
+    print(f"Duration: {args.duration} minutes\n")
 
     try:
-        # Create debate agent
-        agent = DebateAgent(side=side, resolution=args.resolution)
+        # Import and run the async prep system
+        import asyncio
 
-        # Run autonomous prep
-        prep_file = agent.prep(max_turns=args.max_turns, stream=True, log_path=log_path, command=sys.argv)
+        result = asyncio.run(
+            run_prep(
+                resolution=args.resolution,
+                side=side,
+                duration_minutes=args.duration,
+                show_ui=not args.no_ui,
+            )
+        )
 
+        # Show final stats
         print("\n" + "=" * 60)
         print("PREP SUMMARY")
         print("=" * 60)
 
-        summary = prep_file.get_summary()
+        print(f"\nSession ID: {result['session_id']}")
+        print(f"Staging directory: {result['staging_dir']}")
 
-        print(f"\nResolution: {summary['resolution']}")
-        print(f"Side: {summary['side'].upper()}")
-        print(f"\nAnalyses completed: {len(summary['analyses_completed'])}")
-        for analysis_type in summary["analyses_completed"]:
-            print(f"  - {analysis_type}")
+        if result.get("evidence_path"):
+            print(f"Evidence saved to: {result['evidence_path']}")
 
-        print(f"\nArguments developed: {summary['num_arguments']}")
-        print(f"Total cards: {summary['total_cards']}")
-        print("\nCards by purpose:")
-        for purpose, count in summary["arguments_by_purpose"].items():
-            print(f"  - {purpose}: {count}")
-
-        print(f"\nResearch sessions: {summary['research_sessions']}")
+        stats = result.get("stats", {})
+        print(f"\nTasks created: {stats.get('tasks', 0)}")
+        print(f"Search results: {stats.get('results', 0)}")
+        print(f"Cards cut: {stats.get('cards', 0)}")
+        print(f"Feedback generated: {stats.get('feedback', 0)}")
 
         print("\n" + "=" * 60)
         print("✓ Prep complete!")
-        print("=" * 60)
+        print("=" * 60 + "\n")
 
-        if log_path:
-            print(f"\n✓ Transcript saved to: {log_path}\n")
-        else:
-            print()
-
+    except KeyboardInterrupt:
+        print("\n\nPrep interrupted by user.\n")
+        sys.exit(0)
     except Exception as e:
         print(f"\nError during prep: {e}\n", file=sys.stderr)
         import traceback
@@ -561,7 +552,7 @@ def main() -> None:
     # Prep command
     prep_parser = subparsers.add_parser(
         "prep",
-        help="Autonomous debate prep (analysis + research + organization)",
+        help="Parallel prep with specialized agents (strategy, search, cut, organize)",
     )
     prep_parser.add_argument(
         "resolution",
@@ -576,15 +567,15 @@ def main() -> None:
         help="Which side to prep",
     )
     prep_parser.add_argument(
-        "--max-turns",
-        type=int,
-        default=10,
-        help="Maximum tool calls for autonomous prep (default: 10)",
+        "--duration",
+        type=float,
+        default=5.0,
+        help="Duration in minutes for prep session (default: 5)",
     )
     prep_parser.add_argument(
-        "--log",
+        "--no-ui",
         action="store_true",
-        help="Log the prep session transcript to transcripts/ directory with timestamp",
+        help="Disable the terminal UI (useful for logging/debugging)",
     )
     prep_parser.set_defaults(func=cmd_prep)
 
