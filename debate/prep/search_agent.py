@@ -91,26 +91,53 @@ class SearchAgent(BaseAgent):
             self.log("query_failed", {"task_id": task_id})
             return
 
-        self.log("query_generated", {"query": query[:50]})
+        self.log(
+            "query_generated",
+            {
+                "task_id": task_id,
+                "argument": task.get("argument", "")[:50],
+                "search_intent": task.get("search_intent", "")[:50],
+                "query": query,
+            },
+        )
 
         # Execute search
         self._last_search_time = time.time()
         search_results = _brave_search(query, num_results=5, quiet=True)
 
         if not search_results:
-            self.log("search_failed", {"task_id": task_id, "query": query[:50]})
+            self.log("search_failed", {"task_id": task_id, "query": query})
             return
 
         # Extract URLs and fetch articles
         urls = _extract_urls_from_search_results(search_results)
         brave_api_key = os.environ.get("BRAVE_API_KEY")
 
+        self.log(
+            "search_success",
+            {
+                "query": query,
+                "urls_found": len(urls),
+                "urls_to_fetch": min(2, len(urls)),
+            },
+        )
+
         fetched_sources = []
         for url in urls[:2]:  # Fetch top 2
-            self.log("fetching", {"url": url[:50]})
+            self.log("fetching_start", {"url": url})
             article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True)
 
             if article:
+                content_preview = article.full_text[:50] if article.full_text else ""
+                self.log(
+                    "fetch_success",
+                    {
+                        "url": article.url,
+                        "title": article.title[:60] if article.title else "No title",
+                        "word_count": article.word_count,
+                        "content_preview": content_preview,
+                    },
+                )
                 fetched_sources.append(
                     {
                         "url": article.url,
@@ -121,6 +148,13 @@ class SearchAgent(BaseAgent):
                     }
                 )
             else:
+                self.log(
+                    "fetch_failed",
+                    {
+                        "url": url,
+                        "reason": "Could not fetch or parse content",
+                    },
+                )
                 fetched_sources.append(
                     {
                         "url": url,
@@ -144,11 +178,15 @@ class SearchAgent(BaseAgent):
 
         self.session.write_search_result(result)
         self.state.items_created += 1
+
+        successful_sources = len([s for s in fetched_sources if s["fetch_status"] == "success"])
         self.log(
             "staged_result",
             {
                 "task_id": task_id,
-                "sources_fetched": len([s for s in fetched_sources if s["fetch_status"] == "success"]),
+                "query": query,
+                "sources_fetched": successful_sources,
+                "sources_failed": len([s for s in fetched_sources if s["fetch_status"] == "failed"]),
             },
         )
 
