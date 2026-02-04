@@ -67,6 +67,14 @@ def create_agent_panel(agent: "BaseAgent", width: int = 60, show_details: bool =
     # Build content
     lines = []
 
+    # Show current research direction if available (for strategy agent)
+    if state.current_direction:
+        direction_text = state.current_direction
+        if len(direction_text) > width - 6:
+            direction_text = direction_text[: width - 9] + "..."
+        lines.append(f"[bold cyan]🔍 Researching:[/bold cyan] {direction_text}")
+        lines.append("")  # Blank line for separation
+
     # Recent actions (show more for single-agent view)
     num_actions = 6 if show_details else 3
     for action in state.recent_actions[-num_actions:]:

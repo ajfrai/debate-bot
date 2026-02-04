@@ -20,6 +20,7 @@ class AgentState:
     items_processed: int = 0
     items_created: int = 0
     recent_actions: list[str] = field(default_factory=list)
+    current_direction: str = ""  # Current research direction being pursued
 
     def update(self, action: str, status: str = "working") -> None:
         """Update agent state with a new action."""
