@@ -147,7 +147,7 @@ Side: {self.session.side.value.upper()}
 
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 10-15 NEW argument TAGS to research (not duplicates).
+Generate 40-50 NEW argument TAGS to research (not duplicates).
 Each tag is a debate brief label: exactly 5-12 words.
 
 EXAMPLES:
@@ -169,7 +169,7 @@ Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
 
 Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
 
-Generate 10-15 ANSWER TAGS (responding to likely opponent claims).
+Generate 40-50 ANSWER TAGS (responding to likely opponent claims).
 Each tag starts with "AT:" and is 5-12 words.
 
 EXAMPLES:
@@ -187,26 +187,12 @@ Output as numbered list ONLY. No other text.
         self.state.current_phase = self._phases[self._phase]
 
         try:
-            # Run sync API call in thread pool to avoid blocking event loop
-            response = await asyncio.to_thread(
-                self._get_client().messages.create,
-                model=model,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            response_text = ""
-            if response.content:
-                first_block = response.content[0]
-                if hasattr(first_block, "text"):
-                    response_text = first_block.text
-
-            # Parse numbered list format: "1. tag here", "2. tag here", etc.
-            tags = self._parse_numbered_list(response_text)
-
-            for tag in tags:
+            # Stream API call to get tags as they're generated
+            tags_created = 0
+            async for tag in self._stream_tags(model, prompt):
                 if not tag:
                     continue
+
                 task = {
                     "argument": tag,
                     "evidence_type": evidence_type,
@@ -219,12 +205,13 @@ Output as numbered list ONLY. No other text.
                 phase_name = self._phases[self._phase]
                 self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
+                tags_created += 1
 
                 # Log tag to UI
                 tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
                     f"📍 {tag_snippet}",
-                    {"type": evidence_type, "task_id": task_id},
+                    {"type": evidence_type, "task_id": task_id, "count": tags_created},
                 )
 
         except Exception as e:
@@ -252,7 +239,7 @@ Side: {self.session.side.value.upper()}
 
 Current arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 10-15 IMPACT TAGS identifying terminal impact evidence needed.
+Generate 40-50 IMPACT TAGS identifying terminal impact evidence needed.
 Each tag starts with "Impact:" and is 5-12 words.
 
 EXAMPLES:
@@ -270,26 +257,12 @@ Output as numbered list ONLY. No other text.
         self.state.current_phase = self._phases[self._phase]
 
         try:
-            # Run sync API call in thread pool to avoid blocking event loop
-            response = await asyncio.to_thread(
-                self._get_client().messages.create,
-                model=model,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            response_text = ""
-            if response.content:
-                first_block = response.content[0]
-                if hasattr(first_block, "text"):
-                    response_text = first_block.text
-
-            # Parse numbered list format: "1. tag here", "2. tag here", etc.
-            tags = self._parse_numbered_list(response_text)
-
-            for tag in tags:
+            # Stream API call to get tags as they're generated
+            tags_created = 0
+            async for tag in self._stream_tags(model, prompt):
                 if not tag:
                     continue
+
                 task = {
                     "argument": tag,
                     "evidence_type": "impact",
@@ -302,12 +275,13 @@ Output as numbered list ONLY. No other text.
                 phase_name = self._phases[self._phase]
                 self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
+                tags_created += 1
 
                 # Log tag to UI
                 tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
                     f"⚡ {tag_snippet}",
-                    {"type": "impact", "task_id": task_id},
+                    {"type": "impact", "task_id": task_id, "count": tags_created},
                 )
 
         except Exception as e:
@@ -380,3 +354,60 @@ Output as numbered list ONLY. No other text.
                     if tag:
                         tags.append(tag)
         return tags
+
+    async def _stream_tags(self, model: str, prompt: str):
+        """Stream tags from API call, yielding each tag as it's parsed.
+
+        Uses streaming API to get response incrementally, parsing numbered list
+        format and yielding complete tags immediately.
+
+        Args:
+            model: Model to use for generation
+            prompt: Prompt to send to model
+
+        Yields:
+            Complete tags as they're parsed from the stream
+        """
+        buffer = ""
+
+        # Use streaming API - wrap sync stream context manager in asyncio.to_thread
+        def _sync_stream():
+            """Run streaming API call synchronously."""
+            with self._get_client().messages.stream(
+                model=model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                yield from stream.text_stream
+
+        # Run the sync stream in a thread pool
+        stream_gen = await asyncio.to_thread(lambda: list(_sync_stream()))
+
+        for chunk in stream_gen:
+            buffer += chunk
+
+            # Try to extract complete lines (tags)
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                # Match "N. tag" format where N is a number
+                if line and line[0].isdigit():
+                    period_idx = line.find(".")
+                    if period_idx > 0:
+                        tag = line[period_idx + 1 :].strip()
+                        if tag:
+                            yield tag
+
+        # Process any remaining buffer
+        if buffer.strip():
+            line = buffer.strip()
+            if line and line[0].isdigit():
+                period_idx = line.find(".")
+                if period_idx > 0:
+                    tag = line[period_idx + 1 :].strip()
+                    if tag:
+                        yield tag

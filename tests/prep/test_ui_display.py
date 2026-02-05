@@ -29,6 +29,20 @@ class MockAnthropicResponse:
         self.content = [MagicMock(text=text)]
 
 
+class MockStreamContext:
+    """Mock Anthropic streaming context manager."""
+
+    def __init__(self, text: str):
+        self.text = text
+        self.text_stream = [text]  # Simulate streaming by yielding full text at once
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class MockBraveResponse:
     """Mock Brave search API response."""
 
@@ -78,8 +92,21 @@ def mock_anthropic_client():
         # Default empty response
         return MockAnthropicResponse("[]")
 
+    def stream_message_mock(*args, **kwargs):
+        """Generate synthetic streaming responses based on prompt."""
+        messages = kwargs.get("messages", [])
+        if not messages:
+            return MockStreamContext("")
+
+        prompt = messages[0].get("content", "")
+
+        # Return the same responses as create_message_mock
+        response = create_message_mock(*args, **kwargs)
+        return MockStreamContext(response.content[0].text)
+
     mock_client = MagicMock()
     mock_client.messages.create.side_effect = create_message_mock
+    mock_client.messages.stream.side_effect = stream_message_mock
     return mock_client
 
 
