@@ -5,8 +5,10 @@ This module provides robust article fetching from URLs with support for:
 - PDF documents
 - Paywall detection and retry with alternative sources
 - In-memory caching of fetched articles
+- Async parallel fetching with deduplication
 """
 
+import asyncio
 import hashlib
 import io
 import time
@@ -34,6 +36,9 @@ class FetchedArticle:
 
 # In-memory cache of fetched articles (fetch_id -> FetchedArticle)
 _ARTICLE_CACHE: dict[str, FetchedArticle] = {}
+
+# Set of URLs that have been attempted (for deduplication)
+_ATTEMPTED_URLS: set[str] = set()
 
 
 # Common paywall indicators
@@ -355,8 +360,9 @@ def get_cached_article(fetch_id: str) -> FetchedArticle | None:
 
 
 def clear_cache() -> None:
-    """Clear the article cache."""
+    """Clear the article cache and attempted URL tracking."""
     _ARTICLE_CACHE.clear()
+    _ATTEMPTED_URLS.clear()
 
 
 def get_cache_stats() -> dict:
@@ -370,4 +376,101 @@ def get_cache_stats() -> dict:
         "cached_articles": len(_ARTICLE_CACHE),
         "total_words": total_words,
         "fetch_ids": list(_ARTICLE_CACHE.keys()),
+        "attempted_urls": len(_ATTEMPTED_URLS),
     }
+
+
+async def fetch_source_async(
+    url: str,
+    retry_on_paywall: bool = True,
+    brave_api_key: str | None = None,
+    quiet: bool = False,
+) -> FetchedArticle | None:
+    """Async version of fetch_source for parallel fetching.
+
+    Deduplicates by checking if URL has been attempted before.
+    Marks URL as attempted after fetch (success or failure).
+
+    Args:
+        url: The URL to fetch
+        retry_on_paywall: If True, try to find a free version when paywall detected
+        brave_api_key: Brave Search API key for finding alternative sources
+        quiet: If True, suppress print output
+
+    Returns:
+        FetchedArticle if successful, None if failed or already attempted
+    """
+    # Dedupe: Skip if already attempted
+    if url in _ATTEMPTED_URLS:
+        return None
+
+    # Check cache (URL might have been fetched in a previous session)
+    fetch_id = _generate_fetch_id(url)
+    if fetch_id in _ARTICLE_CACHE:
+        _ATTEMPTED_URLS.add(url)  # Mark as attempted
+        return _ARTICLE_CACHE[fetch_id]
+
+    # Mark as attempted before fetching
+    _ATTEMPTED_URLS.add(url)
+
+    # Use asyncio to run the sync fetch_source in a thread pool
+    loop = asyncio.get_event_loop()
+    try:
+        article = await loop.run_in_executor(
+            None,
+            fetch_source,
+            url,
+            retry_on_paywall,
+            brave_api_key,
+            quiet,
+        )
+        return article
+    except Exception as e:
+        if not quiet:
+            print(f"  ✗ Error fetching {url[:80]}: {str(e)[:50]}")
+        return None
+
+
+async def fetch_all_sources_async(
+    urls: list[str],
+    brave_api_key: str | None = None,
+    quiet: bool = False,
+) -> list[FetchedArticle]:
+    """Fetch multiple URLs in parallel with deduplication.
+
+    Only fetches URLs that haven't been attempted before.
+
+    Args:
+        urls: List of URLs to fetch
+        brave_api_key: Brave Search API key for paywall retry
+        quiet: If True, suppress print output
+
+    Returns:
+        List of successfully fetched articles
+    """
+    # Filter out already attempted URLs (dedupe before fetch)
+    unique_urls = [url for url in urls if url not in _ATTEMPTED_URLS]
+
+    if not unique_urls:
+        if not quiet:
+            print("  All URLs already attempted, skipping fetch")
+        return []
+
+    if not quiet:
+        print(f"  Fetching {len(unique_urls)} unique sources in parallel...")
+
+    # Create tasks for all URLs
+    tasks = [
+        fetch_source_async(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=quiet) for url in unique_urls
+    ]
+
+    # Fetch all in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Filter out None and exceptions
+    articles = [r for r in results if isinstance(r, FetchedArticle)]
+
+    if not quiet:
+        print(f"  ✓ Successfully fetched {len(articles)}/{len(unique_urls)} sources")
+
+    return articles

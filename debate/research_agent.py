@@ -6,6 +6,7 @@ This module provides cost-effective evidence research by:
 3. Organizing cards into debate files by strategic value
 """
 
+import asyncio
 import datetime
 import json
 import os
@@ -16,7 +17,7 @@ from pathlib import Path
 import anthropic
 import requests
 
-from debate.article_fetcher import FetchedArticle, fetch_source
+from debate.article_fetcher import FetchedArticle, fetch_all_sources_async, fetch_source
 from debate.config import Config
 from debate.models import (
     Card,
@@ -163,7 +164,7 @@ def _fetch_articles_from_search(
     max_articles: int = 2,
     brave_api_key: str | None = None,
 ) -> list[FetchedArticle]:
-    """Fetch full article text from search result URLs.
+    """Fetch full article text from search result URLs (legacy sync version).
 
     Args:
         search_results: Formatted search results from _brave_search
@@ -188,6 +189,34 @@ def _fetch_articles_from_search(
             break
 
     return fetched_articles
+
+
+def _fetch_all_articles_async(
+    search_results_list: list[str],
+    brave_api_key: str | None = None,
+) -> list[FetchedArticle]:
+    """Fetch ALL article URLs from multiple search results in parallel.
+
+    Collects all URLs from all search results, deduplicates, and fetches in parallel.
+
+    Args:
+        search_results_list: List of formatted search results from _brave_search
+        brave_api_key: Brave API key for paywall retry
+
+    Returns:
+        List of successfully fetched articles (deduplicated)
+    """
+    # Collect all URLs from all search results
+    all_urls = []
+    for search_results in search_results_list:
+        urls = _extract_urls_from_search_results(search_results)
+        all_urls.extend(urls)
+
+    if not all_urls:
+        return []
+
+    # Fetch all URLs in parallel (with automatic deduplication)
+    return asyncio.run(fetch_all_sources_async(all_urls, brave_api_key=brave_api_key, quiet=False))
 
 
 def _format_fetched_articles_for_prompt(articles: list[FetchedArticle]) -> str:
@@ -550,34 +579,45 @@ def research_evidence(
         # Generate diverse queries
         queries = generate_research_queries(resolution, topic, side, existing_cards)
 
-        # USE SINGLE SEARCH STRATEGY to avoid rate limiting
-        # Pick the most relevant strategy for the purpose
+        # Execute ALL queries serially (respecting Brave rate limits)
+        # Then fetch ALL sources from ALL results in parallel
         if queries:
-            q = queries[0]  # Use first (most relevant) strategy only
-            print(f"Executing search strategy: [{q['strategy'].value}]")
-            print(f"  Query: {q['query'][:70]}...")
+            print(f"Executing {len(queries)} search strategies...")
+            all_search_results = []
+            search_results_formatted = []
 
-            # Add 3-second pause to avoid rate limiting
-            time.sleep(3)
+            for i, q in enumerate(queries, 1):
+                print(f"  [{i}/{len(queries)}] {q['strategy'].value}: {q['query'][:60]}...")
 
-            result = _brave_search(q["query"], num_results=5)
-            if result:
-                search_results = f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}"
-                print("✓ Found results from search")
+                # Rate limit: 3-second pause between searches
+                if i > 1:
+                    time.sleep(3)
 
-                # Fetch full article text from top results
+                result = _brave_search(q["query"], num_results=5, quiet=False)
+                if result:
+                    all_search_results.append(result)
+                    search_results_formatted.append(f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}")
+                    print("    ✓ Found results")
+                else:
+                    print("    ⚠ No results")
+
+            # Fetch ALL sources from ALL queries in parallel
+            if all_search_results:
                 brave_api_key = os.environ.get("BRAVE_API_KEY")
-                print("Fetching full article text from top sources...")
-                fetched_articles = _fetch_articles_from_search(result, max_articles=2, brave_api_key=brave_api_key)
+                print(f"\nFetching all sources from {len(all_search_results)} search result(s)...")
+                fetched_articles = _fetch_all_articles_async(all_search_results, brave_api_key=brave_api_key)
+
+                # Combine search results and article text
+                search_results = "\n\n".join(search_results_formatted)
 
                 if fetched_articles:
-                    print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
+                    print(f"✓ Fetched {len(fetched_articles)} unique article(s) with full text")
                     article_text = _format_fetched_articles_for_prompt(fetched_articles)
                     search_results = f"{search_results}\n\n{article_text}"
                 else:
-                    print("⚠ Could not fetch full article text")
+                    print("⚠ Could not fetch any articles")
             else:
-                print("⚠ No search results, using Claude's knowledge base")
+                print("⚠ No search results from any query, using Claude's knowledge base")
                 search_results = "(No search results available - use your knowledge base)"
         else:
             print("⚠ No search queries generated, using Claude's knowledge base")
@@ -598,17 +638,17 @@ def research_evidence(
             search_results = brave_results
             print("✓ Found search results from Brave")
 
-            # Fetch full article text from top results
+            # Fetch ALL article sources from the search results
             brave_api_key = os.environ.get("BRAVE_API_KEY")
-            print("Fetching full article text from top sources...")
-            fetched_articles = _fetch_articles_from_search(brave_results, max_articles=2, brave_api_key=brave_api_key)
+            print("Fetching all sources from search results...")
+            fetched_articles = _fetch_all_articles_async([brave_results], brave_api_key=brave_api_key)
 
             if fetched_articles:
                 print(f"✓ Fetched {len(fetched_articles)} article(s) with full text")
                 article_text = _format_fetched_articles_for_prompt(fetched_articles)
                 search_results = f"{search_results}\n\n{article_text}"
             else:
-                print("⚠ Could not fetch full article text")
+                print("⚠ Could not fetch any articles")
         else:
             search_results = "(No search results available - use your knowledge base)"
             print("⚠ Brave Search unavailable, using Claude's knowledge base")
