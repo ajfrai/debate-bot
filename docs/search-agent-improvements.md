@@ -4,212 +4,303 @@
 
 Strategy agent generates ~100 research tasks per 30s, but search agent only completes 1-2. Current bottlenecks:
 - Sequential URL fetches (10 URLs × 0.5s delay = 5s+ per task)
-- LLM query generation (~1.5s per task)
+- LLM query generation (~1.5s per task, one call per task)
 - No task prioritization (stock arguments may not get researched)
+- No visibility into actual work done (UI shows "2 results" when 12 articles fetched)
 
 Brave API rate limit is 1 req/sec (free tier), which is NOT the bottleneck.
 
 ---
 
-## Improvement 1: Parallel URL Fetches
+## Design Decisions
 
-**File:** `debate/prep/search_agent.py`
-
-**Current behavior (lines 192-273):**
-```python
-for url in urls_to_try:
-    # Sequential fetch with 0.5s delay each
-    await asyncio.sleep(self.fetch_delay)
-    result = await asyncio.to_thread(self._fetch_article, url)
-```
-
-**New behavior:**
-```python
-async def _fetch_with_delay(self, url: str, delay: float) -> dict:
-    """Fetch a single URL with staggered delay."""
-    await asyncio.sleep(delay)
-    return await asyncio.to_thread(self._fetch_article, url)
-
-# In process_item:
-fetch_tasks = [
-    self._fetch_with_delay(url, i * 0.2)  # Stagger by 0.2s
-    for i, url in enumerate(urls_to_try[:5])  # Limit to 5 concurrent
-]
-results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-```
-
-**Impact:** Fetch phase drops from ~5s to ~1-2s per task (~3x faster)
+| Question | Decision |
+|----------|----------|
+| Early termination? | **No.** Do post-timer fetches instead. Harvest URLs during timer, fetch after. |
+| Priority ratio? | **4:1 stock:non-stock.** Interleave to ensure coverage. |
+| Parallel fetch limit? | **Cap at 3**, make configurable. |
+| Batch query generation? | **Yes.** Use streaming parsing like strategy agent. Persist for resume. |
+| Same-domain URLs? | **Skip duplicates** from same domain (take first only). |
+| Partial fetch failure? | **Accept successes, move on.** Don't retry failures. |
 
 ---
 
-## Improvement 2: Early Termination on Success
+## Improvement 1: Strategy Agent - Add `arg_type` Field
 
-**File:** `debate/prep/search_agent.py`
+**Files:** `debate/prep/strategy_agent.py`
 
-**Current behavior:** Fetches ALL URLs from search results.
+**Problem:** Current `source` and `priority` fields are not useful for prioritization. Need explicit argument type.
 
-**New behavior:** Stop after N successful fetches with sufficient content.
+**Changes:**
 
-```python
-MIN_GOOD_SOURCES = 2
-MIN_WORD_COUNT = 300
+1. Add `arg_type` field to task generation with values: `stock`, `creative`, `niche`, `opportunistic`
+2. Remove unused `source` field from task JSON
+3. Remove unused `priority` field from task JSON
 
-# After processing fetch results:
-good_sources = [s for s in sources if s.get("word_count", 0) >= MIN_WORD_COUNT]
-if len(good_sources) >= MIN_GOOD_SOURCES:
-    break  # Don't fetch remaining URLs
+**Task format before:**
+```json
+{
+  "id": "a1b2c3",
+  "argument": "TikTok ban eliminates creator jobs",
+  "evidence_type": "support",
+  "source": "enumerate_support",
+  "priority": "high",
+  "ts": 1234567890
+}
 ```
 
-**Impact:** Skip unnecessary fetches, ~2x faster on successful searches
+**Task format after:**
+```json
+{
+  "id": "a1b2c3",
+  "argument": "TikTok ban eliminates creator jobs",
+  "evidence_type": "support",
+  "arg_type": "stock",
+  "ts": 1234567890
+}
+```
 
 ---
 
-## Improvement 3: Priority Queue (Stock First)
+## Improvement 2: Priority Queue (4:1 Stock Ratio)
 
 **File:** `debate/prep/session.py`
 
 **Current behavior:** `get_pending_tasks()` returns tasks in glob order (arbitrary).
 
-**New behavior:** Sort tasks by priority before returning.
+**New behavior:** Interleave 4 stock tasks for every 1 non-stock task.
 
 ```python
-def _task_priority(self, task: dict) -> tuple:
-    """Return sort key (lower = higher priority)."""
-    source = task.get("source", "")
-
-    # Priority 1: Stock arguments (most important)
-    is_stock = "STOCK" in source or "stock" in source
-
-    # Priority 2: Base tasks before variants
-    is_variant = "variant" in source
-
-    # Priority 3: Phase order (initial > impact > deep_dive)
-    phase_order = {
-        "initial": 0,
-        "impact": 1,
-        "deep": 2,
-        "opponent": 3,
-    }
-    phase = 2  # default
-    for key, val in phase_order.items():
-        if key in source:
-            phase = val
-            break
-
-    return (not is_stock, is_variant, phase)
-
 def get_pending_tasks(self) -> list[dict]:
+    """Get pending tasks with 4:1 stock:non-stock interleaving."""
     tasks = self._load_pending_tasks()
-    return sorted(tasks, key=self._task_priority)
+
+    # Separate by arg_type
+    stock = [t for t in tasks if t.get("arg_type") == "stock"]
+    non_stock = [t for t in tasks if t.get("arg_type") != "stock"]
+
+    # Interleave 4:1
+    result = []
+    stock_idx = 0
+    non_stock_idx = 0
+
+    while stock_idx < len(stock) or non_stock_idx < len(non_stock):
+        # Add up to 4 stock tasks
+        for _ in range(4):
+            if stock_idx < len(stock):
+                result.append(stock[stock_idx])
+                stock_idx += 1
+        # Add 1 non-stock task
+        if non_stock_idx < len(non_stock):
+            result.append(non_stock[non_stock_idx])
+            non_stock_idx += 1
+
+    return result
 ```
 
-**Impact:** Ensures critical stock arguments researched first within time budget.
+**Impact:** Stock arguments always prioritized. Creative/niche/opportunistic still get researched.
 
 ---
 
-## Improvement 4: Batch Query Generation
+## Improvement 3: Streaming Batch Query Generation
 
-**File:** `debate/prep/search_agent.py`
+**Files:** `debate/prep/search_agent.py`, new `debate/prep/query_generator.py`
 
-**Current behavior:** One LLM call per task for query generation (~1.5s each).
+**Current behavior:** One LLM call per task for query generation.
 
-**New behavior:** Batch 5-10 tasks into one LLM call.
+**New behavior:**
+- Stream-generate queries for batches of 10 tasks
+- Parse queries as they stream (like strategy agent's `_stream_tags()`)
+- Persist generated queries to `staging/{session_id}/search/queries/query_{task_id}.json`
+- On resume, load existing queries instead of regenerating
+- Show 10 most recent queries in UI
 
-```python
-async def _generate_queries_batch(self, tasks: list[dict]) -> dict[str, str]:
-    """Generate search queries for multiple tasks at once."""
-    arguments = [t["argument"] for t in tasks]
+**Query persistence format:**
+```json
+{
+  "task_id": "a1b2c3",
+  "argument": "TikTok ban eliminates creator jobs",
+  "query": "TikTok ban creator economy job losses 2024 2025",
+  "ts": 1234567890
+}
+```
 
-    prompt = f"""Generate a focused search query for each argument.
-Return as JSON: {{"argument": "query", ...}}
+**Streaming prompt:**
+```
+Generate targeted search queries for these debate arguments.
+Output one query per line in format: TASK_ID|QUERY
 
 Arguments:
-{chr(10).join(f'- {arg}' for arg in arguments)}
-"""
-
-    response = await self._call_llm(prompt)
-    return json.loads(response)
-
-# In check_for_work or process loop:
-pending = self.session.get_pending_tasks()[:10]
-if len(pending) >= 3:
-    queries = await self._generate_queries_batch(pending)
-    # Cache queries for use in process_item
-    for task in pending:
-        self._query_cache[task["id"]] = queries.get(task["argument"])
+- a1b2c3: TikTok ban eliminates creator jobs
+- d4e5f6: Chinese government accesses user data
+...
 ```
 
-**Impact:** Reduces LLM overhead from ~15s (10 tasks) to ~2s (1 batch call).
+**UI display:** Show 10 most recent queries in search agent panel (similar to strategy agent's recent arguments).
 
 ---
 
-## Improvement 5: UI - Show Sources Fetched Count
+## Improvement 4: Parallel URL Fetches
+
+**Files:** `debate/prep/search_agent.py`
+
+**Leverage existing infrastructure:** `debate/article_fetcher.py` already has `fetch_all_sources_async()` with `asyncio.gather()`.
+
+**Changes:**
+
+1. Use `fetch_all_sources_async()` instead of sequential loop
+2. Add configurable concurrency limit (default: 3)
+3. Deduplicate URLs by domain (take first URL per domain)
+4. Accept partial successes (don't retry failures)
+
+```python
+# Config
+PARALLEL_FETCH_LIMIT = 3  # Make configurable
+
+# Deduplicate by domain
+def _dedupe_by_domain(urls: list[str]) -> list[str]:
+    """Take first URL from each domain."""
+    seen_domains = set()
+    result = []
+    for url in urls:
+        domain = urlparse(url).netloc
+        if domain not in seen_domains:
+            seen_domains.add(domain)
+            result.append(url)
+    return result
+
+# In process_item:
+urls = _dedupe_by_domain(search_result_urls)[:PARALLEL_FETCH_LIMIT]
+results = await fetch_all_sources_async(urls)
+# Accept whatever succeeded, move on
+sources = [r for r in results if r.get("success")]
+```
+
+**Impact:** Fetch phase drops from ~5s to ~1-2s per task.
+
+---
+
+## Improvement 5: Post-Timer Fetch Phase
+
+**Files:** `debate/prep/search_agent.py`, `debate/prep/ui.py`, `debate/prep/orchestrator.py` (if exists)
+
+**Concept:** Separate the work into two phases:
+1. **Timed phase:** Query generation + Brave searches (collect URLs)
+2. **Post-timer phase:** Fetch all collected URLs (no time pressure)
+
+**Implementation:**
+
+1. During timed phase:
+   - Generate queries (streaming batch)
+   - Execute Brave searches (1 req/sec)
+   - Collect URLs into a pool (don't fetch yet, or fetch in parallel opportunistically)
+
+2. After timer expires:
+   - UI shows "⏳ Fetching collected URLs..."
+   - Fetch all URLs from pool with parallel fetches
+   - No time pressure, can take as long as needed
+
+**URL pool storage:**
+```
+staging/{session_id}/search/url_pool.json
+```
+
+```json
+{
+  "urls": [
+    {"task_id": "a1b2c3", "url": "https://...", "title": "..."},
+    ...
+  ],
+  "collected_at": 1234567890
+}
+```
+
+**UI indication:**
+```
+┌─ Search Agent ─────────────────────────┐
+│ ⏳ Post-timer: Fetching 47 URLs...     │
+│ Progress: 12/47 fetched                │
+│ Sources: 8 success, 4 failed           │
+└────────────────────────────────────────┘
+```
+
+---
+
+## Improvement 6: UI - Sources Fetched + Recent Queries
 
 **File:** `debate/prep/base_agent.py`
 
-Add counter to AgentState:
+Add counters to AgentState:
 ```python
 @dataclass
 class AgentState:
     # ... existing fields ...
     sources_fetched: int = 0
     sources_failed: int = 0
-```
-
-**File:** `debate/prep/search_agent.py`
-
-Increment on fetch (around line 228):
-```python
-if fetch_result.get("success"):
-    self.state.sources_fetched += 1
-else:
-    self.state.sources_failed += 1
+    urls_collected: int = 0
+    recent_queries: list[str] = field(default_factory=list)  # Last 10
 ```
 
 **File:** `debate/prep/ui.py`
 
-Update stats panel (lines 257-276):
-```python
-def create_stats_panel(session: "PrepSession", time_remaining: float, agents: list["BaseAgent"] = None) -> Panel:
-    stats = session.get_stats()
-
-    # Get sources count from search agent
-    sources_fetched = 0
-    sources_failed = 0
-    if agents:
-        for agent in agents:
-            if agent.name == "search":
-                sources_fetched = agent.state.sources_fetched
-                sources_failed = agent.state.sources_failed
-
-    table = Table.grid(padding=(0, 2))
-    table.add_column(justify="left")
-    table.add_column(justify="right")
-
-    table.add_row("Tasks Generated:", str(stats["tasks"]))
-    table.add_row("Sources Fetched:", f"{sources_fetched} ({sources_failed} failed)")
-    table.add_row("Cards Cut:", str(stats["cards"]))
+Search agent panel shows:
+```
+┌─ Search Agent ─────────────────────────┐
+│ 🔍 Researching: TikTok ban impacts     │
+│                                        │
+│ Recent queries:                        │
+│   📎 tiktok ban creator jobs 2024      │
+│   📎 chinese government data access    │
+│   📎 bytedance national security       │
+│   ... (up to 10)                       │
+│                                        │
+│ URLs: 23 collected | Sources: 8 (2 ✗)  │
+└────────────────────────────────────────┘
 ```
 
-**Impact:** User sees meaningful progress (12 sources fetched) instead of discouraging "2 tasks completed".
+Stats panel shows:
+```
+Tasks Generated:    100
+URLs Collected:     47
+Sources Fetched:    12 (4 failed)
+Cards Cut:          8
+```
 
 ---
 
 ## Implementation Order
 
-1. **UI fix (Improvement 5)** - Quick win, immediate visibility improvement
-2. **Early termination (Improvement 2)** - Simple change, good impact
-3. **Parallel fetches (Improvement 1)** - Moderate complexity, high impact
-4. **Priority queue (Improvement 3)** - Moderate complexity, quality improvement
-5. **Batch query gen (Improvement 4)** - More complexity, good impact
+| Order | Improvement | Complexity | Dependencies |
+|-------|-------------|------------|--------------|
+| 1 | Strategy agent: add `arg_type`, remove `source`/`priority` | Low | None |
+| 2 | Session: 4:1 priority interleaving | Low | #1 |
+| 3 | UI: sources fetched counter | Low | None |
+| 4 | Parallel fetches (use existing infra) | Medium | None |
+| 5 | Streaming batch query generation | Medium | None |
+| 6 | UI: recent queries display | Low | #5 |
+| 7 | Post-timer fetch phase | Medium | #4, #5 |
 
 ---
 
-## Expected Combined Impact
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `debate/prep/strategy_agent.py` | Add `arg_type` field, remove `source`/`priority` |
+| `debate/prep/session.py` | Add 4:1 priority interleaving to `get_pending_tasks()` |
+| `debate/prep/search_agent.py` | Streaming batch queries, parallel fetches, post-timer phase |
+| `debate/prep/base_agent.py` | Add `sources_fetched`, `urls_collected`, `recent_queries` to AgentState |
+| `debate/prep/ui.py` | Show sources counter, recent queries, post-timer indication |
+| `debate/prep/orchestrator.py` | Coordinate post-timer fetch phase (if needed) |
+
+---
+
+## Expected Impact
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Time per task | ~10-15s | ~3-5s |
-| Tasks in 30s | ~2-3 | ~6-10 |
-| Stock coverage | Random | Guaranteed first |
-| User visibility | "2 results" | "15 sources fetched" |
+| Queries generated in 30s | ~2-3 | ~25-30 (batch streaming) |
+| URLs collected in 30s | ~10-15 | ~50-75 |
+| Sources fetched total | ~5-10 | ~30-50 (post-timer) |
+| Stock coverage | Random | 80% guaranteed |
+| User visibility | "2 results" | "47 URLs → 32 sources fetched" |
