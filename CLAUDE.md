@@ -348,6 +348,15 @@ The research agent should assign semantic categories to each card based on what 
 8. **Semantic grouping**: Cards for semantically similar arguments grouped under the same heading-2, enforced programmatically by code that saves cards
 9. **Token efficiency**: No text regeneration, local caching, minimal API usage
 10. **Tool-based workflow**: Agent uses tools (search, fetch_source, mark_warrants, cut_card) instead of generating full JSON structures
+11. **Strategy Agent Tag-Based Design**: Tags encode all information needed (no separate metadata fields)
+    - Second-order arguments encoded in tag: "[Conclusion] leads to [Effect]"
+    - Tag format standardization helps Claude understand intent
+    - Variants created from tags for broader search coverage via vocabulary expansion
+12. **Argument Generation Strategy**: Phases generate increasingly complex argument structures
+    - Phase 1: initial_arguments (60% first-order + 40% second-order mixed)
+    - Phase 2: impact_chains (25% intermediate + 25% second-order + 50% terminal impacts)
+    - Phase 3: deep_dive (evidence deepening for thin arguments)
+    - Each phase uses STOCK/CREATIVE/NICHE/OPPORTUNISTIC generation strategies (25% each)
 
 ## PF Speech Order
 
@@ -408,6 +417,14 @@ This `config.yaml` file is designed to grow beyond model settings to include:
 - Caching and storage settings
 
 ## Development & Validation
+
+**CRITICAL: Work in PRs, not directly on main**
+
+- Always create a feature branch for significant changes
+- Create a pull request before merging to main
+- This ensures visibility and allows for review/discussion
+- Push branch with: `git push -u origin feature/description`
+- Create PR with: `gh pr create --base main --head feature/description --title "..." --body "..."`
 
 **CRITICAL: Always run checks before committing**
 
