@@ -109,6 +109,58 @@ class PrepSession:
         log_path = self.staging_dir / "_read_log.json"
         log_path.write_text(json.dumps(self._read_log, indent=2))
 
+    def _load_failed_tasks(self) -> set[str]:
+        """Load the set of permanently failed task IDs from disk."""
+        failed_path = self.staging_dir / "_failed_tasks.json"
+        if failed_path.exists():
+            data = json.loads(failed_path.read_text())
+            return set(data.get("task_ids", []))
+        return set()
+
+    def _save_failed_tasks(self, failed_ids: set[str]) -> None:
+        """Save the set of permanently failed task IDs to disk."""
+        failed_path = self.staging_dir / "_failed_tasks.json"
+        data = {
+            "task_ids": list(failed_ids),
+            "updated_at": time.time(),
+        }
+        failed_path.write_text(json.dumps(data, indent=2))
+
+    def mark_task_failed(self, task_id: str, reason: str) -> None:
+        """Mark a task as permanently failed (won't be retried).
+
+        Args:
+            task_id: The task ID to mark as failed
+            reason: The reason for failure
+        """
+        failed_ids = self._load_failed_tasks()
+        failed_ids.add(task_id)
+        self._save_failed_tasks(failed_ids)
+
+        self.log_event(
+            "search",
+            "task_permanently_failed",
+            {"task_id": task_id, "reason": reason},
+        )
+
+    def is_task_failed(self, task_id: str) -> bool:
+        """Check if a task has been marked as permanently failed."""
+        failed_ids = self._load_failed_tasks()
+        return task_id in failed_ids
+
+    def reset_failed_tasks(self) -> int:
+        """Reset all failed tasks so they can be retried.
+
+        Returns:
+            Number of tasks that were reset
+        """
+        failed_ids = self._load_failed_tasks()
+        count = len(failed_ids)
+        if count > 0:
+            self._save_failed_tasks(set())
+            self.log_event("search", "reset_failed_tasks", {"count": count})
+        return count
+
     def _load_existing_task_signatures(self) -> None:
         """Load existing tasks from previous runs for deduplication.
 
@@ -366,13 +418,25 @@ class PrepSession:
         return task_id
 
     def get_pending_tasks(self) -> list[dict[str, Any]]:
-        """Get all unprocessed tasks for SearchAgent."""
+        """Get all unprocessed tasks for SearchAgent.
+
+        Excludes:
+        - Tasks already processed successfully (in _read_log.json)
+        - Tasks marked as permanently failed (in _failed_tasks.json)
+        """
         tasks_dir = self.staging_dir / "strategy" / "tasks"
         unprocessed = self.get_unprocessed_files("search", tasks_dir)
 
+        # Load failed tasks to exclude them
+        failed_ids = self._load_failed_tasks()
+
         tasks = []
         for f in unprocessed:
-            tasks.append(json.loads(f.read_text()))
+            task = json.loads(f.read_text())
+            task_id = task.get("id", "")
+            # Skip permanently failed tasks
+            if task_id not in failed_ids:
+                tasks.append(task)
         return tasks
 
     # === Search Agent Interface ===

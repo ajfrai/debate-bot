@@ -71,10 +71,12 @@ class SearchAgent(BaseAgent):
     async def check_for_work(self) -> list[Any]:
         """Check for pending research tasks."""
         tasks = self.session.get_pending_tasks()
-        # Mark new tasks as queued in kanban
+        # Mark new tasks as queued in kanban (but don't overwrite existing states)
         for task in tasks:
             task_id = task.get("id", "")
             if task_id and task_id not in self.state.task_stages:
+                # Only set to queued if this is a genuinely new task
+                # Don't overwrite existing error/done states
                 self.state.task_stages[task_id] = "queued"
         return tasks
 
@@ -145,9 +147,13 @@ class SearchAgent(BaseAgent):
 
         try:
             if is_fixture_mode():
-                search_results: str | None = mock_brave_search(query, num_results=20, quiet=True)
+                # Run in thread to avoid blocking event loop (allows UI updates)
+                search_results: str | None = await asyncio.to_thread(
+                    mock_brave_search, query, num_results=20, quiet=True
+                )
             else:
-                search_results = _brave_search(query, num_results=20, quiet=True)
+                # Run in thread to avoid blocking event loop (allows UI updates)
+                search_results = await asyncio.to_thread(_brave_search, query, num_results=20, quiet=True)
 
             if not search_results:
                 await self._handle_error(task_id, "Search returned no results", task)
@@ -205,9 +211,13 @@ class SearchAgent(BaseAgent):
 
             try:
                 if is_fixture_mode():
-                    article = mock_fetch_source(url)
+                    # Run in thread to avoid blocking event loop (allows UI updates)
+                    article = await asyncio.to_thread(mock_fetch_source, url)
                 else:
-                    article = fetch_source(url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True)
+                    # Run in thread to avoid blocking event loop (allows UI updates)
+                    article = await asyncio.to_thread(
+                        fetch_source, url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True
+                    )
 
                 if not article:
                     error_msg = "Paywall or failed to extract content"
@@ -419,7 +429,10 @@ Output ONLY the search query, nothing else. Max 15 words."""
             # Requeue by moving back to queued stage
             self.state.task_stages[task_id] = "queued"
         else:
-            # Max retries reached - keep in error column
+            # Max retries reached - mark as PERMANENTLY failed
+            # This persists to disk so task won't be retried even after agent restart
+            self.session.mark_task_failed(task_id, error_reason)
+
             self.log("max_retries_reached", {"task_id": task_id})
             self.state.update(f"Max retries reached: {error_reason}", "working")
             self.state.current_task_id = ""

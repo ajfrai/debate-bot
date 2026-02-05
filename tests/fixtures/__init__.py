@@ -1,16 +1,26 @@
 """Test fixtures for mocking external API calls."""
 
-import json
 import os
 import random
+import time
 from pathlib import Path
 from typing import Any
+
+import json
 
 # Path to fixtures directory
 FIXTURES_DIR = Path(__file__).parent
 
 # Fixture mode tracking
 _FIXTURE_MODE = False
+
+# Configurable delays (in seconds)
+SEARCH_DELAY_RANGE = (0.3, 0.8)  # Simulate network latency for search
+FETCH_DELAY_RANGE = (0.5, 1.5)  # Simulate article download time
+QUERY_DELAY = 0.1  # Simulate LLM response time
+
+# Error simulation rate (0.0 to 1.0)
+FETCH_ERROR_RATE = 0.2  # 20% of fetches fail
 
 
 def load_fixture(name: str) -> dict[str, Any]:
@@ -50,6 +60,10 @@ def disable_fixtures():
 def mock_generate_query(task: dict[str, Any]) -> str:
     """Mock query generation without calling Anthropic API."""
     global _query_index
+
+    # Simulate LLM response delay
+    time.sleep(QUERY_DELAY)
+
     query = SAMPLE_QUERIES[_query_index % len(SAMPLE_QUERIES)]
     _query_index += 1
     print(f"  [FIXTURE] Generated query: {query[:50]}...")
@@ -57,10 +71,19 @@ def mock_generate_query(task: dict[str, Any]) -> str:
 
 
 def mock_brave_search(query: str, num_results: int = 5, quiet: bool = True) -> str:
-    """Mock Brave search without calling API."""
+    """Mock Brave search returning MARKDOWN format (matching real _brave_search).
+
+    IMPORTANT: Returns markdown with 'URL: ' prefix, NOT JSON.
+    The _extract_urls_from_search_results() function expects this format.
+    """
     global _result_index
 
-    print(f"  [FIXTURE] Brave search for: {query[:50]}...")
+    # Simulate network delay
+    delay = random.uniform(*SEARCH_DELAY_RANGE)
+    time.sleep(delay)
+
+    if not quiet:
+        print(f"  [FIXTURE] Brave search for: {query[:50]}...")
 
     # Find matching results or use next in sequence
     matching_results = None
@@ -73,22 +96,42 @@ def mock_brave_search(query: str, num_results: int = 5, quiet: bool = True) -> s
         matching_results = SAMPLE_RESULTS[_result_index % len(SAMPLE_RESULTS)]
         _result_index += 1
 
-    # Format as JSON like Brave API would return
     urls = matching_results["urls"][:num_results]
-    results = [
-        {
-            "url": url,
-            "title": f"Result for {query}",
-            "description": f"Search result from {url}",
-        }
-        for url in urls
-    ]
-    print(f"    Found {len(results)} results")
-    return json.dumps({"results": results})
+
+    # Format EXACTLY like _brave_search() does - markdown with URL: prefix
+    # This is critical for _extract_urls_from_search_results() to work
+    formatted = ["## Search Results\n"]
+    for i, url in enumerate(urls, 1):
+        formatted.append(f"{i}. **Result for {query[:30]}**")
+        formatted.append(f"   URL: {url}")
+        formatted.append(f"   Description: Search result from {url}")
+        formatted.append("")
+
+    if not quiet:
+        print(f"    Found {len(urls)} results")
+
+    return "\n".join(formatted)
 
 
-def mock_fetch_source(url: str, **kwargs) -> Any:
-    """Mock article fetching without calling the real URL."""
+def mock_fetch_source(url: str, **kwargs: Any) -> Any:
+    """Mock article fetching with realistic delays and occasional errors."""
+
+    # Simulate network/download delay
+    delay = random.uniform(*FETCH_DELAY_RANGE)
+    time.sleep(delay)
+
+    # Simulate occasional fetch failures
+    if random.random() < FETCH_ERROR_RATE:
+        error_types = [
+            "Paywall detected",
+            "Connection timeout",
+            "HTTP 403 Forbidden",
+            "HTTP 404 Not Found",
+        ]
+        error = random.choice(error_types)
+        print(f"  [FIXTURE] Fetch failed: {url[:50]}... ({error})")
+        return None
+
     print(f"  [FIXTURE] Fetching: {url[:60]}...")
 
     # Find matching article or return random

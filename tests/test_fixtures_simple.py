@@ -1,5 +1,6 @@
 """Simple test of fixture mocking."""
 
+import re
 import sys
 from pathlib import Path
 
@@ -26,20 +27,32 @@ def test_fixtures():
     results = mock_brave_search(query)
     print(f"   Results: {results[:100]}...\n")
 
+    # Verify markdown format with URL: prefix
+    assert "## Search Results" in results, "Should have markdown header"
+    assert "URL: " in results, "Should have URL: prefix for extraction"
+
+    # Extract URLs using the same pattern as _extract_urls_from_search_results
+    urls = re.findall(r"URL:\s*(https?://[^\s]+)", results)
+    assert len(urls) > 0, f"Should extract URLs from markdown, got: {results[:200]}"
+    print(f"   Extracted {len(urls)} URLs\n")
+
     # Test fetch
     print("3. Testing mock_fetch_source:")
-    import json
-
-    results_obj = json.loads(results)
-    if results_obj.get("results"):
-        url = results_obj["results"][0]["url"]
-        article = mock_fetch_source(url)
+    url = urls[0]
+    article = mock_fetch_source(url)
+    if article:  # May be None due to simulated errors
         print(f"   Title: {article.title}")
         print(f"   Content preview: {article.full_text[:100]}...")
         print(f"   Word count: {article.word_count}\n")
+    else:
+        print("   (Simulated fetch failure - this is expected sometimes)\n")
+        # Try again to get a successful fetch
+        article = mock_fetch_source(url)
+        if article:
+            print(f"   Retry succeeded: {article.title}")
 
     print("=" * 60)
-    print("✓ All fixture mocks working!")
+    print("All fixture mocks working!")
     print("=" * 60 + "\n")
 
 
