@@ -528,7 +528,7 @@ def cmd_prep_search(args) -> None:
     from datetime import datetime
     from typing import Any
 
-    from prompt_toolkit.shortcuts import radiolist_dialog
+    from simple_term_menu import TerminalMenu
 
     from debate.prep.runner import run_search_agent
     from debate.prep.session import PrepSession
@@ -548,12 +548,9 @@ def cmd_prep_search(args) -> None:
             info = sessions[0][1]
             print(f"Auto-selected session: {info['resolution']}")
         else:
-            # Show interactive picker
-            print("\nSelect a resolution:\n")
-
-            # Build options for radiolist_dialog
-            values = []
-            for sid, info in sessions:
+            # Build menu options
+            menu_entries = []
+            for _sid, info in sessions:
                 # Format timestamp
                 ts = info["most_recent_run"]
                 dt = datetime.fromtimestamp(ts)
@@ -565,22 +562,25 @@ def cmd_prep_search(args) -> None:
                 num_runs = info.get("num_runs", 1)
                 runs_text = f"{num_runs} run{'s' if num_runs > 1 else ''}"
 
-                display = f"{resolution} ({side}) - {time_str} - {runs_text}"
-                values.append((sid, display))
+                menu_entries.append(f"{resolution} ({side}) - {time_str} - {runs_text}")
 
-            # Show radio list dialog
-            selected_session = radiolist_dialog(
-                title="Select Resolution",
-                text="Choose a debate resolution to work on:",
-                values=values,
-            ).run()
+            # Show interactive menu with arrow key navigation
+            terminal_menu = TerminalMenu(
+                menu_entries,
+                title="Select a resolution (↑/↓ arrows, Enter to select, q to quit):",
+                menu_cursor="→ ",
+                menu_cursor_style=("fg_cyan", "bold"),
+                menu_highlight_style=("bg_cyan", "fg_black"),
+            )
 
-            if selected_session is None:
+            menu_index = terminal_menu.show()
+
+            if menu_index is None:
                 print("\nCancelled.\n")
                 sys.exit(0)
 
-            session_id = selected_session
-            print(f"\nSelected: {session_id}\n")
+            session_id = sessions[menu_index][0]
+            print(f"\nSelected: {sessions[menu_index][1]['resolution']}\n")
 
     print("\nRunning SearchAgent")
     print(f"Session ID: {session_id}")
