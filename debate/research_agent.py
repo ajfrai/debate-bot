@@ -68,13 +68,13 @@ def load_lessons(*lesson_names: str) -> str:
 
 
 def _brave_search(
-    query: str, num_results: int = 5, retry_on_rate_limit: bool = True, quiet: bool = False
+    query: str, num_results: int = 20, retry_on_rate_limit: bool = True, quiet: bool = False
 ) -> str | None:
     """Search Brave for relevant sources with rate limiting support.
 
     Args:
         query: Search query
-        num_results: Number of results to fetch (default 5)
+        num_results: Number of results to fetch (default 20, max 20)
         retry_on_rate_limit: Whether to retry on 429 rate limit (default True)
         quiet: If True, suppress print output (useful for parallel UI)
 
