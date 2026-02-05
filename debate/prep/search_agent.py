@@ -39,6 +39,10 @@ class SearchAgent(BaseAgent):
         self._last_search_time: float = 0.0
         self._search_delay: float = 1.0  # Brave Free: 1 req/sec (was 3.0s - too conservative!)
         self._parallel_fetch_limit: int = parallel_fetch_limit  # Max concurrent fetches
+        self._query_cache: dict[str, str] = {}  # task_id -> query
+        self._queries_dir = self.session.staging_dir / "search" / "queries"
+        self._queries_dir.mkdir(parents=True, exist_ok=True)
+        self._load_cached_queries()
 
     @staticmethod
     def _dedupe_urls_by_domain(urls: list[str]) -> list[str]:
@@ -58,6 +62,45 @@ class SearchAgent(BaseAgent):
                 seen_domains.add(domain)
                 result.append(url)
         return result
+
+    def _load_cached_queries(self) -> None:
+        """Load previously generated queries from disk for resume support."""
+        import json
+
+        for query_file in self._queries_dir.glob("query_*.json"):
+            try:
+                data = json.loads(query_file.read_text())
+                task_id = data.get("task_id", "")
+                query = data.get("query", "")
+                if task_id and query:
+                    self._query_cache[task_id] = query
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    def _save_query(self, task_id: str, argument: str, query: str) -> None:
+        """Save a generated query to disk for resume support."""
+        import json
+
+        data = {
+            "task_id": task_id,
+            "argument": argument,
+            "query": query,
+            "ts": time.time(),
+        }
+        query_path = self._queries_dir / f"query_{task_id}.json"
+        query_path.write_text(json.dumps(data, indent=2))
+        self._query_cache[task_id] = query
+
+        # Update recent queries for UI display
+        query_display = f"{query[:50]}..." if len(query) > 50 else query
+        self.state.recent_queries.append(query_display)
+        # Keep only last 10 queries
+        if len(self.state.recent_queries) > 10:
+            self.state.recent_queries = self.state.recent_queries[-10:]
+
+    def _get_cached_query(self, task_id: str) -> str | None:
+        """Get a cached query for a task if it exists."""
+        return self._query_cache.get(task_id)
 
     @property
     def name(self) -> str:
@@ -359,15 +402,30 @@ class SearchAgent(BaseAgent):
     async def _generate_query(self, task: dict[str, Any], retry_attempt: int = 0) -> str | None:
         """Generate a targeted search query for the task.
 
+        Checks cache first for resume support. Saves new queries to disk.
+
         Args:
             task: The research task
             retry_attempt: Number of previous attempts (0 = first try, 1+ = retry)
         """
+        task_id = task.get("id", "")
+        argument = task.get("argument", "")
+
+        # Check cache first (only for first attempt - retries need new queries)
+        if retry_attempt == 0:
+            cached = self._get_cached_query(task_id)
+            if cached:
+                self.log("query_from_cache", {"task_id": task_id, "query": cached[:50]})
+                return cached
+
         # Check if using fixtures
         from tests.fixtures import is_fixture_mode, mock_generate_query
 
         if is_fixture_mode():
-            return mock_generate_query(task)
+            fixture_query = mock_generate_query(task)
+            if fixture_query and task_id:
+                self._save_query(task_id, argument, fixture_query)
+            return fixture_query
 
         config = Config()
         model = config.get_agent_model("prep_search")
@@ -381,7 +439,7 @@ class SearchAgent(BaseAgent):
 
         prompt = f"""Generate ONE search query to find evidence for this debate argument.
 
-Debate tag: {task.get("argument", "")}
+Debate tag: {argument}
 Evidence type: {task.get("evidence_type", "support")}{retry_instructions}
 
 Requirements:
@@ -400,7 +458,7 @@ Output ONLY the search query, nothing else. Max 15 words."""
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            query = None
+            query: str | None = None
             if response.content:
                 first_block = response.content[0]
                 if hasattr(first_block, "text"):
@@ -409,6 +467,10 @@ Output ONLY the search query, nothing else. Max 15 words."""
             # Clean up query
             if query:
                 query = query.strip('"').strip("'").strip()
+
+            # Save to cache/disk (only for first attempt)
+            if query and task_id and retry_attempt == 0:
+                self._save_query(task_id, argument, query)
 
             return query
 

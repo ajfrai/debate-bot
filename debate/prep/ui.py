@@ -169,6 +169,14 @@ def create_agent_panel(
 
         lines.append("")  # Blank line for separation
 
+    # Recent queries for search agent
+    if agent.name == "search" and state.recent_queries:
+        lines.append("[dim]Recent queries:[/dim]")
+        for query in state.recent_queries[-10:]:
+            query_display = query[: width - 6] + "..." if len(query) > width - 6 else query
+            lines.append(f"  📎 {query_display}")
+        lines.append("")
+
     # Kanban board for strategy agent
     if agent.name == "strategy" and hasattr(state, "task_stages") and state.task_stages:
         # Show current phase info
