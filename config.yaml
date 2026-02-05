@@ -13,7 +13,7 @@ agents:
 
   # Specialized prep agents (parallel prep system)
   prep_strategy:
-    model: claude-sonnet-4-5  # Needs strategic reasoning
+    model: claude-haiku-4-5  # Task generation is straightforward enumeration
   prep_search:
     model: claude-haiku-4-5  # Just generates queries (~20 tokens)
   prep_cutter:
