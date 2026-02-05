@@ -270,15 +270,18 @@ Cards Cut:          8
 
 ## Implementation Order
 
-| Order | Improvement | Complexity | Dependencies |
-|-------|-------------|------------|--------------|
-| 1 | Strategy agent: add `arg_type`, remove `source`/`priority` | Low | None |
-| 2 | Session: 4:1 priority interleaving | Low | #1 |
-| 3 | UI: sources fetched counter | Low | None |
-| 4 | Parallel fetches (use existing infra) | Medium | None |
-| 5 | Streaming batch query generation | Medium | None |
-| 6 | UI: recent queries display | Low | #5 |
-| 7 | Post-timer fetch phase | Medium | #4, #5 |
+| Order | Improvement | Complexity | Dependencies | Status |
+|-------|-------------|------------|--------------|--------|
+| 1 | Strategy agent: add `arg_type`, remove `source`/`priority` | Low | None | ✅ Done |
+| 2 | Session: 4:1 priority interleaving | Low | #1 | ✅ Done |
+| 3 | UI: sources fetched counter | Low | None | ✅ Done |
+| 4 | Parallel fetches (use existing infra) | Medium | None | ✅ Done |
+| 5 | Query caching for resume | Medium | None | ✅ Done |
+| 6 | UI: recent queries display | Low | #5 | ✅ Done |
+| 7 | Post-timer fetch phase | High | #4, #5 | 🔮 Future |
+
+**Note:** Post-timer fetch phase requires significant architectural changes to separate
+query/search from fetch phases. Deferred to future implementation.
 
 ---
 
@@ -297,10 +300,17 @@ Cards Cut:          8
 
 ## Expected Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Queries generated in 30s | ~2-3 | ~25-30 (batch streaming) |
-| URLs collected in 30s | ~10-15 | ~50-75 |
-| Sources fetched total | ~5-10 | ~30-50 (post-timer) |
-| Stock coverage | Random | 80% guaranteed |
-| User visibility | "2 results" | "47 URLs → 32 sources fetched" |
+| Metric | Before | After (Implemented) |
+|--------|--------|---------------------|
+| Time per task | ~10-15s | ~3-5s (parallel fetches) |
+| Tasks in 30s | ~2-3 | ~6-10 |
+| Stock coverage | Random | 80% guaranteed (4:1 ratio) |
+| User visibility | "2 results" | "Sources: 12 (4 failed)" |
+| Resume support | None | Cached queries persist |
+
+**Future (post-timer phase):**
+
+| Metric | Current | With Post-Timer |
+|--------|---------|-----------------|
+| URLs collected in 30s | ~15-20 | ~50-75 |
+| Total sources fetched | ~10-15 | ~30-50 |
