@@ -525,26 +525,69 @@ def cmd_prep_strategy(args) -> None:
 def cmd_prep_search(args) -> None:
     """Run only the SearchAgent."""
     import asyncio
+    from datetime import datetime
+    from typing import Any
+
+    from simple_term_menu import TerminalMenu
 
     from debate.prep.runner import run_search_agent
     from debate.prep.session import PrepSession
 
-    # Auto-detect session if not provided
+    # Auto-detect or prompt for session if not provided
     session_id = args.session
     if session_id is None:
-        session_id = PrepSession.get_most_recent_session()
-        if session_id is None:
+        sessions = PrepSession.get_all_sessions_by_recency()
+        if not sessions:
             print("\nError: No sessions found in staging/ directory.", file=sys.stderr)
             print("Run 'debate prep-strategy' first to create a session.\n", file=sys.stderr)
             sys.exit(1)
-        print(f"Auto-detected most recent session: {session_id}")
+
+        # If only one session, auto-select it
+        if len(sessions) == 1:
+            session_id = sessions[0][0]
+            info = sessions[0][1]
+            print(f"Auto-selected session: {info['resolution']}")
+        else:
+            # Build menu options
+            menu_entries = []
+            for _sid, info in sessions:
+                # Format timestamp
+                ts = info["most_recent_run"]
+                dt = datetime.fromtimestamp(ts)
+                time_str = dt.strftime("%Y-%m-%d %H:%M")
+
+                # Build display text
+                resolution = info["resolution"]
+                side = info["side"].upper()
+                num_runs = info.get("num_runs", 1)
+                runs_text = f"{num_runs} run{'s' if num_runs > 1 else ''}"
+
+                menu_entries.append(f"{resolution} ({side}) - {time_str} - {runs_text}")
+
+            # Show interactive menu with arrow key navigation
+            terminal_menu = TerminalMenu(
+                menu_entries,
+                title="Select a resolution (↑/↓ arrows, Enter to select, q to quit):",
+                menu_cursor="→ ",
+                menu_cursor_style=("fg_cyan", "bold"),
+                menu_highlight_style=("fg_cyan", "bold"),
+            )
+
+            menu_index = terminal_menu.show()
+
+            if menu_index is None:
+                print("\nCancelled.\n")
+                sys.exit(0)
+
+            session_id = sessions[menu_index][0]
+            print(f"\nSelected: {sessions[menu_index][1]['resolution']}\n")
 
     print("\nRunning SearchAgent")
     print(f"Session ID: {session_id}")
     print(f"Duration: {args.duration} minutes\n")
 
     try:
-        result = asyncio.run(
+        result: dict[str, Any] = asyncio.run(
             run_search_agent(
                 session_id=session_id,
                 duration_minutes=args.duration,

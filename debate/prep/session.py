@@ -18,8 +18,8 @@ class PrepSession:
 
     Directory structure:
         staging/
-            MANIFEST.json         - Maps timestamps to resolutions
-            {timestamp}/
+            MANIFEST.json         - Tracks resolutions and their runs
+            {resolution_key}/
                 strategy/tasks/       - Research tasks from StrategyAgent
                 search/results/       - Search results from SearchAgent
                 cutter/cards/         - Cut cards from CutterAgent
@@ -27,21 +27,49 @@ class PrepSession:
                 organizer/feedback/   - Feedback for StrategyAgent
                 _read_log.json        - Tracks what each agent has processed
                 _event_log.jsonl      - Unified event stream for UI
+
+    Sessions are keyed by resolution (not timestamp). All prep runs on the same
+    resolution accumulate in the same flat directory structure.
     """
 
     resolution: str
     side: Side
-    session_id: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    session_id: str = field(init=False)
     staging_dir: Path = field(init=False)
+
+    @staticmethod
+    def _normalize_resolution(resolution: str) -> str:
+        """Normalize resolution text to create a session key.
+
+        Args:
+            resolution: The resolution text (e.g., "Resolved: The US should ban TikTok")
+
+        Returns:
+            Normalized key (e.g., "us_should_ban_tiktok")
+        """
+        # Remove "Resolved:" prefix
+        text = re.sub(r"^resolved:\s*", "", resolution, flags=re.IGNORECASE).strip()
+        # Convert to lowercase
+        text = text.lower()
+        # Replace spaces and special chars with underscores
+        text = re.sub(r"[^\w\s]", "", text)
+        text = re.sub(r"\s+", "_", text)
+        # Remove redundant underscores
+        text = re.sub(r"_+", "_", text).strip("_")
+        return text
 
     def __post_init__(self) -> None:
         """Initialize staging directories."""
+        # Generate session_id from resolution
+        self.session_id = self._normalize_resolution(self.resolution)
         self.staging_dir = Path("staging") / self.session_id
         self._setup_directories()
         self._read_log: dict[str, dict[str, float]] = {}
         self._load_read_log()
         # Track normalized task arguments for deduplication
         self._task_signatures: set[str] = set()
+        # Load existing tasks from previous runs for deduplication
+        self._load_existing_task_signatures()
         # Register this session in the manifest
         self._write_manifest()
 
@@ -81,11 +109,32 @@ class PrepSession:
         log_path = self.staging_dir / "_read_log.json"
         log_path.write_text(json.dumps(self._read_log, indent=2))
 
+    def _load_existing_task_signatures(self) -> None:
+        """Load existing tasks from previous runs for deduplication.
+
+        Scans all task files in the staging directory and populates
+        _task_signatures to prevent duplicate research across runs.
+        """
+        tasks_dir = self.staging_dir / "strategy" / "tasks"
+        if not tasks_dir.exists():
+            return
+
+        for task_file in tasks_dir.glob("task_*.json"):
+            try:
+                task = json.loads(task_file.read_text())
+                argument = task.get("argument", "")
+                if argument:
+                    normalized = self._normalize_argument(argument)
+                    self._task_signatures.add(normalized)
+            except (json.JSONDecodeError, OSError):
+                # Skip malformed or unreadable task files
+                continue
+
     def _read_manifest(self) -> dict[str, dict[str, Any]]:
         """Read the staging manifest.
 
         Returns:
-            Dict mapping timestamp -> {resolution, side, created_at}
+            Dict mapping resolution_key -> {resolution, side, runs: [...]}
         """
         manifest_path = Path("staging") / "MANIFEST.json"
         if not manifest_path.exists():
@@ -93,19 +142,33 @@ class PrepSession:
         return json.loads(manifest_path.read_text())
 
     def _write_manifest(self) -> None:
-        """Write this session to the staging manifest."""
+        """Write this session to the staging manifest.
+
+        Tracks runs per resolution. Each run gets a unique run_id (timestamp).
+        """
         Path("staging").mkdir(exist_ok=True)
         manifest_path = Path("staging") / "MANIFEST.json"
 
         # Read existing manifest
         manifest = self._read_manifest()
 
-        # Add/update this session
-        manifest[self.session_id] = {
-            "resolution": self.resolution,
-            "side": self.side.value,
-            "created_at": time.time(),
-        }
+        # Get or create entry for this resolution
+        if self.session_id not in manifest:
+            manifest[self.session_id] = {
+                "resolution": self.resolution,
+                "side": self.side.value,
+                "runs": [],
+            }
+
+        # Add current run
+        run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        manifest[self.session_id]["runs"].append(
+            {
+                "run_id": run_id,
+                "started_at": time.time(),
+                "status": "running",
+            }
+        )
 
         # Write back
         manifest_path.write_text(json.dumps(manifest, indent=2))
@@ -490,10 +553,10 @@ class PrepSession:
 
     @classmethod
     def load_from_session_id(cls, session_id: str) -> "PrepSession":
-        """Load an existing session from its session ID.
+        """Load an existing session from its session ID (resolution key).
 
         Args:
-            session_id: The session ID to load
+            session_id: The session ID (resolution key) to load
 
         Returns:
             PrepSession instance loaded from disk
@@ -519,49 +582,91 @@ class PrepSession:
         side = Side.PRO if side_str.lower() == "pro" else Side.CON
 
         # Create session with loaded metadata
+        # This will regenerate session_id from resolution and load existing task signatures
         session = cls(resolution=resolution, side=side)
-        session.session_id = session_id
-        session.staging_dir = staging_dir
-        session._load_read_log()
 
         return session
 
     @classmethod
-    def get_most_recent_session(cls) -> str | None:
-        """Get the most recently created session ID from manifest.
+    def get_all_sessions_by_recency(cls) -> list[tuple[str, dict[str, Any]]]:
+        """Get all sessions sorted by most recent run (descending).
 
         Returns:
-            Session ID (timestamp) string, or None if no sessions found
+            List of (session_id, info) tuples where info contains:
+            - resolution: str
+            - side: str
+            - most_recent_run: float (timestamp)
+            - num_runs: int
+            Sorted by most_recent_run descending (newest first)
         """
         manifest_path = Path("staging") / "MANIFEST.json"
+
+        sessions_with_recency = []
 
         # Try manifest first (fast lookup)
         if manifest_path.exists():
             manifest = json.loads(manifest_path.read_text())
             if not manifest:
-                return None
+                return []
 
-            # Sort by created_at timestamp (most recent first)
-            sessions = [(ts, info["created_at"]) for ts, info in manifest.items()]
-            sessions.sort(key=lambda x: x[1], reverse=True)
-            return sessions[0][0]
+            for session_id, info in manifest.items():
+                runs = info.get("runs", [])
+                if runs:
+                    # Get most recent run timestamp
+                    latest_run = max(runs, key=lambda r: r.get("started_at", 0))
+                    run_time = latest_run.get("started_at", 0)
 
-        # Fallback to directory scanning
-        staging_root = Path("staging")
-        if not staging_root.exists():
+                    sessions_with_recency.append(
+                        (
+                            session_id,
+                            {
+                                "resolution": info.get("resolution", ""),
+                                "side": info.get("side", ""),
+                                "most_recent_run": run_time,
+                                "num_runs": len(runs),
+                            },
+                        )
+                    )
+
+        # Fallback to directory scanning if manifest doesn't exist
+        else:
+            staging_root = Path("staging")
+            if not staging_root.exists():
+                return []
+
+            for item in staging_root.iterdir():
+                if item.is_dir() and item.name != "MANIFEST.json":
+                    # Validate it's a real session by checking for brief.json
+                    brief_path = item / "organizer" / "brief.json"
+                    if brief_path.exists():
+                        try:
+                            brief = json.loads(brief_path.read_text())
+                            sessions_with_recency.append(
+                                (
+                                    item.name,
+                                    {
+                                        "resolution": brief.get("resolution", ""),
+                                        "side": brief.get("side", ""),
+                                        "most_recent_run": item.stat().st_mtime,
+                                        "num_runs": 1,  # Unknown from filesystem scan
+                                    },
+                                )
+                            )
+                        except (json.JSONDecodeError, OSError):
+                            continue
+
+        # Sort by most recent run (descending)
+        sessions_with_recency.sort(key=lambda x: x[1]["most_recent_run"], reverse=True)
+        return sessions_with_recency
+
+    @classmethod
+    def get_most_recent_session(cls) -> str | None:
+        """Get the most recently active session ID (resolution key) from manifest.
+
+        Returns:
+            Session ID (resolution key) string, or None if no sessions found
+        """
+        sessions = cls.get_all_sessions_by_recency()
+        if not sessions:
             return None
-
-        session_dirs = []
-        for item in staging_root.iterdir():
-            if item.is_dir() and item.name != "MANIFEST.json":
-                # Validate it's a real session by checking for brief.json
-                brief_path = item / "organizer" / "brief.json"
-                if brief_path.exists():
-                    session_dirs.append((item.name, item.stat().st_mtime))
-
-        if not session_dirs:
-            return None
-
-        # Sort by modification time (most recent first)
-        session_dirs.sort(key=lambda x: x[1], reverse=True)
-        return session_dirs[0][0]
+        return sessions[0][0]
