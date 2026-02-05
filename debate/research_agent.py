@@ -593,7 +593,7 @@ def research_evidence(
                 if i > 1:
                     time.sleep(3)
 
-                result = _brave_search(q["query"], num_results=5, quiet=False)
+                result = _brave_search(q["query"], num_results=20, quiet=False)
                 if result:
                     all_search_results.append(result)
                     search_results_formatted.append(f"### {q['strategy'].value.upper()} ({q['purpose']})\n{result}")
@@ -632,7 +632,7 @@ def research_evidence(
         # Add 3-second pause to avoid rate limiting
         time.sleep(3)
 
-        brave_results = _brave_search(search_query, num_results=5)
+        brave_results = _brave_search(search_query, num_results=20)
 
         if brave_results:
             search_results = brave_results
@@ -860,7 +860,7 @@ def research_evidence_efficient(
     # Add 3-second pause to avoid rate limiting
     time.sleep(3)
 
-    brave_results = _brave_search(search_query, num_results=5)
+    brave_results = _brave_search(search_query, num_results=20)
 
     if not brave_results:
         print("⚠ No search results available")

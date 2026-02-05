@@ -145,9 +145,9 @@ class SearchAgent(BaseAgent):
 
         try:
             if is_fixture_mode():
-                search_results: str | None = mock_brave_search(query, num_results=5, quiet=True)
+                search_results: str | None = mock_brave_search(query, num_results=20, quiet=True)
             else:
-                search_results = _brave_search(query, num_results=5, quiet=True)
+                search_results = _brave_search(query, num_results=20, quiet=True)
 
             if not search_results:
                 await self._handle_error(task_id, "Search returned no results", task)
