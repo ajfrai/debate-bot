@@ -570,7 +570,7 @@ def cmd_prep_search(args) -> None:
                 title="Select a resolution (↑/↓ arrows, Enter to select, q to quit):",
                 menu_cursor="→ ",
                 menu_cursor_style=("fg_cyan", "bold"),
-                menu_highlight_style=("bg_cyan", "fg_black"),
+                menu_highlight_style=("fg_cyan", "bold"),
             )
 
             menu_index = terminal_menu.show()
