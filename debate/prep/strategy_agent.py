@@ -24,16 +24,20 @@ class StrategyAgent(BaseAgent):
     - Impact link chains
     """
 
-    def __init__(self, session: PrepSession) -> None:
+    def __init__(self, session: PrepSession, generate_blocks: bool = False) -> None:
         super().__init__(session, poll_interval=5.0)
         self._client: anthropic.Anthropic | None = None
+        self._generate_blocks = generate_blocks
         self._phase = 0  # Track which phase of strategy generation we're in
-        self._phases = [
+        # Build phases list - optionally include opponent_answers phase
+        self._phases: list[str] = [
             "initial_arguments",
-            "opponent_answers",
             "impact_chains",
             "deep_dive",
         ]
+        # Insert opponent_answers phase after initial_arguments if generate_blocks is True
+        if generate_blocks:
+            self._phases.insert(1, "opponent_answers")
         # Initialize phase tracking for kanban UI
         self.state.phase_task_counts = {phase: 0 for phase in self._phases}
         self.state.current_phase = ""

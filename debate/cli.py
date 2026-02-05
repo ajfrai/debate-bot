@@ -443,6 +443,7 @@ def cmd_prep(args) -> None:
                 side=side,
                 duration_minutes=args.duration,
                 show_ui=not args.no_ui,
+                generate_blocks=args.blocks,
             )
         )
 
@@ -500,6 +501,7 @@ def cmd_prep_strategy(args) -> None:
                 side=side,
                 session_id=args.session,
                 duration_minutes=args.duration,
+                generate_blocks=args.blocks,
             )
         )
 
@@ -754,6 +756,11 @@ def main() -> None:
         action="store_true",
         help="Disable the terminal UI (useful for logging/debugging)",
     )
+    prep_parser.add_argument(
+        "--blocks",
+        action="store_true",
+        help="Generate answer-to (AT:) arguments to prepare for opponent blocks",
+    )
     prep_parser.set_defaults(func=cmd_prep)
 
     # Individual prep agent commands
@@ -779,6 +786,11 @@ def main() -> None:
         type=float,
         default=0.5,
         help="Duration in minutes (default: 0.5)",
+    )
+    prep_strategy_parser.add_argument(
+        "--blocks",
+        action="store_true",
+        help="Generate answer-to (AT:) arguments to prepare for opponent blocks",
     )
     prep_strategy_parser.set_defaults(func=cmd_prep_strategy)
 

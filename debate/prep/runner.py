@@ -19,6 +19,7 @@ async def run_prep(
     side: Side,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
+    generate_blocks: bool = False,
 ) -> dict[str, Any]:
     """Run parallel prep agents for the specified duration.
 
@@ -27,6 +28,7 @@ async def run_prep(
         side: Which side to prep
         duration_minutes: How long to run prep
         show_ui: Whether to show the terminal UI
+        generate_blocks: Whether to generate answer-to (AT:) arguments (default: False)
 
     Returns:
         Summary dict with stats and paths
@@ -35,7 +37,7 @@ async def run_prep(
     session = PrepSession(resolution=resolution, side=side)
 
     # Create agents
-    strategy = StrategyAgent(session)
+    strategy = StrategyAgent(session, generate_blocks=generate_blocks)
     search = SearchAgent(session)
     cutter = CutterAgent(session)
     organizer = OrganizerAgent(session)
@@ -97,6 +99,7 @@ def run_prep_sync(
     side: Side,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
+    generate_blocks: bool = False,
 ) -> dict[str, Any]:
     """Synchronous wrapper for run_prep.
 
@@ -105,11 +108,12 @@ def run_prep_sync(
         side: Which side to prep
         duration_minutes: How long to run prep
         show_ui: Whether to show the terminal UI
+        generate_blocks: Whether to generate answer-to (AT:) arguments (default: False)
 
     Returns:
         Summary dict with stats and paths
     """
-    return asyncio.run(run_prep(resolution, side, duration_minutes, show_ui))
+    return asyncio.run(run_prep(resolution, side, duration_minutes, show_ui, generate_blocks))
 
 
 async def run_strategy_agent(
@@ -118,6 +122,7 @@ async def run_strategy_agent(
     session_id: str | None = None,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
+    generate_blocks: bool = False,
 ) -> dict[str, Any]:
     """Run only the StrategyAgent independently.
 
@@ -127,6 +132,7 @@ async def run_strategy_agent(
         session_id: Existing session ID to continue, or None for new session
         duration_minutes: How long to run
         show_ui: Whether to show the terminal UI
+        generate_blocks: Whether to generate answer-to (AT:) arguments (default: False)
 
     Returns:
         Summary dict with stats and paths
@@ -145,7 +151,7 @@ async def run_strategy_agent(
         session = PrepSession(resolution=resolution, side=side)
 
     # Create and run strategy agent
-    strategy = StrategyAgent(session)
+    strategy = StrategyAgent(session, generate_blocks=generate_blocks)
     deadline = time.time() + (duration_minutes * 60)
 
     # Run with or without UI
