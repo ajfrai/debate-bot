@@ -4,14 +4,18 @@ import asyncio
 import os
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import anthropic
 
-from debate.article_fetcher import fetch_source
+from debate.article_fetcher import FetchedArticle, fetch_source
 from debate.config import Config
 from debate.prep.base_agent import BaseAgent
 from debate.prep.session import PrepSession
 from debate.research_agent import _brave_search, _extract_urls_from_search_results
+
+# Configurable parallel fetch limit
+PARALLEL_FETCH_LIMIT = 3
 
 
 class SearchAgent(BaseAgent):
@@ -29,12 +33,74 @@ class SearchAgent(BaseAgent):
     - Everything else is algorithmic
     """
 
-    def __init__(self, session: PrepSession) -> None:
+    def __init__(self, session: PrepSession, parallel_fetch_limit: int = PARALLEL_FETCH_LIMIT) -> None:
         super().__init__(session, poll_interval=2.0)
         self._client: anthropic.Anthropic | None = None
         self._last_search_time: float = 0.0
         self._search_delay: float = 1.0  # Brave Free: 1 req/sec (was 3.0s - too conservative!)
-        self._fetch_delay: float = 0.5  # Delay between article fetches (not Brave API calls)
+        self._parallel_fetch_limit: int = parallel_fetch_limit  # Max concurrent fetches
+        self._query_cache: dict[str, str] = {}  # task_id -> query
+        self._queries_dir = self.session.staging_dir / "search" / "queries"
+        self._queries_dir.mkdir(parents=True, exist_ok=True)
+        self._load_cached_queries()
+
+    @staticmethod
+    def _dedupe_urls_by_domain(urls: list[str]) -> list[str]:
+        """Take first URL from each domain to avoid rate limiting single sites.
+
+        Args:
+            urls: List of URLs to deduplicate
+
+        Returns:
+            List with at most one URL per domain
+        """
+        seen_domains: set[str] = set()
+        result: list[str] = []
+        for url in urls:
+            domain = urlparse(url).netloc
+            if domain not in seen_domains:
+                seen_domains.add(domain)
+                result.append(url)
+        return result
+
+    def _load_cached_queries(self) -> None:
+        """Load previously generated queries from disk for resume support."""
+        import json
+
+        for query_file in self._queries_dir.glob("query_*.json"):
+            try:
+                data = json.loads(query_file.read_text())
+                task_id = data.get("task_id", "")
+                query = data.get("query", "")
+                if task_id and query:
+                    self._query_cache[task_id] = query
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    def _save_query(self, task_id: str, argument: str, query: str) -> None:
+        """Save a generated query to disk for resume support."""
+        import json
+
+        data = {
+            "task_id": task_id,
+            "argument": argument,
+            "query": query,
+            "ts": time.time(),
+        }
+        query_path = self._queries_dir / f"query_{task_id}.json"
+        query_path.write_text(json.dumps(data, indent=2))
+        self._query_cache[task_id] = query
+
+        # Update recent queries for UI display
+        query_display = f"{query[:50]}..." if len(query) > 50 else query
+        self.state.recent_queries.append(query_display)
+        # Keep only last 10 queries
+        if len(self.state.recent_queries) > 10:
+            self.state.recent_queries = self.state.recent_queries[-10:]
+
+    def _get_cached_query(self, task_id: str) -> str | None:
+        """Get a cached query for a task if it exists."""
+        return self._query_cache.get(task_id)
 
     @property
     def name(self) -> str:
@@ -185,61 +251,81 @@ class SearchAgent(BaseAgent):
             await self._handle_error(task_id, "All URLs already tried", task)
             return
 
-        fetched_sources = []
+        # Dedupe by domain and limit to parallel fetch limit
+        urls = self._dedupe_urls_by_domain(urls)
+        urls_to_fetch = urls[: self._parallel_fetch_limit]
+
         from tests.fixtures import is_fixture_mode, mock_fetch_source
 
         # Move to fetch stage
         self.state.task_stages[task_id] = "fetch"
+        num_to_fetch = len(urls_to_fetch)
+        self.state.current_task_progress = f"fetch 0/{num_to_fetch}"
+        self.state.update(f"Fetching {num_to_fetch} URLs in parallel...", "working")
 
-        # Fetch all available URLs (all from Brave search results)
-        num_to_fetch = len(urls)
-        successful_fetches = 0
+        # Mark URLs as tried
+        if task_id not in self.state.task_urls_tried:
+            self.state.task_urls_tried[task_id] = []
+        self.state.task_urls_tried[task_id].extend(urls_to_fetch)
 
-        for idx, url in enumerate(urls[:num_to_fetch], 1):
-            self.state.current_source = url
-            self.state.current_task_progress = f"fetch {idx}/{num_to_fetch}"
-            self.log("fetching_start", {"url": url})
-            self.state.update(f"Fetching ({idx}/{num_to_fetch}): {url[:50]}", "working")
-
-            # Mark URL as tried
-            if task_id not in self.state.task_urls_tried:
-                self.state.task_urls_tried[task_id] = []
-            self.state.task_urls_tried[task_id].append(url)
-
-            article = None
-            error_msg = "Unknown error"
-
+        # Parallel fetch with semaphore for rate limiting
+        async def fetch_one(url: str) -> tuple[str, FetchedArticle | None, str]:
+            """Fetch a single URL and return (url, article, error_msg)."""
             try:
                 if is_fixture_mode():
-                    # Run in thread to avoid blocking event loop (allows UI updates)
                     article = await asyncio.to_thread(mock_fetch_source, url)
                 else:
-                    # Run in thread to avoid blocking event loop (allows UI updates)
                     article = await asyncio.to_thread(
                         fetch_source, url, retry_on_paywall=True, brave_api_key=brave_api_key, quiet=True
                     )
-
-                if not article:
-                    error_msg = "Paywall or failed to extract content"
+                if article:
+                    return (url, article, "")
+                return (url, None, "Paywall or failed to extract content")
             except Exception as e:
-                error_msg = str(e)[:80]
+                return (url, None, str(e)[:80])
+
+        # Fetch all in parallel
+        self.log("parallel_fetch_start", {"urls": len(urls_to_fetch)})
+        results = await asyncio.gather(*[fetch_one(url) for url in urls_to_fetch], return_exceptions=True)
+
+        # Process results
+        fetched_sources: list[dict[str, Any]] = []
+        successful_fetches = 0
+
+        for i, fetch_result in enumerate(results, 1):
+            self.state.current_task_progress = f"fetch {i}/{num_to_fetch}"
+
+            if isinstance(fetch_result, BaseException):
+                failed_url = urls_to_fetch[i - 1]
+                self.state.sources_failed += 1
+                self.log("fetch_failed", {"url": failed_url, "reason": str(fetch_result)[:80]})
+                fetched_sources.append(
+                    {
+                        "url": failed_url,
+                        "title": None,
+                        "full_text": None,
+                        "fetch_status": "failed",
+                        "error": str(fetch_result)[:80],
+                    }
+                )
+                continue
+
+            # Type is now narrowed to tuple[str, FetchedArticle | None, str]
+            url, article, error_msg = fetch_result
 
             if article:
                 successful_fetches += 1
-                content_preview = article.full_text[:100] if article.full_text else ""
-                self.state.current_snippet = content_preview
-                word_count = article.word_count
+                self.state.sources_fetched += 1
                 title = article.title[:60] if article.title else "No title"
                 self.log(
                     "fetch_success",
                     {
                         "url": article.url,
                         "title": title,
-                        "word_count": word_count,
-                        "content_preview": content_preview,
+                        "word_count": article.word_count,
                     },
                 )
-                self.state.update(f"✓ {title} ({word_count:,} words)", "working")
+                self.state.update(f"✓ {title} ({article.word_count:,} words)", "working")
                 fetched_sources.append(
                     {
                         "url": article.url,
@@ -250,16 +336,8 @@ class SearchAgent(BaseAgent):
                     }
                 )
             else:
-                self.log(
-                    "fetch_failed",
-                    {
-                        "url": url,
-                        "reason": error_msg,
-                    },
-                )
-                # Truncate URL and error for display
-                url_short = url[:35] if len(url) > 35 else url
-                self.state.update(f"✗ Failed: {url_short} ({error_msg[:40]})", "working")
+                self.state.sources_failed += 1
+                self.log("fetch_failed", {"url": url, "reason": error_msg})
                 fetched_sources.append(
                     {
                         "url": url,
@@ -270,17 +348,14 @@ class SearchAgent(BaseAgent):
                     }
                 )
 
-            await asyncio.sleep(self._fetch_delay)  # Delay between article fetches
-
         # Check if we got at least one successful fetch
         if successful_fetches == 0:
-            # All fetches failed - trigger retry
             await self._handle_error(task_id, "All fetches failed", task)
             return
 
         # Stage results
         self.state.current_task_progress = "staging"
-        result = {
+        staged_result = {
             "task_id": task_id,
             "query": query,
             "argument": task.get("argument", ""),
@@ -289,7 +364,7 @@ class SearchAgent(BaseAgent):
             "sources": fetched_sources,
         }
 
-        self.session.write_search_result(result)
+        self.session.write_search_result(staged_result)
         self.state.items_created += 1
 
         successful_sources = len([s for s in fetched_sources if s["fetch_status"] == "success"])
@@ -327,15 +402,30 @@ class SearchAgent(BaseAgent):
     async def _generate_query(self, task: dict[str, Any], retry_attempt: int = 0) -> str | None:
         """Generate a targeted search query for the task.
 
+        Checks cache first for resume support. Saves new queries to disk.
+
         Args:
             task: The research task
             retry_attempt: Number of previous attempts (0 = first try, 1+ = retry)
         """
+        task_id = task.get("id", "")
+        argument = task.get("argument", "")
+
+        # Check cache first (only for first attempt - retries need new queries)
+        if retry_attempt == 0:
+            cached = self._get_cached_query(task_id)
+            if cached:
+                self.log("query_from_cache", {"task_id": task_id, "query": cached[:50]})
+                return cached
+
         # Check if using fixtures
         from tests.fixtures import is_fixture_mode, mock_generate_query
 
         if is_fixture_mode():
-            return mock_generate_query(task)
+            fixture_query = mock_generate_query(task)
+            if fixture_query and task_id:
+                self._save_query(task_id, argument, fixture_query)
+            return fixture_query
 
         config = Config()
         model = config.get_agent_model("prep_search")
@@ -349,7 +439,7 @@ class SearchAgent(BaseAgent):
 
         prompt = f"""Generate ONE search query to find evidence for this debate argument.
 
-Debate tag: {task.get("argument", "")}
+Debate tag: {argument}
 Evidence type: {task.get("evidence_type", "support")}{retry_instructions}
 
 Requirements:
@@ -368,7 +458,7 @@ Output ONLY the search query, nothing else. Max 15 words."""
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            query = None
+            query: str | None = None
             if response.content:
                 first_block = response.content[0]
                 if hasattr(first_block, "text"):
@@ -377,6 +467,10 @@ Output ONLY the search query, nothing else. Max 15 words."""
             # Clean up query
             if query:
                 query = query.strip('"').strip("'").strip()
+
+            # Save to cache/disk (only for first attempt)
+            if query and task_id and retry_attempt == 0:
+                self._save_query(task_id, argument, query)
 
             return query
 

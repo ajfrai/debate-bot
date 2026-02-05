@@ -700,6 +700,124 @@ def cmd_prep_organizer(args) -> None:
         sys.exit(1)
 
 
+def cmd_prep_args(args) -> None:
+    """List generated argument tags from a session."""
+    import json
+    from datetime import datetime
+
+    from simple_term_menu import TerminalMenu
+
+    from debate.prep.session import PrepSession
+
+    # Auto-detect or prompt for session if not provided
+    session_id = args.session
+    if session_id is None:
+        sessions = PrepSession.get_all_sessions_by_recency()
+        if not sessions:
+            print("\nError: No sessions found in staging/ directory.", file=sys.stderr)
+            print("Run 'debate prep-strategy' first to create a session.\n", file=sys.stderr)
+            sys.exit(1)
+
+        # If only one session, auto-select it
+        if len(sessions) == 1:
+            session_id = sessions[0][0]
+            info = sessions[0][1]
+            print(f"Auto-selected session: {info['resolution']}")
+        else:
+            # Build menu options
+            menu_entries = []
+            for _sid, info in sessions:
+                ts = info["most_recent_run"]
+                dt = datetime.fromtimestamp(ts)
+                time_str = dt.strftime("%Y-%m-%d %H:%M")
+                resolution = info["resolution"]
+                side = info["side"].upper()
+                menu_entries.append(f"{resolution} ({side}) - {time_str}")
+
+            terminal_menu = TerminalMenu(
+                menu_entries,
+                title="Select a session (↑/↓ arrows, Enter to select, q to quit):",
+                menu_cursor="→ ",
+                menu_cursor_style=("fg_cyan", "bold"),
+                menu_highlight_style=("fg_cyan", "bold"),
+            )
+
+            menu_index = terminal_menu.show()
+            if menu_index is None:
+                print("\nCancelled.\n")
+                sys.exit(0)
+
+            session_id = sessions[menu_index][0]
+            print(f"\nSelected: {sessions[menu_index][1]['resolution']}\n")
+
+    # Load the session and read tasks
+    session = PrepSession.load_from_session_id(session_id)
+    tasks_dir = session.staging_dir / "strategy" / "tasks"
+
+    if not tasks_dir.exists():
+        print(f"\nNo tasks found for session: {session_id}")
+        print("Run 'debate prep-strategy' first.\n")
+        sys.exit(1)
+
+    # Collect and categorize tasks
+    tasks_by_type: dict[str, list[dict]] = {
+        "stock": [],
+        "creative": [],
+        "niche": [],
+        "opportunistic": [],
+        "second_order": [],
+    }
+
+    for task_file in sorted(tasks_dir.glob("*.json")):
+        task = json.loads(task_file.read_text())
+        # Skip variants
+        if task.get("is_variant"):
+            continue
+        arg_type = task.get("arg_type", "stock")
+        if arg_type not in tasks_by_type:
+            arg_type = "stock"
+        tasks_by_type[arg_type].append(task)
+
+    # Display
+    print(f"\nSession: {session_id}")
+    print(f"Resolution: {session.resolution}")
+    print(f"Side: {session.side.value.upper()}")
+    print("=" * 60)
+
+    type_emojis = {
+        "stock": "📌",
+        "creative": "💡",
+        "niche": "🎓",
+        "opportunistic": "🎯",
+        "second_order": "🔗",
+    }
+
+    total = 0
+    for arg_type in ["stock", "creative", "niche", "opportunistic", "second_order"]:
+        tasks = tasks_by_type[arg_type]
+        if not tasks:
+            continue
+
+        emoji = type_emojis[arg_type]
+        print(f"\n{emoji} {arg_type.upper()} ({len(tasks)})")
+        print("-" * 40)
+
+        for task in tasks:
+            arg = task.get("argument", "")
+            evidence_type = task.get("evidence_type", "support")
+            prefix = ""
+            if evidence_type == "answer":
+                prefix = "[AT] "
+            elif evidence_type == "impact":
+                prefix = "[IMP] "
+            print(f"  {prefix}{arg}")
+            total += 1
+
+    print("\n" + "=" * 60)
+    print(f"Total: {total} arguments (excluding variants)")
+    print("=" * 60 + "\n")
+
+
 def main() -> None:
     """Main entry point for the debate CLI."""
     parser = argparse.ArgumentParser(
@@ -911,6 +1029,19 @@ def main() -> None:
         help="Duration in minutes (default: 0.5)",
     )
     prep_organizer_parser.set_defaults(func=cmd_prep_organizer)
+
+    prep_args_parser = subparsers.add_parser(
+        "prep-args",
+        help="List generated argument tags from a session",
+        aliases=["args"],
+    )
+    prep_args_parser.add_argument(
+        "--session",
+        type=str,
+        default=None,
+        help="Session ID (auto-detects most recent if omitted)",
+    )
+    prep_args_parser.set_defaults(func=cmd_prep_args)
 
     # Evidence command
     evidence_parser = subparsers.add_parser(

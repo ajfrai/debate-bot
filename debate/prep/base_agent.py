@@ -36,6 +36,11 @@ class AgentState:
     # Strategy agent phase tracking
     phase_task_counts: dict[str, int] = field(default_factory=dict)  # phase -> task count
     current_phase: str = ""  # Current strategy phase (initial_arguments, opponent_answers, etc.)
+    # Search agent source tracking
+    sources_fetched: int = 0  # Successfully fetched URLs
+    sources_failed: int = 0  # Failed URL fetches
+    urls_collected: int = 0  # URLs collected (for post-timer fetch)
+    recent_queries: list[str] = field(default_factory=list)  # Last 10 generated queries
 
     def update(self, action: str, status: str = "working") -> None:
         """Update agent state with a new action."""
