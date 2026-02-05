@@ -5,6 +5,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,19 +17,21 @@ class PrepSession:
     """Manages staging directories and coordination between prep agents.
 
     Directory structure:
-        staging/{session_id}/
-            strategy/tasks/       - Research tasks from StrategyAgent
-            search/results/       - Search results from SearchAgent
-            cutter/cards/         - Cut cards from CutterAgent
-            organizer/brief.json  - Current brief state
-            organizer/feedback/   - Feedback for StrategyAgent
-            _read_log.json        - Tracks what each agent has processed
-            _event_log.jsonl      - Unified event stream for UI
+        staging/
+            MANIFEST.json         - Maps timestamps to resolutions
+            {timestamp}/
+                strategy/tasks/       - Research tasks from StrategyAgent
+                search/results/       - Search results from SearchAgent
+                cutter/cards/         - Cut cards from CutterAgent
+                organizer/brief.json  - Current brief state
+                organizer/feedback/   - Feedback for StrategyAgent
+                _read_log.json        - Tracks what each agent has processed
+                _event_log.jsonl      - Unified event stream for UI
     """
 
     resolution: str
     side: Side
-    session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    session_id: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     staging_dir: Path = field(init=False)
 
     def __post_init__(self) -> None:
@@ -39,6 +42,8 @@ class PrepSession:
         self._load_read_log()
         # Track normalized task arguments for deduplication
         self._task_signatures: set[str] = set()
+        # Register this session in the manifest
+        self._write_manifest()
 
     def _setup_directories(self) -> None:
         """Create the staging directory structure."""
@@ -75,6 +80,35 @@ class PrepSession:
         """Save the read log to disk."""
         log_path = self.staging_dir / "_read_log.json"
         log_path.write_text(json.dumps(self._read_log, indent=2))
+
+    def _read_manifest(self) -> dict[str, dict[str, Any]]:
+        """Read the staging manifest.
+
+        Returns:
+            Dict mapping timestamp -> {resolution, side, created_at}
+        """
+        manifest_path = Path("staging") / "MANIFEST.json"
+        if not manifest_path.exists():
+            return {}
+        return json.loads(manifest_path.read_text())
+
+    def _write_manifest(self) -> None:
+        """Write this session to the staging manifest."""
+        Path("staging").mkdir(exist_ok=True)
+        manifest_path = Path("staging") / "MANIFEST.json"
+
+        # Read existing manifest
+        manifest = self._read_manifest()
+
+        # Add/update this session
+        manifest[self.session_id] = {
+            "resolution": self.resolution,
+            "side": self.side.value,
+            "created_at": time.time(),
+        }
+
+        # Write back
+        manifest_path.write_text(json.dumps(manifest, indent=2))
 
     def log_event(self, agent: str, action: str, details: dict[str, Any] | None = None) -> None:
         """Log an event to the unified event stream."""
@@ -494,18 +528,32 @@ class PrepSession:
 
     @classmethod
     def get_most_recent_session(cls) -> str | None:
-        """Get the most recently modified session ID from staging directory.
+        """Get the most recently created session ID from manifest.
 
         Returns:
-            Session ID string, or None if no sessions found
+            Session ID (timestamp) string, or None if no sessions found
         """
+        manifest_path = Path("staging") / "MANIFEST.json"
+
+        # Try manifest first (fast lookup)
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text())
+            if not manifest:
+                return None
+
+            # Sort by created_at timestamp (most recent first)
+            sessions = [(ts, info["created_at"]) for ts, info in manifest.items()]
+            sessions.sort(key=lambda x: x[1], reverse=True)
+            return sessions[0][0]
+
+        # Fallback to directory scanning
         staging_root = Path("staging")
         if not staging_root.exists():
             return None
 
         session_dirs = []
         for item in staging_root.iterdir():
-            if item.is_dir():
+            if item.is_dir() and item.name != "MANIFEST.json":
                 # Validate it's a real session by checking for brief.json
                 brief_path = item / "organizer" / "brief.json"
                 if brief_path.exists():

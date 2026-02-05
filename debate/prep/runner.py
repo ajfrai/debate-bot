@@ -175,7 +175,7 @@ async def run_strategy_agent(
 
 
 async def run_search_agent(
-    session_id: str,
+    session_id: str | None = None,
     duration_minutes: float = 5.0,
     show_ui: bool = True,
     reset: bool = False,
@@ -183,7 +183,7 @@ async def run_search_agent(
     """Run only the SearchAgent independently.
 
     Args:
-        session_id: Existing session ID with tasks to process
+        session_id: Existing session ID with tasks to process (defaults to most recent)
         duration_minutes: How long to run
         show_ui: Whether to show the terminal UI
         reset: If True, clear search progress to re-process all tasks
@@ -191,6 +191,13 @@ async def run_search_agent(
     Returns:
         Summary dict with stats and paths
     """
+    # Default to most recent session if not specified
+    if session_id is None:
+        session_id = PrepSession.get_most_recent_session()
+        if session_id is None:
+            raise ValueError("No sessions found. Run strategy agent first to create tasks.")
+        print(f"\n[SEARCH] Using most recent session: {session_id}\n")
+
     # Load existing session from session_id
     session = PrepSession.load_from_session_id(session_id)
 
