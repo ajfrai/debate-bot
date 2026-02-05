@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import shutil
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,6 +21,17 @@ from debate.prep.session import PrepSession
 
 # Mark all tests as anyio for async support
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def cleanup_staging():
+    """Clean up staging directory before and after each test."""
+    staging_dir = Path("staging")
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    yield
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
 
 
 class MockAnthropicResponse:
