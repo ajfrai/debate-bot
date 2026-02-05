@@ -43,9 +43,9 @@ class AgentState:
         self.last_action = action
         self.last_action_time = time.time()
         self.recent_actions.append(action)
-        # Keep only last 5 actions
-        if len(self.recent_actions) > 5:
-            self.recent_actions = self.recent_actions[-5:]
+        # Keep only last 15 actions (matching UI display limit)
+        if len(self.recent_actions) > 15:
+            self.recent_actions = self.recent_actions[-15:]
 
 
 class BaseAgent(ABC):

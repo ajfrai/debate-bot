@@ -1,6 +1,7 @@
 """PrepSession manages the staging directory and shared state for prep agents."""
 
 import json
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -36,6 +37,8 @@ class PrepSession:
         self._setup_directories()
         self._read_log: dict[str, dict[str, float]] = {}
         self._load_read_log()
+        # Track normalized task arguments for deduplication
+        self._task_signatures: set[str] = set()
 
     def _setup_directories(self) -> None:
         """Create the staging directory structure."""
@@ -109,8 +112,152 @@ class PrepSession:
 
     # === Strategy Agent Interface ===
 
+    @staticmethod
+    def _normalize_argument(text: str) -> str:
+        """Normalize argument text for aggressive deduplication.
+
+        Keeps only key nouns and entities by removing:
+        - Common filler words
+        - Action verbs (eliminates, destroys, causes, etc.)
+        - Adjectives and descriptors
+        - Variant markers
+        """
+        # Lowercase and strip
+        text = text.lower().strip()
+
+        # Remove "AT:" prefix for answer arguments
+        text = re.sub(r"^at:\s*", "", text)
+
+        # Remove "Impact:" prefix
+        text = re.sub(r"^impact:\s*", "", text)
+
+        # Remove variant markers (e.g., "+ term")
+        text = re.sub(r"\s*\+\s*[^+]*$", "", text)
+
+        # AGGRESSIVE filtering - keep only key nouns and entities
+        # Remove action verbs, adjectives, prepositions, descriptors
+        stop_words = {
+            # Prepositions and articles
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            # Action verbs - these vary but don't change the core argument
+            "eliminates",
+            "destroyed",
+            "destroys",
+            "loses",
+            "lost",
+            "creates",
+            "causes",
+            "leads",
+            "harms",
+            "impacts",
+            "affects",
+            "threatens",
+            "violates",
+            "requires",
+            "needed",
+            "harm",
+            "impact",
+            "affect",
+            "threat",
+            "violation",
+            "requirement",
+            # Adjectives/descriptors
+            "economic",
+            "economically",
+            "new",
+            "large",
+            "significant",
+            # Other variants
+            "opportunity",
+            "opportunities",
+            "employment",
+            "employed",
+            "due",
+            "able",
+            "more",
+            "most",
+        }
+        words = text.split()
+        words = [w for w in words if w not in stop_words and len(w) > 2]
+
+        # Remove punctuation and normalize whitespace
+        text = " ".join(words)
+        text = re.sub(r"[^\w\s]", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return text
+
+    def is_duplicate_task(self, argument: str) -> bool:
+        """Check if a task with similar argument already exists.
+
+        Args:
+            argument: The task argument to check
+
+        Returns:
+            True if a duplicate or near-duplicate exists
+        """
+        normalized = self._normalize_argument(argument)
+
+        # Exact match check
+        if normalized in self._task_signatures:
+            return True
+
+        # Similarity check - check if any existing signature is very similar
+        # Two normalized arguments are duplicates if they share >65% of core words
+        norm_words = set(normalized.split())
+        if not norm_words:
+            return False
+
+        for existing_sig in self._task_signatures:
+            existing_words = set(existing_sig.split())
+            if not existing_words:
+                continue
+
+            # Calculate Jaccard similarity on normalized (key words only)
+            intersection = len(norm_words & existing_words)
+            union = len(norm_words | existing_words)
+            similarity = intersection / union if union > 0 else 0
+
+            # Lower threshold to catch semantic duplicates
+            # Examples:
+            # - "tiktok ban jobs" vs "tiktok ban creator jobs" = 3/5 = 0.60 ✓ duplicate
+            # - "tiktok ban" vs "tiktok ban creator jobs" = 2/5 = 0.40 ✗ different arg
+            # - "tiktok ban jobs" vs "chinese gov data" = 0/6 = 0.00 ✗ different
+            if similarity > 0.55:
+                return True
+
+        return False
+
     def write_task(self, task: dict[str, Any]) -> str:
-        """Write a research task. Returns task ID."""
+        """Write a research task. Returns task ID.
+
+        Performs deduplication check before writing.
+        """
+        argument = task.get("argument", "")
+
+        # Check for duplicates
+        if self.is_duplicate_task(argument):
+            # Return empty string to signal duplicate
+            return ""
+
+        # Track this task signature
+        normalized = self._normalize_argument(argument)
+        self._task_signatures.add(normalized)
+
         task_id = task.get("id", str(uuid.uuid4())[:8])
         task["id"] = task_id
         task["ts"] = time.time()
@@ -118,7 +265,7 @@ class PrepSession:
         task_path = self.staging_dir / "strategy" / "tasks" / f"task_{task_id}.json"
         task_path.write_text(json.dumps(task, indent=2))
 
-        self.log_event("strategy", "enqueue", {"task_id": task_id, "argument": task.get("argument", "")})
+        self.log_event("strategy", "enqueue", {"task_id": task_id, "argument": argument})
         return task_id
 
     def get_pending_tasks(self) -> list[dict[str, Any]]:

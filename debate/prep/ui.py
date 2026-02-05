@@ -181,10 +181,10 @@ def create_agent_panel(
             lines.append(f"{emoji} Phase: {current_phase} ({count} tasks)")
             lines.append("")
 
-        # Show recent argument snippets (last 3)
+        # Show recent argument snippets (last 15)
         if state.recent_actions:
             lines.append("[dim]Recent arguments:[/dim]")
-            for action in state.recent_actions[-3:]:
+            for action in state.recent_actions[-15:]:
                 # Only show actions that contain argument snippets (📍, ⚡, 🛡️)
                 if any(emoji in action for emoji in ["📍", "⚡", "🛡️"]):
                     lines.append(f"  {action}")
