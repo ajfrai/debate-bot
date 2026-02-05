@@ -505,18 +505,25 @@ Output as numbered list ONLY. No other text.
         async def _feed_queue():
             """Run sync stream in thread and feed chunks to queue."""
 
-            def _sync_stream():
-                """Run streaming API call synchronously."""
+            def _sync_stream_to_queue():
+                """Run streaming API call synchronously and feed queue.
+
+                CRITICAL: The iteration must happen INSIDE the thread to avoid
+                blocking the main event loop. We use thread-safe queue operations.
+                """
                 with self._get_client().messages.stream(
                     model=model,
                     max_tokens=2048,
                     messages=[{"role": "user", "content": prompt}],
                 ) as stream:
-                    yield from stream.text_stream
+                    # Iterate in thread, feed chunks via thread-safe call
+                    for chunk in stream.text_stream:
+                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
 
+            loop = asyncio.get_running_loop()
             try:
-                for chunk in await asyncio.to_thread(_sync_stream):
-                    await queue.put(chunk)
+                # This blocks in the thread, not the main event loop
+                await asyncio.to_thread(_sync_stream_to_queue)
             finally:
                 await queue.put(None)  # Signal end of stream
 
