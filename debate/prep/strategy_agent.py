@@ -1,7 +1,6 @@
 """StrategyAgent: Maintains argument queue and decides what to research."""
 
 import asyncio
-import json
 import os
 from typing import Any
 
@@ -148,22 +147,19 @@ Side: {self.session.side.value.upper()}
 
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 2-3 NEW arguments to research (not duplicates of existing).
-For each argument, be CONCISE (3-10 words max):
-- argument: A specific, provable claim (3-10 words)
-- search_intent: What evidence to find (3-10 words)
-- priority: high/medium/low
+Generate 10-15 NEW argument TAGS to research (not duplicates).
+Each tag is a debate brief label: exactly 5-12 words.
 
-Output JSON array:
-[
-  {{
-    "argument": "Concise specific claim",
-    "search_intent": "What evidence to find",
-    "priority": "high"
-  }}
-]
+EXAMPLES:
+1. TikTok ban eliminates creator economy jobs
+2. Chinese government can access user data
+3. Data collection violates privacy rights
 
-Only output JSON array."""
+Output as numbered list ONLY. No other text.
+1. Tag here exactly 5-12 words
+2. Another tag exactly 5-12 words
+3. Third tag exactly 5-12 words
+...etc"""
         else:  # answer
             prompt = f"""You are a debate strategist preparing ANSWERS to opponent arguments.
 
@@ -173,22 +169,19 @@ Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
 
 Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
 
-Generate 2-3 ANSWER arguments (responding to likely opponent claims).
-Be CONCISE (3-10 words max) for each:
-- argument: AT: [Opponent claim] (3-10 words)
-- search_intent: Evidence that refutes/mitigates (3-10 words)
-- priority: high/medium/low
+Generate 10-15 ANSWER TAGS (responding to likely opponent claims).
+Each tag starts with "AT:" and is 5-12 words.
 
-Output JSON array:
-[
-  {{
-    "argument": "AT: Concise opponent claim",
-    "search_intent": "Evidence that refutes this",
-    "priority": "high"
-  }}
-]
+EXAMPLES:
+1. AT: Economic costs outweighed by national security benefits
+2. AT: Privacy already protected by existing regulations
+3. AT: Ban creates worse problems than it solves
 
-Only output JSON array."""
+Output as numbered list ONLY. No other text.
+1. AT: Tag here exactly 5-12 words
+2. AT: Another tag exactly 5-12 words
+3. AT: Third tag exactly 5-12 words
+...etc"""
 
         # Show current phase in UI
         self.state.current_phase = self._phases[self._phase]
@@ -198,26 +191,25 @@ Only output JSON array."""
             response = await asyncio.to_thread(
                 self._get_client().messages.create,
                 model=model,
-                max_tokens=512,
+                max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            response_text = "[]"
+            response_text = ""
             if response.content:
                 first_block = response.content[0]
                 if hasattr(first_block, "text"):
                     response_text = first_block.text
 
-            # Parse JSON
-            response_text = self._extract_json(response_text)
-            arguments = json.loads(response_text)
+            # Parse numbered list format: "1. tag here", "2. tag here", etc.
+            tags = self._parse_numbered_list(response_text)
 
-            for arg in arguments[:3]:  # Limit to 3
+            for tag in tags:
+                if not tag:
+                    continue
                 task = {
-                    "argument": arg.get("argument", ""),
-                    "search_intent": arg.get("search_intent", ""),
+                    "argument": tag,
                     "evidence_type": evidence_type,
-                    "priority": arg.get("priority", "medium"),
                     "source": f"enumerate_{evidence_type}",
                 }
                 task_id = self.session.write_task(task)
@@ -228,20 +220,13 @@ Only output JSON array."""
                 self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
 
-                # Log snippets of argument and search intent to UI
-                arg_snippet = task["argument"][:40] + "..." if len(task["argument"]) > 40 else task["argument"]
-                search_snippet = (
-                    task["search_intent"][:40] + "..." if len(task["search_intent"]) > 40 else task["search_intent"]
-                )
+                # Log tag to UI
+                tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
-                    f"📍 {arg_snippet} | 🔍 {search_snippet}",
-                    {"type": evidence_type, "priority": task["priority"], "task_id": task_id},
+                    f"📍 {tag_snippet}",
+                    {"type": evidence_type, "task_id": task_id},
                 )
 
-        except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse JSON response: {str(e)[:40]}"
-            self.log(error_msg, {"error_type": "json_decode"})
-            self.state.current_direction = f"❌ {error_msg}"
         except Exception as e:
             error_msg = f"Error enumerating arguments: {str(e)[:40]}"
             self.log(error_msg, {"error_type": "exception"})
@@ -267,24 +252,19 @@ Side: {self.session.side.value.upper()}
 
 Current arguments: {existing_args if existing_args else "(none yet)"}
 
-For each existing argument, identify TERMINAL IMPACT evidence needed.
-Impact chains: [Internal Link] -> [Impact]
+Generate 10-15 IMPACT TAGS identifying terminal impact evidence needed.
+Each tag starts with "Impact:" and is 5-12 words.
 
-Be CONCISE (3-10 words max):
-- argument: Impact: [Terminal impact] (3-10 words)
-- search_intent: Evidence that [X] leads to [Y] (3-10 words)
-- priority: high/medium
+EXAMPLES:
+1. Impact: Data breaches lead to identity theft harm
+2. Impact: Job loss causes economic recession
+3. Impact: Censorship threatens democratic institutions
 
-Generate 2 impact research tasks:
-[
-  {{
-    "argument": "Impact: Concise terminal impact",
-    "search_intent": "Evidence linking to terminal harm",
-    "priority": "medium"
-  }}
-]
-
-Only output JSON array."""
+Output as numbered list ONLY. No other text.
+1. Impact: Tag here exactly 5-12 words
+2. Impact: Another tag exactly 5-12 words
+3. Impact: Third tag exactly 5-12 words
+...etc"""
 
         # Show current phase in UI
         self.state.current_phase = self._phases[self._phase]
@@ -294,25 +274,25 @@ Only output JSON array."""
             response = await asyncio.to_thread(
                 self._get_client().messages.create,
                 model=model,
-                max_tokens=512,
+                max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            response_text = "[]"
+            response_text = ""
             if response.content:
                 first_block = response.content[0]
                 if hasattr(first_block, "text"):
                     response_text = first_block.text
 
-            response_text = self._extract_json(response_text)
-            impacts = json.loads(response_text)
+            # Parse numbered list format: "1. tag here", "2. tag here", etc.
+            tags = self._parse_numbered_list(response_text)
 
-            for impact in impacts[:2]:
+            for tag in tags:
+                if not tag:
+                    continue
                 task = {
-                    "argument": impact.get("argument", ""),
-                    "search_intent": impact.get("search_intent", ""),
+                    "argument": tag,
                     "evidence_type": "impact",
-                    "priority": impact.get("priority", "medium"),
                     "source": "impact_chain",
                 }
                 task_id = self.session.write_task(task)
@@ -323,20 +303,13 @@ Only output JSON array."""
                 self.state.phase_task_counts[phase_name] += 1
                 self.state.items_created += 1
 
-                # Log snippets of impact and search intent to UI
-                arg_snippet = task["argument"][:40] + "..." if len(task["argument"]) > 40 else task["argument"]
-                search_snippet = (
-                    task["search_intent"][:40] + "..." if len(task["search_intent"]) > 40 else task["search_intent"]
-                )
+                # Log tag to UI
+                tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
-                    f"⚡ {arg_snippet} | 🔍 {search_snippet}",
-                    {"type": "impact", "priority": task["priority"], "task_id": task_id},
+                    f"⚡ {tag_snippet}",
+                    {"type": "impact", "task_id": task_id},
                 )
 
-        except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse impact chain JSON: {str(e)[:35]}"
-            self.log(error_msg, {"error_type": "json_decode"})
-            self.state.current_direction = f"❌ {error_msg}"
         except Exception as e:
             error_msg = f"Error generating impact chains: {str(e)[:35]}"
             self.log(error_msg, {"error_type": "exception"})
@@ -388,14 +361,22 @@ Only output JSON array."""
         self.state.current_direction = direction
         self.log(direction, {})
 
-    def _extract_json(self, text: str) -> str:
-        """Extract JSON from response text."""
-        if "```json" in text:
-            start = text.find("```json") + 7
-            end = text.find("```", start)
-            return text[start:end].strip()
-        elif "```" in text:
-            start = text.find("```") + 3
-            end = text.find("```", start)
-            return text[start:end].strip()
-        return text.strip()
+    def _parse_numbered_list(self, text: str) -> list[str]:
+        """Parse numbered list format: '1. tag here', '2. tag here', etc.
+
+        Returns list of tags extracted from the numbered list.
+        """
+        tags = []
+        for line in text.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Match "N. tag" format where N is a number
+            if line and line[0].isdigit():
+                # Find the period and extract everything after it
+                period_idx = line.find(".")
+                if period_idx > 0:
+                    tag = line[period_idx + 1 :].strip()
+                    if tag:
+                        tags.append(tag)
+        return tags

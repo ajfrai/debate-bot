@@ -48,35 +48,31 @@ def mock_anthropic_client():
 
         prompt = messages[0].get("content", "")
 
-        # Strategy agent - enumerate arguments
-        if "Generate 2-3 NEW arguments" in prompt:
-            response = json.dumps(
-                [
-                    {
-                        "argument": "TikTok ban eliminates 100k+ creator jobs",
-                        "search_intent": "economic impact creator economy job losses",
-                        "priority": "high",
-                    },
-                    {
-                        "argument": "National security threat from data access",
-                        "search_intent": "Chinese government data collection surveillance",
-                        "priority": "high",
-                    },
-                ]
-            )
+        # Strategy agent - enumerate support arguments (new numbered list format)
+        if "Generating PRO arguments" in prompt or "NEW argument TAGS" in prompt:
+            response = """1. TikTok ban eliminates creator economy jobs
+2. Chinese government surveillance threatens user data
+3. Platform dependency creates social media monopoly
+4. Data collection violates privacy rights
+5. Economic costs exceed national security benefits"""
+            return MockAnthropicResponse(response)
+
+        # Strategy agent - enumerate answer arguments
+        if "ANSWER TAGS" in prompt or "Generating ANSWER arguments" in prompt:
+            response = """1. AT: Economic costs outweighed by security benefits
+2. AT: Privacy already protected by existing laws
+3. AT: TikTok alternatives available to creators
+4. AT: US already bans Chinese tech in government
+5. AT: Commerce benefits justify data collection risks"""
             return MockAnthropicResponse(response)
 
         # Impact chains
         if "IMPACT CHAINS" in prompt:
-            response = json.dumps(
-                [
-                    {
-                        "argument": "Impact: Economic decline causes poverty",
-                        "search_intent": "economic recession unemployment poverty rates",
-                        "priority": "medium",
-                    }
-                ]
-            )
+            response = """1. Impact: Data breaches lead to identity theft
+2. Impact: Economic recession causes unemployment
+3. Impact: Job losses create community decline
+4. Impact: Privacy erosion enables authoritarianism
+5. Impact: Tech monopolies stifle innovation"""
             return MockAnthropicResponse(response)
 
         # Default empty response

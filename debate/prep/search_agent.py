@@ -339,9 +339,8 @@ class SearchAgent(BaseAgent):
 
         prompt = f"""Generate ONE search query to find evidence for this debate argument.
 
-Argument: {task.get("argument", "")}
-Search intent: {task.get("search_intent", "")}
-Evidence type needed: {task.get("evidence_type", "support")}{retry_instructions}
+Debate tag: {task.get("argument", "")}
+Evidence type: {task.get("evidence_type", "support")}{retry_instructions}
 
 Requirements:
 - Be specific (include key terms, years like 2024/2025)
