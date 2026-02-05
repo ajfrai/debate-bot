@@ -469,9 +469,17 @@ Output as numbered list ONLY. No other text.
             self.state.current_direction = f"❌ {error_msg}"
 
     async def _generate_impact_chains(self) -> None:
-        """Generate research tasks for impact link chains."""
+        """Generate mixed impact evidence: intermediate, second-order, and terminal impacts.
+
+        Creates a mix of three impact types to build full causal chains:
+        - Intermediate impacts (25%): Starting points like "reduced voter turnout"
+        - Second-order impacts (25%): Chains like "reduced turnout leads to gridlock"
+        - Terminal impacts (50%): End-state consequences like "democratic collapse"
+
+        Full chain example: Electoral college → small state power → ethanol subsidies → climate damage
+        """
         # Update UI with current research direction
-        direction = "⚡ Building impact link chains"
+        direction = "⚡ Building impact chains (mixed types)"
         self.state.current_direction = direction
         self.log(direction, {"phase": "starting"})
 
@@ -481,53 +489,59 @@ Output as numbered list ONLY. No other text.
         brief = self.session.read_brief()
         existing_args = list(brief.get("arguments", {}).keys())
 
-        prompt = f"""You are building IMPACT CHAINS for debate arguments.
+        prompt = f"""You are building IMPACT EVIDENCE for debate arguments - a MIX of three types.
 
 Resolution: {self.session.resolution}
 Side: {self.session.side.value.upper()}
 
-Current arguments (mix of first-order and second-order): {existing_args if existing_args else "(none yet)"}
+Current arguments: {existing_args if existing_args else "(none yet)"}
 
-STRATEGY: Prefer creating impact chains from second-order arguments (those with "leads to" in them)
-to build longer causal chains. For example:
-- If we have "Electoral college increases small state power" → "small state power leads to ethanol subsidies"
-- Create an impact that extends from the second-order: "Ethanol subsidies cause climate change"
-This builds 3-link chains: Electoral college → small state power → ethanol subsidies → climate damage
+Generate 40-50 IMPACT TAGS that mix THREE TYPES:
 
-Generate 40-50 IMPACT TAGS identifying terminal impact evidence needed. Use a MIX of these 4 types:
+1. INTERMEDIATE IMPACTS (25%) - Starting points, instrumental effects
+   - These BEGIN impact chains, not end them
+   - Examples: "reduced voter turnout", "increased compliance costs", "platform innovation decline"
+   - Format: Just the effect ("Impact: Reduced voter turnout")
 
-1. STOCK (25%) - Conventional terminal impacts (war, recession, deaths)
-2. CREATIVE (25%) - Unusual cascading effects, butterfly effects
-3. NICHE (25%) - Impacts grounded in specialized academic theory
-4. OPPORTUNISTIC (25%) - High-magnitude, low-probability catastrophic scenarios
+2. SECOND-ORDER IMPACTS (25%) - Causal chains showing how intermediates lead onward
+   - These show NEXT STEPS after intermediate impacts occur
+   - Examples: "reduced turnout leads to policy gridlock", "higher costs lead to market consolidation"
+   - Format: "Impact: [Effect] leads to [Consequence]"
 
-EXAMPLES by type:
+3. TERMINAL IMPACTS (50%) - End-state consequences that matter in debate
+   - These are FINAL OUTCOMES: job loss, war, democratic collapse, poverty, extinction
+   - Examples: "Job loss causes economic recession", "Authoritarian diffusion undermines democracy"
+   - Format: "Impact: [Description of end-state]"
 
-STOCK:
-- Impact: Data breaches lead to identity theft harm
-- Impact: Job loss causes economic recession
-- Impact: Censorship threatens democratic institutions
+For each impact type, use a MIX of these 4 generation strategies:
+1. STOCK (25%) - Conventional, predictable chains
+2. CREATIVE (25%) - Unexpected, counterintuitive cascades
+3. NICHE (25%) - Grounded in specialized academic theory
+4. OPPORTUNISTIC (25%) - High-impact scenarios
 
-CREATIVE:
-- Impact: Information isolation creates epistemic bubbles enabling extremism
-- Impact: Platform dependency lock-in stifles innovation ecosystems
-- Impact: Regulatory precedent cascades to internet fragmentation
+INTERMEDIATE IMPACT EXAMPLES:
+- STOCK: "Impact: Reduced voter turnout", "Impact: Increased business costs"
+- CREATIVE: "Impact: Epistemic bubble formation", "Impact: Regulatory precedent cascade begins"
+- NICHE: "Impact: Principal-agent problem emerges", "Impact: Moral hazard increases"
+- OPPORTUNISTIC: "Impact: Foreign investment pulls out", "Impact: Supply chain fragmentation starts"
 
-NICHE:
-- Impact: Authoritarian diffusion theory predicts democratic backsliding
-- Impact: Network effects amplification increases systemic risk
-- Impact: Preference falsification spirals undermine social trust
+SECOND-ORDER IMPACT EXAMPLES:
+- STOCK: "Impact: Reduced turnout leads to policy gridlock", "Impact: Higher costs lead to market consolidation"
+- CREATIVE: "Impact: Bubble formation leads to extremist policy", "Impact: Precedent cascade leads to sector-wide suppression"
+- NICHE: "Impact: Principal-agent problem leads to mission creep", "Impact: Moral hazard leads to financial instability"
+- OPPORTUNISTIC: "Impact: Investment pullout leads to capital crisis", "Impact: Fragmentation leads to efficiency collapse"
 
-OPPORTUNISTIC:
-- Impact: AI arms race acceleration increases extinction risk
-- Impact: Great power conflict over Taiwan escalates nuclear war
-- Impact: Supply chain collapse triggers civilizational instability
+TERMINAL IMPACT EXAMPLES:
+- STOCK: "Impact: Economic recession ensues", "Impact: Unemployment skyrockets", "Impact: Democratic institutions weaken"
+- CREATIVE: "Impact: Innovation ecosystem collapses", "Impact: Social fabric disintegrates", "Impact: Institutional trust evaporates"
+- NICHE: "Impact: Authoritarian diffusion undermines democracies", "Impact: Systemic risk increases", "Impact: Social trust spirals downward"
+- OPPORTUNISTIC: "Impact: Great power war erupts", "Impact: Civilizational instability triggers", "Impact: Existential catastrophe occurs"
 
 CRITICAL RULES:
-- AVOID semantic duplicates - each impact must be MEANINGFULLY DIFFERENT
-- Do NOT rephrase the same impact chain in different words
-- Mix all 4 types roughly equally
-- Skip any tag too similar to others in your list
+- AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
+- Do NOT create variants of the same impact
+- Mix the THREE TYPES roughly as specified (25%, 25%, 50%)
+- Mix the FOUR STRATEGIES within each type roughly equally
 - Each tag starts with "Impact:" and is 5-12 words
 
 Output as numbered list ONLY. No other text.
