@@ -239,8 +239,14 @@ def create_agent_panel(
     if not lines:
         lines.append(f"  {status_symbol} {state.status}")
 
-    # Stats line
-    stats = f"Processed: {state.items_processed} | Created: {state.items_created}"
+    # Stats line - show sources for search agent, standard stats for others
+    if agent.name == "search":
+        sources_str = f"Sources: {state.sources_fetched}"
+        if state.sources_failed > 0:
+            sources_str += f" ({state.sources_failed} ✗)"
+        stats = f"{sources_str} | Tasks: {state.items_processed}"
+    else:
+        stats = f"Processed: {state.items_processed} | Created: {state.items_created}"
     lines.append(f"  [{stats}]")
 
     content = "\n".join(lines)
@@ -254,18 +260,35 @@ def create_agent_panel(
     )
 
 
-def create_stats_panel(session: "PrepSession", time_remaining: float) -> Panel:
+def create_stats_panel(
+    session: "PrepSession",
+    time_remaining: float,
+    agents: list["BaseAgent"] | None = None,
+) -> Panel:
     """Create a panel showing session statistics."""
     stats = session.get_stats()
+
+    # Get sources count from search agent if available
+    sources_fetched = 0
+    sources_failed = 0
+    if agents:
+        for agent in agents:
+            if agent.name == "search":
+                sources_fetched = agent.state.sources_fetched
+                sources_failed = agent.state.sources_failed
+                break
 
     table = Table.grid(padding=(0, 2))
     table.add_column(justify="left")
     table.add_column(justify="right")
 
-    table.add_row("Tasks:", str(stats["tasks"]))
-    table.add_row("Search Results:", str(stats["results"]))
+    table.add_row("Tasks Generated:", str(stats["tasks"]))
+    # Show sources fetched prominently
+    sources_str = str(sources_fetched)
+    if sources_failed > 0:
+        sources_str += f" ({sources_failed} failed)"
+    table.add_row("Sources Fetched:", sources_str)
     table.add_row("Cards Cut:", str(stats["cards"]))
-    table.add_row("Feedback:", str(stats["feedback"]))
 
     time_str = format_time_remaining(time_remaining)
 
@@ -316,7 +339,7 @@ def create_layout(
     if "organizer" in agent_by_name:
         layout["organizer"].update(create_agent_panel(agent_by_name["organizer"], session=session))
 
-    layout["footer"].update(create_stats_panel(session, time_remaining))
+    layout["footer"].update(create_stats_panel(session, time_remaining, agents))
 
     return layout
 
@@ -389,8 +412,8 @@ def create_single_agent_layout(
     # Agent panel with extra details
     layout["agent"].update(create_agent_panel(agent, width=80, show_details=True, session=session))
 
-    # Stats panel with countdown
-    layout["stats"].update(create_stats_panel(session, time_remaining))
+    # Stats panel with countdown (pass agent as list for sources count)
+    layout["stats"].update(create_stats_panel(session, time_remaining, [agent]))
 
     return layout
 

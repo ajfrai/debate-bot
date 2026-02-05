@@ -418,7 +418,10 @@ class PrepSession:
         return task_id
 
     def get_pending_tasks(self) -> list[dict[str, Any]]:
-        """Get all unprocessed tasks for SearchAgent.
+        """Get all unprocessed tasks for SearchAgent with 4:1 stock priority.
+
+        Returns tasks sorted with 4:1 stock:non-stock interleaving.
+        Base tasks come before variants within each category.
 
         Excludes:
         - Tasks already processed successfully (in _read_log.json)
@@ -430,14 +433,68 @@ class PrepSession:
         # Load failed tasks to exclude them
         failed_ids = self._load_failed_tasks()
 
-        tasks = []
+        # Categorize tasks
+        stock_base: list[dict[str, Any]] = []
+        stock_variant: list[dict[str, Any]] = []
+        other_base: list[dict[str, Any]] = []
+        other_variant: list[dict[str, Any]] = []
+
         for f in unprocessed:
             task = json.loads(f.read_text())
             task_id = task.get("id", "")
             # Skip permanently failed tasks
-            if task_id not in failed_ids:
-                tasks.append(task)
-        return tasks
+            if task_id in failed_ids:
+                continue
+
+            is_stock = task.get("arg_type") == "stock"
+            is_variant = task.get("is_variant", False)
+
+            if is_stock:
+                if is_variant:
+                    stock_variant.append(task)
+                else:
+                    stock_base.append(task)
+            else:
+                if is_variant:
+                    other_variant.append(task)
+                else:
+                    other_base.append(task)
+
+        # Interleave 4:1 stock:non-stock for base tasks
+        result = self._interleave_4_to_1(stock_base, other_base)
+        # Then interleave 4:1 for variants
+        result.extend(self._interleave_4_to_1(stock_variant, other_variant))
+
+        return result
+
+    def _interleave_4_to_1(
+        self, primary: list[dict[str, Any]], secondary: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Interleave two lists with 4:1 ratio (4 primary, 1 secondary).
+
+        Args:
+            primary: Higher priority tasks (stock)
+            secondary: Lower priority tasks (non-stock)
+
+        Returns:
+            Interleaved list with 4:1 ratio
+        """
+        result = []
+        primary_idx = 0
+        secondary_idx = 0
+
+        while primary_idx < len(primary) or secondary_idx < len(secondary):
+            # Add up to 4 primary tasks
+            for _ in range(4):
+                if primary_idx < len(primary):
+                    result.append(primary[primary_idx])
+                    primary_idx += 1
+            # Add 1 secondary task
+            if secondary_idx < len(secondary):
+                result.append(secondary[secondary_idx])
+                secondary_idx += 1
+
+        return result
 
     # === Search Agent Interface ===
 
