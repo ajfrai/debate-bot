@@ -32,7 +32,6 @@ class StrategyAgent(BaseAgent):
         # Build phases list - optionally include opponent_answers phase
         self._phases: list[str] = [
             "initial_arguments",
-            "second_order_arguments",
             "impact_chains",
             "deep_dive",
         ]
@@ -128,8 +127,6 @@ class StrategyAgent(BaseAgent):
             await self._enumerate_arguments("support")
         elif phase == "opponent_answers":
             await self._enumerate_arguments("answer")
-        elif phase == "second_order_arguments":
-            await self._generate_second_order_arguments()
         elif phase == "impact_chains":
             await self._generate_impact_chains()
         elif phase == "deep_dive":
@@ -162,40 +159,48 @@ Side: {self.session.side.value.upper()}
 
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 40-50 NEW argument TAGS to research. Use a MIX of these 4 types:
+Generate 40-50 NEW argument TAGS to research. MIX TWO ARGUMENT LAYERS:
 
-1. STOCK (25%) - Conventional, predictable arguments
-2. CREATIVE (25%) - Outside the box, counterintuitive link chains
-3. NICHE (25%) - Academic terms of art, specialized theory from fields
-4. OPPORTUNISTIC (25%) - Start with impact scenario, work backwards
+LAYER 1: FIRST-ORDER ARGUMENTS (60%) - Direct claims about the resolution
+- These make claims about what the resolution does or its consequences
+- Examples: "TikTok ban eliminates creator economy jobs", "Chinese government can access user data"
 
-EXAMPLES by type:
+LAYER 2: SECOND-ORDER ARGUMENTS (40%) - Extensions from existing first-order arguments
+- These take conclusions of existing arguments as PREMISES and extend to new effects
+- Format: "[First-order conclusion] leads to [specific downstream effect]"
+- Examples:
+  * If existing: "TikTok ban eliminates creator jobs" → extend to "Job elimination leads to reduced consumer spending"
+  * If existing: "Platform increases small business revenue" → extend to "Small business revenue leads to tax base growth"
+- Requires existing arguments to reference; generate these when there are already arguments in the brief
 
-STOCK:
-- TikTok ban eliminates creator economy jobs
-- Chinese government can access user data through TikTok
+Within each layer, use a MIX of these 4 strategy types (25% each):
 
-CREATIVE:
-- Platform ban accelerates decentralized social media adoption
-- TikTok censorship creates Streisand effect amplifying content
-- Algorithmic recommendation systems mirror Cold War propaganda tactics
+1. STOCK - Conventional, predictable arguments
+2. CREATIVE - Outside the box, counterintuitive link chains
+3. NICHE - Academic terms of art, specialized theory
+4. OPPORTUNISTIC - Start with impact scenario, work backwards
 
-NICHE:
-- Digital sovereignty theory supports data localization mandates
-- Panopticon surveillance model applies to platform architectures
-- Public choice theory explains regulatory capture in tech policy
+EXAMPLES:
 
-OPPORTUNISTIC (impact → resolution):
-- Nuclear conflict risk from Taiwan strait tensions (need data security angle)
-- Democratic backsliding from authoritarian tech influence (need surveillance link)
-- Economic recession from supply chain dependencies (need corporate espionage path)
+FIRST-ORDER (direct claims):
+STOCK: "TikTok ban eliminates creator economy jobs"
+CREATIVE: "Platform ban accelerates decentralized social media adoption"
+NICHE: "Digital sovereignty theory supports data localization mandates"
+OPPORTUNISTIC: "Democratic backsliding from authoritarian tech influence needs data security angle"
+
+SECOND-ORDER (extensions from existing):
+STOCK: "Creator job elimination leads to reduced consumer spending"
+CREATIVE: "Decentralization accelerates leads to tech innovation fragmentation"
+NICHE: "Data localization requirements lead to regulatory capture by incumbents"
+OPPORTUNISTIC: "Tech influence decline leads to geopolitical shift favoring democracies"
 
 CRITICAL RULES:
 - AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
 - Do NOT rephrase the same idea in different words
-- Mix all 4 types roughly equally
-- Skip any tag too similar to existing arguments above
+- Generate roughly 60% first-order and 40% second-order
+- Second-order args should reference different existing arguments (create variety)
 - Each tag is exactly 5-12 words
+- Skip tags too similar to existing arguments
 
 Output as numbered list ONLY. No other text.
 1. Tag here exactly 5-12 words
@@ -317,154 +322,6 @@ Output as numbered list ONLY. No other text.
 
         except Exception as e:
             error_msg = f"Error enumerating arguments: {str(e)[:40]}"
-            self.log(error_msg, {"error_type": "exception"})
-            self.state.current_direction = f"❌ {error_msg}"
-
-    async def _generate_second_order_arguments(self) -> None:
-        """Generate second-order argument extensions from existing first-order arguments.
-
-        Second-order arguments treat the conclusions of first-order arguments as premises
-        and extend to new effects. For example:
-        - First-order: "Electoral college increases small state power"
-        - Second-order: "Small state power leads to ethanol subsidies that harm environment"
-        """
-        # Update UI with current research direction
-        direction = "🔗 Generating second-order arguments"
-        self.state.current_direction = direction
-        self.log(direction, {"phase": "starting"})
-
-        config = Config()
-        model = config.get_agent_model("prep_strategy")
-
-        brief = self.session.read_brief()
-        existing_args = list(brief.get("arguments", {}).keys())
-
-        if not existing_args:
-            # No first-order arguments yet, skip this phase
-            self.log("no_first_order_args", {"status": "skipping"})
-            return
-
-        # Show current phase in UI
-        self.state.current_phase = self._phases[self._phase]
-
-        prompt = f"""You are generating SECOND-ORDER ARGUMENTS that extend from existing claims.
-
-Resolution: {self.session.resolution}
-Side: {self.session.side.value.upper()}
-
-Existing first-order arguments (these are the PREMISES):
-{chr(10).join(f"- {arg}" for arg in existing_args)}
-
-Generate 40-50 SECOND-ORDER ARGUMENT TAGS that build from these premises. Each second-order argument:
-1. Takes a first-order argument's conclusion as its premise
-2. Adds a new causal link to a specific downstream effect
-3. Tag format: "[First-order conclusion] leads to [specific effect]"
-
-Use a MIX of these 4 types:
-
-1. STOCK (25%) - Conventional downstream effects
-2. CREATIVE (25%) - Unexpected cascading effects or second/third-order consequences
-3. NICHE (25%) - Effects grounded in specialized academic theory
-4. OPPORTUNISTIC (25%) - High-impact downstream scenarios
-
-EXAMPLES by type:
-
-STOCK:
-- Electoral college increases small state power leads to agricultural subsidies
-- Electoral college increases small state power leads to reduced urban funding
-- Electoral college increases small state power leads to environmental deregulation
-
-CREATIVE:
-- Data regulation increases costs leads to startup landscape consolidation
-- Data regulation increases costs leads to international competitiveness decline
-- Platform regulation creates compliance burden leads to open-source innovation acceleration
-
-NICHE:
-- Regulatory capture occurs leads to regulatory ratchet effect exacerbates incumbency
-- Government surveillance capability leads to mission creep via bureaucratic expansion
-- Information asymmetry persists leads to adverse selection dynamics strengthen
-
-OPPORTUNISTIC:
-- Trade war escalation leads to allied realignment reshaping geopolitics
-- Supply chain fragmentation leads to regionalization triggering stagflation
-- Demographic decline accelerates leads to labor scarcity creating wage spiral
-
-CRITICAL RULES:
-- AVOID semantic duplicates - each second-order extension must be MEANINGFULLY DIFFERENT
-- Do NOT create variants of the same downstream effect
-- Mix all 4 types roughly equally
-- Tag format MUST include "leads to" to show causal link
-- Tags should be 5-12 words total
-- Each tag references ONE first-order argument
-
-Output as numbered list ONLY. No other text.
-1. Tag here exactly 5-12 words with "leads to"
-2. Another tag exactly 5-12 words with "leads to"
-3. Third tag exactly 5-12 words with "leads to"
-...etc"""
-
-        try:
-            # Stream API call to get tags as they're generated
-            tags_created = 0
-            async for tag in self._stream_tags(model, prompt):
-                if not tag:
-                    continue
-
-                # Create base task
-                task = {
-                    "argument": tag,
-                    "evidence_type": "support",
-                    "source": "second_order",
-                }
-                task_id = self.session.write_task(task)
-
-                # Skip if duplicate
-                if not task_id:
-                    continue
-
-                # Track in kanban
-                self.state.task_stages[task_id] = "created"
-                phase_name = self._phases[self._phase]
-                self.state.phase_task_counts[phase_name] += 1
-                self.state.items_created += 1
-                tags_created += 1
-
-                # Log base tag to UI
-                tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
-                self.log(
-                    f"🔗 {tag_snippet}",
-                    {"type": "second_order", "task_id": task_id, "count": tags_created},
-                )
-
-                # Create 2 combinatorial variants for broader search coverage
-                variants = self._expand_tag_with_vocabulary(tag, num_variants=2)
-                for variant in variants:
-                    variant_task = {
-                        "argument": variant,
-                        "evidence_type": "support",
-                        "source": "second_order_variant",
-                    }
-                    variant_id = self.session.write_task(variant_task)
-
-                    # Skip if duplicate
-                    if not variant_id:
-                        continue
-
-                    # Track variant in kanban
-                    self.state.task_stages[variant_id] = "created"
-                    self.state.phase_task_counts[phase_name] += 1
-                    self.state.items_created += 1
-                    tags_created += 1
-
-                    # Log variant (condensed to save UI space)
-                    variant_snippet = variant[:45] + "..." if len(variant) > 45 else variant
-                    self.log(
-                        f"  ↳ {variant_snippet}",
-                        {"type": "second_order_variant", "task_id": variant_id},
-                    )
-
-        except Exception as e:
-            error_msg = f"Error generating second-order arguments: {str(e)[:35]}"
             self.log(error_msg, {"error_type": "exception"})
             self.state.current_direction = f"❌ {error_msg}"
 
