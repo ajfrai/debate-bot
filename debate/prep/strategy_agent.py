@@ -155,24 +155,40 @@ Side: {self.session.side.value.upper()}
 
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 40-50 NEW argument TAGS to research.
+Generate 40-50 NEW argument TAGS to research. Use a MIX of these 4 types:
+
+1. STOCK (25%) - Conventional, predictable arguments
+2. CREATIVE (25%) - Outside the box, counterintuitive link chains
+3. NICHE (25%) - Academic terms of art, specialized theory from fields
+4. OPPORTUNISTIC (25%) - Start with impact scenario, work backwards
+
+EXAMPLES by type:
+
+STOCK:
+- TikTok ban eliminates creator economy jobs
+- Chinese government can access user data through TikTok
+
+CREATIVE:
+- Platform ban accelerates decentralized social media adoption
+- TikTok censorship creates Streisand effect amplifying content
+- Algorithmic recommendation systems mirror Cold War propaganda tactics
+
+NICHE:
+- Digital sovereignty theory supports data localization mandates
+- Panopticon surveillance model applies to platform architectures
+- Public choice theory explains regulatory capture in tech policy
+
+OPPORTUNISTIC (impact → resolution):
+- Nuclear conflict risk from Taiwan strait tensions (need data security angle)
+- Democratic backsliding from authoritarian tech influence (need surveillance link)
+- Economic recession from supply chain dependencies (need corporate espionage path)
 
 CRITICAL RULES:
 - AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
 - Do NOT rephrase the same idea in different words
-- Each tag should explore a DISTINCT argument or angle
-- Skip any tag that is too similar to existing arguments above
+- Mix all 4 types roughly equally
+- Skip any tag too similar to existing arguments above
 - Each tag is exactly 5-12 words
-
-GOOD (diverse angles):
-1. TikTok ban eliminates creator economy jobs
-2. Chinese government can access user data
-3. Data collection violates privacy rights
-
-BAD (semantic duplicates):
-1. TikTok ban eliminates creator economy jobs
-2. TikTok ban destroys creator employment opportunities  ← DUPLICATE (same as #1)
-3. Creator jobs lost due to TikTok ban  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. Tag here exactly 5-12 words
@@ -188,24 +204,40 @@ Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
 
 Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
 
-Generate 40-50 ANSWER TAGS (responding to likely opponent claims).
+Generate 40-50 ANSWER TAGS (responding to likely opponent claims). Use a MIX of these 4 types:
+
+1. STOCK (25%) - Conventional responses to predictable arguments
+2. CREATIVE (25%) - Outside the box turns, counterintuitive defenses
+3. NICHE (25%) - Academic frameworks to reframe opponent claims
+4. OPPORTUNISTIC (25%) - Concede and turn opponent impact scenarios
+
+EXAMPLES by type:
+
+STOCK:
+- AT: Economic costs outweighed by national security benefits
+- AT: Privacy already protected by existing regulations
+
+CREATIVE:
+- AT: Ban proves government overreach their impact claims warn against
+- AT: Censorship attempt validates slippery slope to authoritarianism
+- AT: Restricting information access mirrors China's firewall tactics
+
+NICHE:
+- AT: Coase theorem suggests market solutions superior to ban
+- AT: Securitization theory explains overblown threat perception
+- AT: Principal-agent problem undermines regulatory effectiveness claims
+
+OPPORTUNISTIC (concede and turn):
+- AT: Job losses real but creative destruction accelerates innovation
+- AT: Privacy violations exist but ban sets worse precedent
+- AT: Security risks present but alliance fractures cost more
 
 CRITICAL RULES:
 - AVOID semantic duplicates - each answer must respond to a MEANINGFULLY DIFFERENT opponent claim
 - Do NOT rephrase the same response in different words
-- Each tag should address a DISTINCT opponent argument
+- Mix all 4 types roughly equally
 - Skip any tag too similar to existing answers above
 - Each tag starts with "AT:" and is 5-12 words
-
-GOOD (diverse responses):
-1. AT: Economic costs outweighed by national security benefits
-2. AT: Privacy already protected by existing regulations
-3. AT: Ban creates worse problems than it solves
-
-BAD (semantic duplicates):
-1. AT: Economic costs outweighed by national security benefits
-2. AT: Security concerns justify the economic harm  ← DUPLICATE (same as #1)
-3. AT: National security more important than economy  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. AT: Tag here exactly 5-12 words
@@ -301,24 +333,41 @@ Side: {self.session.side.value.upper()}
 
 Current arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 40-50 IMPACT TAGS identifying terminal impact evidence needed.
+Generate 40-50 IMPACT TAGS identifying terminal impact evidence needed. Use a MIX of these 4 types:
+
+1. STOCK (25%) - Conventional terminal impacts (war, recession, deaths)
+2. CREATIVE (25%) - Unusual cascading effects, butterfly effects
+3. NICHE (25%) - Impacts grounded in specialized academic theory
+4. OPPORTUNISTIC (25%) - High-magnitude, low-probability catastrophic scenarios
+
+EXAMPLES by type:
+
+STOCK:
+- Impact: Data breaches lead to identity theft harm
+- Impact: Job loss causes economic recession
+- Impact: Censorship threatens democratic institutions
+
+CREATIVE:
+- Impact: Information isolation creates epistemic bubbles enabling extremism
+- Impact: Platform dependency lock-in stifles innovation ecosystems
+- Impact: Regulatory precedent cascades to internet fragmentation
+
+NICHE:
+- Impact: Authoritarian diffusion theory predicts democratic backsliding
+- Impact: Network effects amplification increases systemic risk
+- Impact: Preference falsification spirals undermine social trust
+
+OPPORTUNISTIC:
+- Impact: AI arms race acceleration increases extinction risk
+- Impact: Great power conflict over Taiwan escalates nuclear war
+- Impact: Supply chain collapse triggers civilizational instability
 
 CRITICAL RULES:
 - AVOID semantic duplicates - each impact must be MEANINGFULLY DIFFERENT
 - Do NOT rephrase the same impact chain in different words
-- Each tag should identify a DISTINCT terminal harm or benefit
+- Mix all 4 types roughly equally
 - Skip any tag too similar to others in your list
 - Each tag starts with "Impact:" and is 5-12 words
-
-GOOD (diverse impacts):
-1. Impact: Data breaches lead to identity theft harm
-2. Impact: Job loss causes economic recession
-3. Impact: Censorship threatens democratic institutions
-
-BAD (semantic duplicates):
-1. Impact: Data breaches lead to identity theft harm
-2. Impact: Personal information stolen causes identity theft  ← DUPLICATE (same as #1)
-3. Impact: Privacy violations result in identity fraud  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. Impact: Tag here exactly 5-12 words
