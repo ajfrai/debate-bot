@@ -165,7 +165,7 @@ class SearchAgent(BaseAgent):
             {
                 "query": query,
                 "urls_found": len(urls),
-                "urls_to_fetch": min(2, len(urls)),
+                "urls_to_fetch": len(urls),
             },
         )
         self.state.update(f"Searched: {len(urls)} results found", "working")
@@ -185,8 +185,8 @@ class SearchAgent(BaseAgent):
         # Move to fetch stage
         self.state.task_stages[task_id] = "fetch"
 
-        # Try to fetch at least one successful article
-        num_to_fetch = min(2, len(urls))
+        # Fetch all available URLs (all from Brave search results)
+        num_to_fetch = len(urls)
         successful_fetches = 0
 
         for idx, url in enumerate(urls[:num_to_fetch], 1):
