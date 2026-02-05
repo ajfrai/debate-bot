@@ -99,6 +99,11 @@ class StrategyAgent(BaseAgent):
             }
             task_id = self.session.write_task(task)
 
+            # Skip if duplicate
+            if not task_id:
+                self.log(f"duplicate_from_{feedback_type}", {"argument": message[:40]})
+                return
+
             # Track in kanban (feedback stage)
             self.state.task_stages[task_id] = "feedback"
             self.state.items_created += 1
@@ -126,8 +131,9 @@ class StrategyAgent(BaseAgent):
     async def _enumerate_arguments(self, evidence_type: str) -> None:
         """Enumerate arguments for the given evidence type."""
         # Update UI with current research direction
+        side_label = self.session.side.value.upper()
         if evidence_type == "support":
-            direction = "📌 Generating PRO arguments"
+            direction = f"📌 Generating {side_label} arguments"
         else:
             direction = "🛡️ Generating ANSWER arguments"
         self.state.current_direction = direction
@@ -149,13 +155,24 @@ Side: {self.session.side.value.upper()}
 
 Already researched arguments: {existing_args if existing_args else "(none yet)"}
 
-Generate 40-50 NEW argument TAGS to research (not duplicates).
-Each tag is a debate brief label: exactly 5-12 words.
+Generate 40-50 NEW argument TAGS to research.
 
-EXAMPLES:
+CRITICAL RULES:
+- AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
+- Do NOT rephrase the same idea in different words
+- Each tag should explore a DISTINCT argument or angle
+- Skip any tag that is too similar to existing arguments above
+- Each tag is exactly 5-12 words
+
+GOOD (diverse angles):
 1. TikTok ban eliminates creator economy jobs
 2. Chinese government can access user data
 3. Data collection violates privacy rights
+
+BAD (semantic duplicates):
+1. TikTok ban eliminates creator economy jobs
+2. TikTok ban destroys creator employment opportunities  ← DUPLICATE (same as #1)
+3. Creator jobs lost due to TikTok ban  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. Tag here exactly 5-12 words
@@ -172,12 +189,23 @@ Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
 Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
 
 Generate 40-50 ANSWER TAGS (responding to likely opponent claims).
-Each tag starts with "AT:" and is 5-12 words.
 
-EXAMPLES:
+CRITICAL RULES:
+- AVOID semantic duplicates - each answer must respond to a MEANINGFULLY DIFFERENT opponent claim
+- Do NOT rephrase the same response in different words
+- Each tag should address a DISTINCT opponent argument
+- Skip any tag too similar to existing answers above
+- Each tag starts with "AT:" and is 5-12 words
+
+GOOD (diverse responses):
 1. AT: Economic costs outweighed by national security benefits
 2. AT: Privacy already protected by existing regulations
 3. AT: Ban creates worse problems than it solves
+
+BAD (semantic duplicates):
+1. AT: Economic costs outweighed by national security benefits
+2. AT: Security concerns justify the economic harm  ← DUPLICATE (same as #1)
+3. AT: National security more important than economy  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. AT: Tag here exactly 5-12 words
@@ -203,6 +231,10 @@ Output as numbered list ONLY. No other text.
                 }
                 task_id = self.session.write_task(task)
 
+                # Skip if duplicate (write_task returns empty string)
+                if not task_id:
+                    continue
+
                 # Track in kanban
                 self.state.task_stages[task_id] = "created"
                 phase_name = self._phases[self._phase]
@@ -226,6 +258,10 @@ Output as numbered list ONLY. No other text.
                         "source": f"enumerate_{evidence_type}_variant",
                     }
                     variant_id = self.session.write_task(variant_task)
+
+                    # Skip if duplicate
+                    if not variant_id:
+                        continue
 
                     # Track variant in kanban
                     self.state.task_stages[variant_id] = "created"
@@ -266,12 +302,23 @@ Side: {self.session.side.value.upper()}
 Current arguments: {existing_args if existing_args else "(none yet)"}
 
 Generate 40-50 IMPACT TAGS identifying terminal impact evidence needed.
-Each tag starts with "Impact:" and is 5-12 words.
 
-EXAMPLES:
+CRITICAL RULES:
+- AVOID semantic duplicates - each impact must be MEANINGFULLY DIFFERENT
+- Do NOT rephrase the same impact chain in different words
+- Each tag should identify a DISTINCT terminal harm or benefit
+- Skip any tag too similar to others in your list
+- Each tag starts with "Impact:" and is 5-12 words
+
+GOOD (diverse impacts):
 1. Impact: Data breaches lead to identity theft harm
 2. Impact: Job loss causes economic recession
 3. Impact: Censorship threatens democratic institutions
+
+BAD (semantic duplicates):
+1. Impact: Data breaches lead to identity theft harm
+2. Impact: Personal information stolen causes identity theft  ← DUPLICATE (same as #1)
+3. Impact: Privacy violations result in identity fraud  ← DUPLICATE (same as #1)
 
 Output as numbered list ONLY. No other text.
 1. Impact: Tag here exactly 5-12 words
@@ -297,6 +344,10 @@ Output as numbered list ONLY. No other text.
                 }
                 task_id = self.session.write_task(task)
 
+                # Skip if duplicate
+                if not task_id:
+                    continue
+
                 # Track in kanban
                 self.state.task_stages[task_id] = "created"
                 phase_name = self._phases[self._phase]
@@ -320,6 +371,10 @@ Output as numbered list ONLY. No other text.
                         "source": "impact_chain_variant",
                     }
                     variant_id = self.session.write_task(variant_task)
+
+                    # Skip if duplicate
+                    if not variant_id:
+                        continue
 
                     # Track variant in kanban
                     self.state.task_stages[variant_id] = "created"
@@ -369,6 +424,10 @@ Output as numbered list ONLY. No other text.
                     "source": "deep_dive",
                 }
                 task_id = self.session.write_task(task)
+
+                # Skip if duplicate
+                if not task_id:
+                    continue
 
                 # Track in kanban
                 self.state.task_stages[task_id] = "created"
@@ -429,7 +488,9 @@ Output as numbered list ONLY. No other text.
         """Stream tags from API call, yielding each tag as it's parsed.
 
         Uses streaming API to get response incrementally, parsing numbered list
-        format and yielding complete tags immediately.
+        format and yielding complete tags immediately as chunks arrive.
+
+        CRITICAL: No list() call - this ensures TRUE streaming, not batch processing.
 
         Args:
             model: Model to use for generation
@@ -439,45 +500,62 @@ Output as numbered list ONLY. No other text.
             Complete tags as they're parsed from the stream
         """
         buffer = ""
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-        # Use streaming API - wrap sync stream context manager in asyncio.to_thread
-        def _sync_stream():
-            """Run streaming API call synchronously."""
-            with self._get_client().messages.stream(
-                model=model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
-            ) as stream:
-                yield from stream.text_stream
+        async def _feed_queue():
+            """Run sync stream in thread and feed chunks to queue."""
 
-        # Run the sync stream in a thread pool
-        stream_gen = await asyncio.to_thread(lambda: list(_sync_stream()))
+            def _sync_stream():
+                """Run streaming API call synchronously."""
+                with self._get_client().messages.stream(
+                    model=model,
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": prompt}],
+                ) as stream:
+                    yield from stream.text_stream
 
-        for chunk in stream_gen:
-            buffer += chunk
+            try:
+                for chunk in await asyncio.to_thread(_sync_stream):
+                    await queue.put(chunk)
+            finally:
+                await queue.put(None)  # Signal end of stream
 
-            # Try to extract complete lines (tags)
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                line = line.strip()
+        # Start the queue feeder task
+        feeder_task = asyncio.create_task(_feed_queue())
 
-                if not line:
-                    continue
+        try:
+            # Process chunks as they arrive - no batching, no list() call
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break  # End of stream
 
-                # Match "N. tag" format where N is a number
+                buffer += chunk
+
+                # Try to extract complete lines (tags) from buffer
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+
+                    if not line:
+                        continue
+
+                    # Match "N. tag" format where N is a number
+                    if line and line[0].isdigit():
+                        period_idx = line.find(".")
+                        if period_idx > 0:
+                            tag = line[period_idx + 1 :].strip()
+                            if tag:
+                                yield tag
+
+            # Process any remaining buffer after stream ends
+            if buffer.strip():
+                line = buffer.strip()
                 if line and line[0].isdigit():
                     period_idx = line.find(".")
                     if period_idx > 0:
                         tag = line[period_idx + 1 :].strip()
                         if tag:
                             yield tag
-
-        # Process any remaining buffer
-        if buffer.strip():
-            line = buffer.strip()
-            if line and line[0].isdigit():
-                period_idx = line.find(".")
-                if period_idx > 0:
-                    tag = line[period_idx + 1 :].strip()
-                    if tag:
-                        yield tag
+        finally:
+            await feeder_task
