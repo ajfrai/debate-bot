@@ -2,12 +2,14 @@
 
 import asyncio
 import os
+import random
 from typing import Any
 
 import anthropic
 
 from debate.config import Config
 from debate.prep.base_agent import BaseAgent
+from debate.prep.research_vocabulary import ALL_TERMS
 from debate.prep.session import PrepSession
 
 
@@ -193,6 +195,7 @@ Output as numbered list ONLY. No other text.
                 if not tag:
                     continue
 
+                # Create base task
                 task = {
                     "argument": tag,
                     "evidence_type": evidence_type,
@@ -207,12 +210,35 @@ Output as numbered list ONLY. No other text.
                 self.state.items_created += 1
                 tags_created += 1
 
-                # Log tag to UI
+                # Log base tag to UI
                 tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
                     f"📍 {tag_snippet}",
                     {"type": evidence_type, "task_id": task_id, "count": tags_created},
                 )
+
+                # Create 2 combinatorial variants for broader search coverage
+                variants = self._expand_tag_with_vocabulary(tag, num_variants=2)
+                for variant in variants:
+                    variant_task = {
+                        "argument": variant,
+                        "evidence_type": evidence_type,
+                        "source": f"enumerate_{evidence_type}_variant",
+                    }
+                    variant_id = self.session.write_task(variant_task)
+
+                    # Track variant in kanban
+                    self.state.task_stages[variant_id] = "created"
+                    self.state.phase_task_counts[phase_name] += 1
+                    self.state.items_created += 1
+                    tags_created += 1
+
+                    # Log variant (condensed to save UI space)
+                    variant_snippet = variant[:45] + "..." if len(variant) > 45 else variant
+                    self.log(
+                        f"  ↳ {variant_snippet}",
+                        {"type": f"{evidence_type}_variant", "task_id": variant_id},
+                    )
 
         except Exception as e:
             error_msg = f"Error enumerating arguments: {str(e)[:40]}"
@@ -263,6 +289,7 @@ Output as numbered list ONLY. No other text.
                 if not tag:
                     continue
 
+                # Create base task
                 task = {
                     "argument": tag,
                     "evidence_type": "impact",
@@ -277,12 +304,35 @@ Output as numbered list ONLY. No other text.
                 self.state.items_created += 1
                 tags_created += 1
 
-                # Log tag to UI
+                # Log base tag to UI
                 tag_snippet = tag[:50] + "..." if len(tag) > 50 else tag
                 self.log(
                     f"⚡ {tag_snippet}",
                     {"type": "impact", "task_id": task_id, "count": tags_created},
                 )
+
+                # Create 2 combinatorial variants for broader search coverage
+                variants = self._expand_tag_with_vocabulary(tag, num_variants=2)
+                for variant in variants:
+                    variant_task = {
+                        "argument": variant,
+                        "evidence_type": "impact",
+                        "source": "impact_chain_variant",
+                    }
+                    variant_id = self.session.write_task(variant_task)
+
+                    # Track variant in kanban
+                    self.state.task_stages[variant_id] = "created"
+                    self.state.phase_task_counts[phase_name] += 1
+                    self.state.items_created += 1
+                    tags_created += 1
+
+                    # Log variant (condensed to save UI space)
+                    variant_snippet = variant[:45] + "..." if len(variant) > 45 else variant
+                    self.log(
+                        f"  ↳ {variant_snippet}",
+                        {"type": "impact_variant", "task_id": variant_id},
+                    )
 
         except Exception as e:
             error_msg = f"Error generating impact chains: {str(e)[:35]}"
@@ -334,6 +384,26 @@ Output as numbered list ONLY. No other text.
         direction = "✨ Exploring new strategic angles"
         self.state.current_direction = direction
         self.log(direction, {})
+
+    def _expand_tag_with_vocabulary(self, base_tag: str, num_variants: int = 2) -> list[str]:
+        """Create variants of a base tag by combining with vocabulary terms.
+
+        Args:
+            base_tag: The base research tag to expand
+            num_variants: Number of variants to create (default 2)
+
+        Returns:
+            List of variant tags (does not include base tag)
+        """
+        variants = []
+        # Sample random terms from vocabulary without replacement
+        sampled_terms = random.sample(ALL_TERMS, min(num_variants, len(ALL_TERMS)))
+
+        for term in sampled_terms:
+            variant = f"{base_tag} + {term}"
+            variants.append(variant)
+
+        return variants
 
     def _parse_numbered_list(self, text: str) -> list[str]:
         """Parse numbered list format: '1. tag here', '2. tag here', etc.
