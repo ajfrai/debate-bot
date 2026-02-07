@@ -500,6 +500,9 @@ class SearchAgent(BaseAgent):
                     task_id, query, new_idx = parsed
                     if task_id and query:
                         yield (task_id, query)
+        except Exception as e:
+            self.log("stream_queries_error", {"error": str(e)[:100], "tasks": len(tasks)})
+            raise
         finally:
             await feeder_task
 
@@ -619,6 +622,13 @@ class SearchAgent(BaseAgent):
                         self.state.update(f"✓ Query {queries_generated}: {query[:50]}...", "working")
 
                 self.log("batch_queries_generated", {"batch": i // batch_size + 1, "queries": queries_generated})
+
+                # Warn if no queries were generated
+                if queries_generated == 0:
+                    self.log(
+                        "batch_query_warning",
+                        {"message": "0 queries generated", "batch": i // batch_size + 1, "tasks": len(batch)},
+                    )
 
             except Exception as e:
                 self.log("batch_query_error", {"error": str(e)[:100], "batch": i // batch_size + 1})
