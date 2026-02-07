@@ -527,8 +527,8 @@ class SearchAgent(BaseAgent):
 
         import re
 
-        # Try to match "Task N:" format (with optional text after colon)
-        match = re.match(r"^Task\s+(\d+):", line)
+        # Try to match "Task N:" format (with optional markdown # and text after colon)
+        match = re.match(r"^#*\s*Task\s+(\d+):", line)
         if match:
             idx = int(match.group(1)) - 1  # Convert to 0-indexed
             if 0 <= idx < len(tasks):
