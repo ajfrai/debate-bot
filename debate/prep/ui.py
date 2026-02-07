@@ -193,9 +193,7 @@ def create_agent_panel(
         if state.recent_actions:
             lines.append("[dim]Recent arguments:[/dim]")
             for action in state.recent_actions[-15:]:
-                # Only show actions that contain argument snippets (📍, ⚡, 🛡️)
-                if any(emoji in action for emoji in ["📍", "⚡", "🛡️"]):
-                    lines.append(f"  {action}")
+                lines.append(f"  {action}")
             lines.append("")
 
         # Group tasks by stage
