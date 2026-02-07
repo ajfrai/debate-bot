@@ -16,6 +16,12 @@ dependencies = [
     "pypdf>=3.0.0",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+]
+
 [project.scripts]
 debate = "debate.cli:main"
 

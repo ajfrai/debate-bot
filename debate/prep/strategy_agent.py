@@ -3,6 +3,7 @@
 import asyncio
 import os
 import random
+from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -11,6 +12,12 @@ from debate.config import Config
 from debate.prep.base_agent import BaseAgent
 from debate.prep.research_vocabulary import ALL_TERMS
 from debate.prep.session import PrepSession
+
+
+def _load_prompt(name: str) -> str:
+    """Load a prompt template from the prompts directory."""
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+    return (prompts_dir / f"{name}.md").read_text()
 
 
 class StrategyAgent(BaseAgent):
@@ -152,105 +159,20 @@ class StrategyAgent(BaseAgent):
         existing_answers = list(brief.get("answers", {}).keys())
 
         if evidence_type == "support":
-            prompt = f"""You are a debate strategist for Public Forum debate.
-
-Resolution: {self.session.resolution}
-Side: {self.session.side.value.upper()}
-
-Already researched arguments: {existing_args if existing_args else "(none yet)"}
-
-Generate 40-50 NEW argument TAGS to research. Use a MIX of these 5 strategy types (20% each):
-
-1. STOCK - Conventional, predictable arguments (direct claims about the resolution)
-2. CREATIVE - Outside the box, counterintuitive link chains
-3. NICHE - Academic terms of art, specialized theory
-4. OPPORTUNISTIC - Start with impact scenario, work backwards
-5. SECOND_ORDER - Extensions that take existing argument conclusions as premises
-   - Format: "[Existing conclusion] leads to [downstream effect]"
-   - Can chain on other SECOND_ORDER args (build deep causal chains)
-   - Examples: "Job elimination leads to reduced spending", "Reduced spending leads to recession"
-
-EXAMPLES by type:
-
-STOCK: "TikTok ban eliminates creator economy jobs"
-CREATIVE: "Platform ban accelerates decentralized social media adoption"
-NICHE: "Digital sovereignty theory supports data localization mandates"
-OPPORTUNISTIC: "Democratic backsliding from authoritarian tech influence"
-SECOND_ORDER: "Creator job elimination leads to reduced consumer spending"
-SECOND_ORDER (chained): "Reduced consumer spending leads to local business closures"
-
-CRITICAL RULES:
-- AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
-- Do NOT rephrase the same idea in different words
-- SECOND_ORDER args should reference existing arguments OR other SECOND_ORDER args
-- Each tag is exactly 5-12 words
-- Skip tags too similar to existing arguments
-
-Output as numbered list. Generate the tag first, then classify it.
-Format: N. tag | TYPE (where TYPE is STOCK, CREATIVE, NICHE, OPPORTUNISTIC, or SECOND_ORDER)
-
-1. TikTok ban eliminates creator economy jobs | STOCK
-2. Platform ban accelerates decentralized social media adoption | CREATIVE
-3. Creator job elimination leads to reduced consumer spending | SECOND_ORDER
-4. Digital sovereignty theory supports data localization mandates | NICHE
-...etc"""
+            template = _load_prompt("strategy_support")
+            prompt = template.format(
+                resolution=self.session.resolution,
+                side=self.session.side.value.upper(),
+                existing_arguments=existing_args if existing_args else "(none yet)",
+            )
         else:  # answer
-            prompt = f"""You are a debate strategist preparing ANSWERS to opponent arguments.
-
-Resolution: {self.session.resolution}
-Your side: {self.session.side.value.upper()}
-Opponent side: {"CON" if self.session.side.value == "pro" else "PRO"}
-
-Already prepared answers: {existing_answers if existing_answers else "(none yet)"}
-
-Generate 40-50 ANSWER TAGS (responding to likely opponent claims). Use a MIX of these 5 types (20% each):
-
-1. STOCK - Conventional responses to predictable arguments
-2. CREATIVE - Outside the box turns, counterintuitive defenses
-3. NICHE - Academic frameworks to reframe opponent claims
-4. OPPORTUNISTIC - Concede and turn opponent impact scenarios
-5. SECOND_ORDER - Chain opponent's argument to show it leads to worse outcome for them
-   - Format: "AT: [Their claim] leads to [bad consequence for them]"
-   - Can chain on other answers (build deep refutation chains)
-
-EXAMPLES by type:
-
-STOCK:
-- AT: Economic costs outweighed by national security benefits
-- AT: Privacy already protected by existing regulations
-
-CREATIVE:
-- AT: Ban proves government overreach their impact claims warn against
-- AT: Censorship attempt validates slippery slope to authoritarianism
-
-NICHE:
-- AT: Coase theorem suggests market solutions superior to ban
-- AT: Securitization theory explains overblown threat perception
-
-OPPORTUNISTIC (concede and turn):
-- AT: Job losses real but creative destruction accelerates innovation
-- AT: Privacy violations exist but ban sets worse precedent
-
-SECOND_ORDER (chain their argument):
-- AT: Their privacy concern leads to broader surveillance precedent
-- AT: Economic harm claim leads to protectionist spiral
-
-CRITICAL RULES:
-- AVOID semantic duplicates - each answer must respond to a MEANINGFULLY DIFFERENT opponent claim
-- Do NOT rephrase the same response in different words
-- Mix all 5 types roughly equally (20% each)
-- Skip any tag too similar to existing answers above
-- Each tag starts with "AT:" and is 5-12 words
-
-Output as numbered list. Generate the tag first, then classify it.
-Format: N. AT: tag | TYPE (where TYPE is STOCK, CREATIVE, NICHE, OPPORTUNISTIC, or SECOND_ORDER)
-
-1. AT: Economic costs outweighed by national security benefits | STOCK
-2. AT: Ban proves government overreach their impact claims warn against | CREATIVE
-3. AT: Coase theorem suggests market solutions superior to ban | NICHE
-4. AT: Job losses real but creative destruction accelerates innovation | OPPORTUNISTIC
-5. AT: Their privacy concern leads to broader surveillance precedent | SECOND_ORDER
-...etc"""
+            template = _load_prompt("strategy_answers")
+            prompt = template.format(
+                resolution=self.session.resolution,
+                side=self.session.side.value.upper(),
+                opponent_side="CON" if self.session.side.value == "pro" else "PRO",
+                existing_answers=existing_answers if existing_answers else "(none yet)",
+            )
 
         # Show current phase in UI
         self.state.current_phase = self._phases[self._phase]
@@ -350,50 +272,12 @@ Format: N. AT: tag | TYPE (where TYPE is STOCK, CREATIVE, NICHE, OPPORTUNISTIC, 
         brief = self.session.read_brief()
         existing_args = list(brief.get("arguments", {}).keys())
 
-        prompt = f"""You are building IMPACT EVIDENCE for debate arguments.
-
-Resolution: {self.session.resolution}
-Side: {self.session.side.value.upper()}
-
-Current arguments: {existing_args if existing_args else "(none yet)"}
-
-Generate 40-50 IMPACT TAGS using a MIX of these 5 types (20% each):
-
-1. STOCK - Conventional, predictable terminal impacts (war, recession, job loss)
-2. CREATIVE - Unexpected, counterintuitive impact cascades
-3. NICHE - Impacts grounded in specialized academic theory
-4. OPPORTUNISTIC - High-magnitude impact scenarios (extinction, collapse)
-5. SECOND_ORDER - Causal chains: "[Effect] leads to [Consequence]"
-   - Can chain on other SECOND_ORDER impacts (build deep impact chains)
-   - Examples: "Turnout decline leads to gridlock", "Gridlock leads to democratic erosion"
-
-EXAMPLES by type:
-
-STOCK: "Impact: Economic recession ensues"
-STOCK: "Impact: Unemployment skyrockets"
-CREATIVE: "Impact: Innovation ecosystem collapses"
-CREATIVE: "Impact: Institutional trust evaporates"
-NICHE: "Impact: Authoritarian diffusion undermines democracies"
-NICHE: "Impact: Systemic risk cascades through markets"
-OPPORTUNISTIC: "Impact: Great power war erupts"
-OPPORTUNISTIC: "Impact: Existential catastrophe risk increases"
-SECOND_ORDER: "Impact: Reduced turnout leads to policy gridlock"
-SECOND_ORDER: "Impact: Policy gridlock leads to democratic erosion"
-
-CRITICAL RULES:
-- AVOID semantic duplicates - each tag must be MEANINGFULLY DIFFERENT
-- Do NOT create variants of the same impact
-- SECOND_ORDER impacts should build chains (reference existing impacts or other SECOND_ORDER)
-- Each tag starts with "Impact:" and is 5-12 words
-
-Output as numbered list. Generate the tag first, then classify it.
-Format: N. Impact: tag | TYPE (where TYPE is STOCK, CREATIVE, NICHE, OPPORTUNISTIC, or SECOND_ORDER)
-
-1. Impact: Economic recession ensues | STOCK
-2. Impact: Innovation ecosystem collapses | CREATIVE
-3. Impact: Reduced turnout leads to policy gridlock | SECOND_ORDER
-4. Impact: Authoritarian diffusion undermines democracies | NICHE
-...etc"""
+        template = _load_prompt("strategy_impacts")
+        prompt = template.format(
+            resolution=self.session.resolution,
+            side=self.session.side.value.upper(),
+            existing_arguments=existing_args if existing_args else "(none yet)",
+        )
 
         # Show current phase in UI
         self.state.current_phase = self._phases[self._phase]

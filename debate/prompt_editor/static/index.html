@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Editor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="header">
+    <div class="header-row">
+      <h1>Prompt Editor</h1>
+      <select id="prompt-select">
+        <option value="">Select a prompt...</option>
+      </select>
+      <div class="header-spacer"></div>
+      <select id="model-select">
+        <option value="haiku">Haiku</option>
+        <option value="sonnet" selected>Sonnet</option>
+        <option value="opus">Opus</option>
+      </select>
+    </div>
+    <div class="header-row">
+      <div class="view-toggle">
+        <button class="toggle-btn active" id="toggle-template">Template</button>
+        <button class="toggle-btn" id="toggle-materialized">Materialized</button>
+      </div>
+      <div class="header-spacer"></div>
+      <div class="action-bar">
+        <button class="btn" id="vars-btn" title="Toggle variables panel">Vars</button>
+        <button class="btn btn-primary" id="run-btn" disabled>Run</button>
+        <button class="btn" id="pr-btn" disabled>Save &amp; PR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification" id="notification">
+    <span id="notification-text"></span>
+    <button class="close-btn" onclick="hideNotification()">&times;</button>
+  </div>
+
+  <div class="main">
+    <div class="variables-panel" id="variables-panel">
+      <h2>Variables <button class="vars-close" id="vars-close">&times;</button></h2>
+      <div id="var-list"></div>
+    </div>
+    <div class="editor-area">
+      <textarea id="editor" placeholder="Select a prompt to begin editing..."></textarea>
+      <div id="materialized-view" class="materialized-view" style="display:none"></div>
+      <div class="output-panel" id="output-panel">
+        <h3>Output</h3>
+        <div class="output-content" id="output-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <button class="fab" id="fab-btn" title="Chat with Claude">&#9998;</button>
+
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-header">
+      <h3>Chat</h3>
+      <button class="chat-close" id="chat-close">&times;</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Ask Claude to edit the prompt..." />
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

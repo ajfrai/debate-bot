@@ -3,6 +3,7 @@
 import asyncio
 import os
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,6 +14,13 @@ from debate.config import Config
 from debate.prep.base_agent import BaseAgent
 from debate.prep.session import PrepSession
 from debate.research_agent import _brave_search, _extract_urls_from_search_results
+
+
+def _load_prompt(name: str) -> str:
+    """Load a prompt template from the prompts directory."""
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+    return (prompts_dir / f"{name}.md").read_text()
+
 
 # Configurable parallel fetch limit
 PARALLEL_FETCH_LIMIT = 3
@@ -435,22 +443,8 @@ class SearchAgent(BaseAgent):
             evidence_type = task.get("evidence_type", "support")
             task_lines.append(f"{i}. [{task_id}] {argument} (evidence: {evidence_type})")
 
-        prompt = f"""Generate search queries for these debate arguments. Output ONE query per line.
-
-Tasks:
-{chr(10).join(task_lines)}
-
-Requirements for each query:
-- Be specific (include key terms, years like 2024/2025)
-- Target credible sources (studies, experts, think tanks)
-- Use quotes for exact phrases when helpful
-- Max 15 words per query
-
-Format: One query per line, numbered to match the task.
-Example:
-1. "TikTok ban" economic impact jobs 2024 study
-2. Chinese surveillance TikTok data collection expert analysis
-..."""
+        template = _load_prompt("search_query_batch")
+        prompt = template.format(task_lines=chr(10).join(task_lines))
 
         buffer = ""
         queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -479,6 +473,7 @@ Example:
         feeder_task = asyncio.create_task(_feed_queue())
 
         try:
+            current_task_idx = None
             # Process chunks as they arrive
             while True:
                 chunk = await queue.get()
@@ -490,56 +485,64 @@ Example:
                 # Try to extract complete lines (queries) from buffer
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)
-                    parsed = self._parse_query_line(line, tasks)
+                    parsed = self._parse_query_line(line, tasks, current_task_idx)
                     if parsed:
-                        yield parsed
+                        task_id, query, new_idx = parsed
+                        if new_idx is not None:
+                            current_task_idx = new_idx
+                        if task_id and query:
+                            yield (task_id, query)
 
             # Process any remaining buffer after stream ends
             if buffer.strip():
-                parsed = self._parse_query_line(buffer, tasks)
+                parsed = self._parse_query_line(buffer, tasks, current_task_idx)
                 if parsed:
-                    yield parsed
+                    task_id, query, new_idx = parsed
+                    if task_id and query:
+                        yield (task_id, query)
         finally:
             await feeder_task
 
-    def _parse_query_line(self, line: str, tasks: list[dict[str, Any]]) -> tuple[str, str] | None:
+    def _parse_query_line(
+        self, line: str, tasks: list[dict[str, Any]], current_task_idx: int | None = None
+    ) -> tuple[str, str, int | None] | None:
         """Parse a query line from streaming output.
 
-        Expects format: "1. query text" or "[task_id] query text"
+        Expects format:
+        - "Task N:" to identify which task we're parsing
+        - "- query text" for queries belonging to the current task
 
         Args:
             line: Line from stream
             tasks: List of tasks for matching
+            current_task_idx: Current task index (0-based), or None
 
         Returns:
-            (task_id, query) tuple or None if invalid
+            (task_id, query, new_task_idx) tuple or None if invalid
+            new_task_idx is updated if line is a "Task N:" header
         """
         line = line.strip()
         if not line:
             return None
 
-        # Try to match numbered format: "1. query text"
         import re
 
-        match = re.match(r"^(\d+)\.\s*(.+)$", line)
+        # Try to match "Task N:" format
+        match = re.match(r"^Task\s+(\d+):\s*$", line)
         if match:
             idx = int(match.group(1)) - 1  # Convert to 0-indexed
-            query = match.group(2).strip()
             if 0 <= idx < len(tasks):
-                task_id = tasks[idx].get("id", "")
-                if task_id and query:
-                    # Clean up query
-                    query = query.strip('"').strip("'").strip()
-                    return (task_id, query)
+                return ("", "", idx)  # Signal task switch
+            return None
 
-        # Try to match task_id format: "[task_id] query text"
-        match = re.match(r"^\[([^\]]+)\]\s*(.+)$", line)
-        if match:
-            task_id = match.group(1).strip()
-            query = match.group(2).strip()
-            if task_id and query:
-                query = query.strip('"').strip("'").strip()
-                return (task_id, query)
+        # Try to match "- query text" format (bullet point)
+        if line.startswith("-") and current_task_idx is not None:
+            query = line[1:].strip()  # Remove leading "-"
+            if 0 <= current_task_idx < len(tasks):
+                task_id = tasks[current_task_idx].get("id", "")
+                if task_id and query:
+                    query = query.strip('"').strip("'").strip()
+                    return (task_id, query, current_task_idx)
 
         return None
 
@@ -584,16 +587,34 @@ Example:
 
             try:
                 queries_generated = 0
+                task_query_counts = {}  # Track how many queries per task
+
                 async for task_id, query in self._stream_queries(batch, batch_size):
                     # Find the task to get its argument
                     task = next((t for t in batch if t.get("id") == task_id), None)
                     if task:
                         argument = task.get("argument", "")
-                        self._save_query(task_id, argument, query)
-                        queries_generated += 1
+                        query_num = task_query_counts.get(task_id, 0) + 1
+                        task_query_counts[task_id] = query_num
 
-                        # Show progress
-                        self.state.update(f"✓ Query {queries_generated}/{len(batch)}: {query[:50]}...", "working")
+                        if query_num == 1:
+                            # First query: save to original task
+                            self._save_query(task_id, argument, query)
+                        else:
+                            # Additional queries: create variant tasks
+                            variant_task = {
+                                "argument": argument,
+                                "evidence_type": task.get("evidence_type", "support"),
+                                "arg_type": task.get("arg_type", "stock"),
+                                "is_query_variant": True,
+                            }
+                            variant_id = self.session.write_task(variant_task)
+                            if variant_id:
+                                self._save_query(variant_id, argument, query)
+                                self.state.task_stages[variant_id] = "queued"
+
+                        queries_generated += 1
+                        self.state.update(f"✓ Query {queries_generated}: {query[:50]}...", "working")
 
                 self.log("batch_queries_generated", {"batch": i // batch_size + 1, "queries": queries_generated})
 
@@ -639,17 +660,12 @@ Example:
         elif retry_attempt >= 2:
             retry_instructions = "\nIMPORTANT: Multiple attempts failed. Use very different keywords or approach the topic from a different angle."
 
-        prompt = f"""Generate ONE search query to find evidence for this debate argument.
-
-Debate tag: {argument}
-Evidence type: {task.get("evidence_type", "support")}{retry_instructions}
-
-Requirements:
-- Be specific (include key terms, years like 2024/2025)
-- Target credible sources (studies, experts, think tanks)
-- Use quotes for exact phrases when helpful
-
-Output ONLY the search query, nothing else. Max 15 words."""
+        template = _load_prompt("search_query_single")
+        prompt = template.format(
+            argument=argument,
+            evidence_type=task.get("evidence_type", "support"),
+            retry_instructions=retry_instructions,
+        )
 
         try:
             # Run sync API call in thread pool to avoid blocking event loop
