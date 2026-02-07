@@ -56,18 +56,21 @@ QUERY CRAFT:
 - Max 15 words per query
 
 OUTPUT FORMAT:
-For each task, output 3-5 diverse queries using different strategies. Format as a numbered list with bullet points:
+For each task, output 3-5 queries. Use this EXACT format with NO extra text:
 
 Task 1:
-- query using strategy A
-- query using strategy B
-- query using strategy C
+- query text here
+- query text here
+- query text here
 
 Task 2:
-- query using strategy A
-- query using strategy B
-- query using strategy C
+- query text here
 
-CRITICAL: Start each task section with "Task N:" where N is the task number. Put each query on its own line starting with "-". Keep queries concise (max 15 words).
+CRITICAL RULES:
+- Start each section with exactly "Task N:" on its own line
+- Each query starts with "- " (dash + space)
+- ONE query per line
+- NO explanations, NO strategy labels, NO extra text
+- Max 15 words per query
 
 REMEMBER: Your goal is finding evidence that can be deployed strategically in speeches. Think like a debater, not a search robot.
