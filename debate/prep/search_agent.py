@@ -527,8 +527,8 @@ class SearchAgent(BaseAgent):
 
         import re
 
-        # Try to match "Task N:" format
-        match = re.match(r"^Task\s+(\d+):\s*$", line)
+        # Try to match "Task N:" format (with optional text after colon)
+        match = re.match(r"^Task\s+(\d+):", line)
         if match:
             idx = int(match.group(1)) - 1  # Convert to 0-indexed
             if 0 <= idx < len(tasks):
@@ -538,6 +538,8 @@ class SearchAgent(BaseAgent):
         # Try to match "- query text" format (bullet point)
         if line.startswith("-") and current_task_idx is not None:
             query = line[1:].strip()  # Remove leading "-"
+            # Strip strategy label if present (e.g., "[Source Check]" at end)
+            query = re.sub(r"\s*\[.*?\]\s*$", "", query)
             if 0 <= current_task_idx < len(tasks):
                 task_id = tasks[current_task_idx].get("id", "")
                 if task_id and query:
