@@ -606,15 +606,19 @@ class SearchAgent(BaseAgent):
                             # First query: save to original task
                             self._save_query(task_id, argument, query)
                         else:
-                            # Additional queries: create variant tasks
+                            # Additional queries: create variant tasks with unique argument
+                            # Append query number to make it unique for deduplication
                             variant_task = {
-                                "argument": argument,
+                                "argument": f"{argument} [Q{query_num}]",
+                                "base_argument": argument,  # Keep original for grouping
                                 "evidence_type": task.get("evidence_type", "support"),
                                 "arg_type": task.get("arg_type", "stock"),
                                 "is_query_variant": True,
+                                "query_number": query_num,
                             }
                             variant_id = self.session.write_task(variant_task)
                             if variant_id:
+                                # Save with base argument (not the modified one)
                                 self._save_query(variant_id, argument, query)
                                 self.state.task_stages[variant_id] = "queued"
 
