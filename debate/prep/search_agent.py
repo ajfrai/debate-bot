@@ -623,6 +623,9 @@ class SearchAgent(BaseAgent):
                                 self.state.task_stages[variant_id] = "queued"
 
                         queries_generated += 1
+                        # Log to event log for immediate UI display (like strategy agent)
+                        query_display = query[:50] + "..." if len(query) > 50 else query
+                        self.log(f"✓ {query_display}", {"task_id": task_id, "query_num": query_num})
                         self.state.update(f"✓ Query {queries_generated}: {query[:50]}...", "working")
 
                 self.log("batch_queries_generated", {"batch": i // batch_size + 1, "queries": queries_generated})
